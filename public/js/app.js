@@ -761,7 +761,13 @@ const initLogin = () => {
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({email, senha})
             });
-            const data = await res.json();
+            let data;
+            const contentType = res.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                data = await res.json();
+            } else {
+                throw new Error('Servidor temporariamente indisponível.');
+            }
             
             if(!res.ok) throw new Error(data.error || 'Falha ao autenticar.');
             

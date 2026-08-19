@@ -46,10 +46,20 @@ const validate = (schema) => (req, res, next) => {
         req.body = schema.parse(req.body);
         next();
     } catch (err) {
-        const errors = err.errors.map(e => ({
-            field: e.path.join('.'),
-            message: e.message
-        }));
+        let errors = [];
+        if (err && err.issues) {
+            errors = err.issues.map(e => ({
+                field: e.path.join('.'),
+                message: e.message
+            }));
+        } else if (err && err.errors && Array.isArray(err.errors)) {
+            errors = err.errors.map(e => ({
+                field: e.path.join('.'),
+                message: e.message
+            }));
+        } else {
+            console.error("Erro inesperado na validação:", err);
+        }
         return res.status(400).json({ error: 'Falha na validação de dados', details: errors });
     }
 };
