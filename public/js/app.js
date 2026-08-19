@@ -4,6 +4,132 @@
 let currentUser = null;
 let currentToken = localStorage.getItem('jwt') || null;
 
+// ==========================================
+// DEMO MODE ENGINE
+// ==========================================
+let isDemoMode = false;
+let demoIntervalId = null;
+
+const demoData = {
+    sensor: {
+        umidade: 68,
+        temperatura: 24,
+        bateria: 95,
+        status: 'Online',
+        sinal: 'Bom',
+        bombaStatus: 'Desligada'
+    },
+    clima: {
+        temp: 24.5,
+        desc: "Parcialmente nublado",
+        umidade: 62,
+        vento: 12.3,
+        chuva_1h: 0,
+        previsao: [
+            { date: "Hoje", temp_min: 18, temp_max: 27, pop: 10, weather_desc: "Ensolarado" },
+            { date: "Amanhã", temp_min: 19, temp_max: 28, pop: 20, weather_desc: "Parcialmente nublado" },
+            { date: "Depois", temp_min: 20, temp_max: 26, pop: 60, weather_desc: "Chuva leve" }
+        ]
+    },
+    ia: [
+        {
+            recomendacao: "A umidade do solo apresenta níveis adequados para a cultura monitorada. Manter o monitoramento atual e evitar irrigação adicional nas próximas horas.",
+            insights: [
+                "Solo retendo água de forma eficiente.",
+                "Não há previsão de estresse hídrico para os próximos 3 dias."
+            ]
+        },
+        {
+            recomendacao: "Atenção: A umidade está caindo de forma consistente. Recomendado preparar sistema de irrigação para acionamento preventivo na próxima janela.",
+            insights: [
+                "Queda de 3% na umidade nas últimas 12 horas.",
+                "Vento forte pode acelerar evapotranspiração."
+            ]
+        }
+    ],
+    iaIndex: 0,
+    historico: Array.from({length: 24}, (_, i) => ({
+        horario: new Date(Date.now() - (23-i)*3600000).toISOString(),
+        umidade: 65 + Math.random() * 5,
+        temperatura: 22 + Math.random() * 4,
+        status_bomba: i % 12 === 0 ? 'Ligada' : 'Desligada'
+    }))
+};
+
+const originalFetch = window.fetch;
+window.fetch = async function(resource, config) {
+    if (isDemoMode) {
+        const urlStr = typeof resource === 'string' ? resource : resource.url;
+        
+        // Allowed bypasses: views, chartjs, local assets
+        if (urlStr.startsWith('/views/') || urlStr.startsWith('http') && !urlStr.includes('/api/')) {
+            if (urlStr.includes('api.rainviewer.com')) {
+                return Promise.resolve(new Response(JSON.stringify({ radar: { past: [], nowcast: [] } }), { status: 200 }));
+            }
+            return originalFetch.apply(this, arguments);
+        }
+
+        // Network Interception for API Calls
+        if (urlStr.includes('/api/auth/me')) {
+            return Promise.resolve(new Response(JSON.stringify({ id: 'demo123', nome: 'Visitante (Demo)', empresa: 'Fazenda Hidrape', area_hectares: 42, cultura: 'Milho', data_cadastro: new Date().toISOString() }), { status: 200 }));
+        }
+        if (urlStr.includes('/api/sensores/umidade')) {
+            return Promise.resolve(new Response(JSON.stringify(demoData.sensor), { status: 200 }));
+        }
+        if (urlStr.includes('/api/agro/clima')) {
+            return Promise.resolve(new Response(JSON.stringify(demoData.clima), { status: 200 }));
+        }
+        if (urlStr.includes('/api/agro/insights-ia')) {
+            const iaMock = demoData.ia[demoData.iaIndex % demoData.ia.length];
+            return Promise.resolve(new Response(JSON.stringify(iaMock), { status: 200 }));
+        }
+        if (urlStr.includes('/api/agro/media-semanal')) {
+            return Promise.resolve(new Response(JSON.stringify([
+                {_id: 'Seg', media_umidade: 66, max_temp: 25},
+                {_id: 'Ter', media_umidade: 64, max_temp: 26},
+                {_id: 'Qua', media_umidade: 62, max_temp: 27},
+                {_id: 'Qui', media_umidade: 60, max_temp: 28},
+                {_id: 'Sex', media_umidade: 68, max_temp: 24},
+                {_id: 'Sáb', media_umidade: 69, max_temp: 23},
+                {_id: 'Dom', media_umidade: 68, max_temp: 24}
+            ]), { status: 200 }));
+        }
+        if (urlStr.includes('/api/sensores/historico')) {
+            return Promise.resolve(new Response(JSON.stringify({ historico: demoData.historico.slice().reverse(), total: 24, page: 1, pages: 1 }), { status: 200 }));
+        }
+        if (urlStr.includes('/api/auth/config')) {
+            return Promise.resolve(new Response(JSON.stringify({ error: 'Disponível na versão completa.' }), { status: 403 }));
+        }
+        
+        // Guard-rail: throw error on unmocked routes
+        console.error(`[DEMO GUARD] Bloqueada requisição para rota não-mockada: ${urlStr}`);
+        throw new Error(`Rota ${urlStr} não foi mockada na Demonstração.`);
+    }
+    
+    return originalFetch.apply(this, arguments);
+};
+
+const updateDemoData = () => {
+    if(!isDemoMode) return;
+    
+    demoData.sensor.umidade += (Math.random() > 0.5 ? 0.5 : -0.5);
+    demoData.sensor.umidade = Math.min(100, Math.max(0, demoData.sensor.umidade));
+    
+    demoData.sensor.temperatura += (Math.random() > 0.5 ? 0.2 : -0.2);
+    demoData.clima.temp = demoData.sensor.temperatura;
+    
+    if(Math.random() > 0.9) demoData.iaIndex++;
+
+    // Mutate history incrementally (push/shift)
+    demoData.historico.shift();
+    demoData.historico.push({
+        horario: new Date().toISOString(),
+        umidade: demoData.sensor.umidade,
+        temperatura: demoData.sensor.temperatura,
+        status_bomba: demoData.sensor.bombaStatus
+    });
+};
+
 const escapeHTML = (str) => {
     if (!str) return '';
     return String(str).replace(/[&<>'"]/g, 
@@ -15,6 +141,163 @@ const escapeHTML = (str) => {
             '"': '&quot;'
         }[tag])
     );
+};
+
+const showDemoUpsellModal = () => {
+    let modal = document.getElementById('demo-upsell-modal');
+    if(!modal) {
+        modal = document.createElement('div');
+        modal.id = 'demo-upsell-modal';
+        modal.className = 'demo-upsell-modal';
+        modal.innerHTML = `
+            <div class="demo-upsell-content">
+                <span class="material-symbols-rounded demo-upsell-icon">workspace_premium</span>
+                <h3 class="demo-upsell-title">Disponível na versão completa</h3>
+                <p class="demo-upsell-text">Conecte seus sensores e tenha acesso aos dados reais e configurações completas da sua propriedade em tempo real.</p>
+                <button class="demo-upsell-btn">Quero conhecer o Hidrape</button>
+                <button class="demo-upsell-close">Continuar explorando</button>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        modal.querySelector('.demo-upsell-close').addEventListener('click', () => {
+            modal.classList.remove('active');
+        });
+        modal.querySelector('.demo-upsell-btn').addEventListener('click', () => {
+            alert('Esta ação abriria uma nova aba para contato de vendas ou registro!');
+        });
+    }
+    // Forçar reflow para ativar animação
+    modal.style.display = 'flex';
+    setTimeout(() => modal.classList.add('active'), 10);
+};
+
+const startGuidedTour = () => {
+    const steps = [
+        { route: 'dashboard', sel: '.dash-top-bar', title: 'Visão Geral', text: 'Aqui você acompanha o status da sua fazenda e a comunicação com os sensores IoT em tempo real.' },
+        { route: 'dashboard', sel: '.card-signature', title: 'Sensores em Tempo Real', text: 'O coração do Hidrape. Monitore a umidade exata do solo a cada segundo e tome decisões precisas.' },
+        { route: 'dashboard', sel: '#predict-card', title: 'Inteligência Artificial', text: 'Nosso motor agronômico analisa o solo e clima para te entregar recomendações práticas e prevenir perdas.' },
+        { route: 'geo', sel: '.view-header', title: 'Visão Geoespacial', text: 'Acompanhe a sua propriedade pelo mapa satelital e monitore as condições climáticas e precipitações.' },
+        { route: 'history', sel: '.view-header', title: 'Histórico e Tendências', text: 'Acesse os dados armazenados e entenda o comportamento hídrico da fazenda ao longo do tempo.' },
+        { route: 'settings', sel: '.view-header', title: 'Configurações e Alertas', text: 'Gerencie suas credenciais e configure seus alertas via WhatsApp e Telegram.' }
+    ];
+    
+    let popover = document.getElementById('demo-tour-popover');
+    if (!popover) {
+        popover = document.createElement('div');
+        popover.id = 'demo-tour-popover';
+        popover.className = 'demo-tour-popover';
+        document.body.appendChild(popover);
+    }
+
+    let backdrop = document.getElementById('demo-tour-backdrop');
+    if (!backdrop) {
+        backdrop = document.createElement('div');
+        backdrop.id = 'demo-tour-backdrop';
+        backdrop.style.cssText = 'position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(12,17,23,0.5); backdrop-filter:blur(5px); -webkit-backdrop-filter:blur(5px); z-index:9997; opacity:0; pointer-events:none; transition: opacity 0.25s ease, clip-path 0.3s cubic-bezier(0.16, 1, 0.3, 1), -webkit-clip-path 0.3s cubic-bezier(0.16, 1, 0.3, 1);';
+        document.body.appendChild(backdrop);
+    }
+
+    const preventDefault = (e) => e.preventDefault();
+    const preventScrollKeys = (e) => {
+        if (["Space", "ArrowUp", "ArrowDown", "PageUp", "PageDown", "Home", "End"].includes(e.code)) {
+            e.preventDefault();
+        }
+    };
+    
+    // Bloquear scroll do usuário durante a tour
+    window.addEventListener('wheel', preventDefault, { passive: false });
+    window.addEventListener('touchmove', preventDefault, { passive: false });
+    window.addEventListener('keydown', preventScrollKeys, { passive: false });
+
+    const endTour = () => {
+        window.removeEventListener('wheel', preventDefault);
+        window.removeEventListener('touchmove', preventDefault);
+        window.removeEventListener('keydown', preventScrollKeys);
+        
+        document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
+        popover.classList.remove('active');
+        backdrop.style.opacity = '0';
+        setTimeout(() => logout(), 300);
+    };
+    
+    const highlightEl = async (stepIdx) => {
+        if (stepIdx >= steps.length) return endTour();
+        
+        const step = steps[stepIdx];
+        
+        // Navigate if needed
+        const activeLink = document.querySelector('.nav-link.active');
+        if (activeLink && activeLink.getAttribute('data-route') !== step.route) {
+            await navigate(step.route);
+            await new Promise(r => requestAnimationFrame(r));
+        }
+        
+        document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
+        
+        let el = document.querySelector(step.sel);
+        if(!el) {
+            let retries = 0;
+            while(!el && retries < 10) {
+                await new Promise(r => setTimeout(r, 200));
+                el = document.querySelector(step.sel);
+                retries++;
+            }
+        }
+        if(!el) return highlightEl(stepIdx + 1);
+        
+        backdrop.style.opacity = '1';
+        el.scrollIntoView({ behavior: 'auto', block: 'center' });
+        el.classList.add('tour-highlight');
+        
+        // Aguarda renderização síncrona real
+        await new Promise(r => requestAnimationFrame(r));
+        
+        // Use clip-path to punch a hole in the blurred backdrop
+        const rect = el.getBoundingClientRect();
+        const padding = 12;
+        const t = Math.max(0, rect.top - padding);
+        const r = Math.min(window.innerWidth, rect.right + padding);
+        const b = Math.min(window.innerHeight, rect.bottom + padding);
+        const l = Math.max(0, rect.left - padding);
+        
+        const clipPathStr = `polygon(0% 0%, 0% 100%, ${l}px 100%, ${l}px ${t}px, ${r}px ${t}px, ${r}px ${b}px, ${l}px ${b}px, ${l}px 100%, 100% 100%, 100% 0%)`;
+        backdrop.style.clipPath = clipPathStr;
+        backdrop.style.webkitClipPath = clipPathStr;
+        
+        popover.innerHTML = `
+            <span class="tour-step-info">Passo ${stepIdx + 1} de ${steps.length}</span>
+            <h4 class="tour-title">${step.title}</h4>
+            <p class="tour-desc">${step.text}</p>
+            <div class="tour-actions">
+                <button class="tour-btn" id="tour-skip">Sair do Tour</button>
+                <button class="tour-btn primary" id="tour-next">${stepIdx === steps.length - 1 ? 'Concluir' : 'Próximo'}</button>
+            </div>
+        `;
+        
+        let topPos = rect.bottom + window.scrollY + 15;
+        // Se o popover for ficar muito próximo do limite inferior da tela (ou vazar), jogue-o para cima do elemento
+        if (rect.bottom + 220 > window.innerHeight) {
+            topPos = rect.top + window.scrollY - 200;
+        }
+        // Limite superior de segurança
+        if (topPos < window.scrollY + 10) {
+            topPos = window.scrollY + 10;
+        }
+        
+        popover.style.top = `${topPos}px`;
+        
+        let leftPos = rect.left;
+        if(leftPos + 280 > window.innerWidth) leftPos = window.innerWidth - 300;
+        popover.style.left = `${Math.max(10, leftPos)}px`;
+        
+        popover.classList.add('active');
+        
+        document.getElementById('tour-next').onclick = () => highlightEl(stepIdx + 1);
+        document.getElementById('tour-skip').onclick = endTour;
+    };
+    
+    highlightEl(0);
 };
 
 const appContainer = document.getElementById('app-container');
@@ -52,6 +335,8 @@ const logout = (redirect = true) => {
     currentUser = null;
     if(liveInterval) clearTimeout(liveInterval);
     if(weatherInterval) clearTimeout(weatherInterval);
+    if(demoIntervalId) clearInterval(demoIntervalId);
+    isDemoMode = false;
     if(redirect) navigate('login');
 };
 
@@ -60,7 +345,13 @@ const navigate = async (route) => {
     // 1. Limpar timers (Impedir vazamento assíncrono)
     if(liveInterval) { clearTimeout(liveInterval); liveInterval = null; }
     if(weatherInterval) { clearTimeout(weatherInterval); weatherInterval = null; }
+    if(demoIntervalId) { clearInterval(demoIntervalId); demoIntervalId = null; }
     _cardCache = null; // Invalida cache de cards (DOM vai mudar)
+
+    const zombieDropdown = document.getElementById('profile-dropdown');
+    if (zombieDropdown && zombieDropdown.parentNode === document.body) {
+        zombieDropdown.remove();
+    }
 
     // 2. Proteção de Rota
     const unauthRoutes = ['login', 'register', 'forgot-password', 'reset-password'];
@@ -74,12 +365,20 @@ const navigate = async (route) => {
     // 3. UI da Sidebar
     if(unauthRoutes.includes(route)) {
         sidebar.style.display = 'none';
-        appContent.style.marginLeft = '0';
+        appContent.style.margin = '0';
         appContent.style.padding = '0';
+        appContent.style.minHeight = '100dvh';
+        appContent.style.background = 'transparent';
+        appContent.style.backdropFilter = 'none';
+        appContent.style.webkitBackdropFilter = 'none';
     } else {
         sidebar.style.display = 'flex';
-        appContent.style.marginLeft = '';
+        appContent.style.margin = '';
         appContent.style.padding = '';
+        appContent.style.minHeight = '';
+        appContent.style.background = '';
+        appContent.style.backdropFilter = '';
+        appContent.style.webkitBackdropFilter = '';
         
         // Atualizar nav ativa e Lanterna
         const lantern = document.getElementById('nav-lantern');
@@ -96,6 +395,17 @@ const navigate = async (route) => {
         
         // Mobile Sidebar auto-close upon navigation
         sidebar.classList.remove('open');
+
+        // Configurar botões da sidebar para demo/normal
+        const exitBtn = document.getElementById('btn-demo-exit');
+        const logoutBtn = document.getElementById('btn-logout');
+        if (isDemoMode) {
+            if(exitBtn) exitBtn.style.display = 'flex';
+            if(logoutBtn) logoutBtn.style.display = 'none';
+        } else {
+            if(exitBtn) exitBtn.style.display = 'none';
+            if(logoutBtn) logoutBtn.style.display = 'flex';
+        }
     }
 
     // 4. Injetar Template
@@ -178,6 +488,18 @@ document.body.addEventListener('click', e => {
 btnLogout?.addEventListener('click', (e) => {
     e.preventDefault();
     logout(true);
+});
+
+// Listener dinâmico para botão Sair da Demo, caso carregue de forma assíncrona
+document.body.addEventListener('click', e => {
+    const exitBtn = e.target.closest('#btn-demo-exit');
+    if(exitBtn) {
+        e.preventDefault();
+        const conf = confirm("Deseja realmente encerrar a demonstração e voltar ao login?");
+        if (conf) {
+            logout(true);
+        }
+    }
 });
 
 // ==========================================
@@ -410,10 +732,17 @@ const initLogin = () => {
     // Quick demo button
     if(demoBtn) {
         demoBtn.addEventListener('click', () => {
-            const emailInput = document.getElementById('email');
-            if(emailInput) emailInput.value = 'demo@hidrape.com';
-            if(passInput) passInput.value = '123456';
-            if(emailInput) emailInput.focus();
+            isDemoMode = true;
+            currentToken = "demo_token";
+            currentUser = { id: 'demo123', nome: 'Visitante (Demo)', empresa: 'Fazenda Hidrape', area_hectares: 42, tipoPlantacao: 'Milho', data_cadastro: new Date().toISOString() };
+            
+            const card = document.querySelector('.auth-card');
+            if (card) {
+                card.classList.add('fade-out');
+                setTimeout(() => navigate('dashboard'), 400);
+            } else {
+                navigate('dashboard');
+            }
         });
     }
     
@@ -608,9 +937,79 @@ const initDashboard = async () => {
     // 1. Limpeza Garantida (Travar Phantom Timers de duplo carregamento)
     if(liveInterval) { clearTimeout(liveInterval); liveInterval = null; }
     if(weatherInterval) { clearTimeout(weatherInterval); weatherInterval = null; }
+    if(demoIntervalId) { clearInterval(demoIntervalId); demoIntervalId = null; }
+
+    if (isDemoMode) {
+        // Exibe badge demo
+        const badge = document.getElementById('global-demo-badge');
+        if(!badge) {
+            const header = document.querySelector('.dash-top-bar > div:first-child');
+            if(header) {
+                const b = document.createElement('div');
+                b.id = 'global-demo-badge';
+                b.className = 'demo-badge';
+                b.innerHTML = '<span class="badge-status-dot" style="background:#ff6b6b; box-shadow: 0 0 8px #ff6b6b"></span> MODO DEMONSTRAÇÃO';
+                b.title = 'Você está explorando uma demonstração com dados simulados.';
+                header.appendChild(b);
+            }
+        }
+        
+        demoIntervalId = setInterval(updateDemoData, 5000);
+        setTimeout(startGuidedTour, 1000); // Tentar iniciar o tour 1s depois
+    } else {
+        const badge = document.getElementById('global-demo-badge');
+        if(badge) badge.remove();
+    }
 
     document.getElementById('dash-user').textContent = currentUser.nome.split(' ')[0];
     document.getElementById('dash-culture').textContent = currentUser.tipoPlantacao;
+
+    // ----- PROFILE MENU DROPDOWN -----
+    const profileBtn = document.getElementById('profile-menu-btn');
+    const profileMenu = document.getElementById('profile-dropdown');
+    if (profileBtn && profileMenu) {
+        profileBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isVisible = profileMenu.style.display === 'flex';
+            if (isVisible) {
+                profileMenu.style.opacity = '0';
+                profileMenu.style.transform = 'scale(0.95)';
+                setTimeout(() => profileMenu.style.display = 'none', 200);
+            } else {
+                // Break out of .main-content to fix backdrop-filter by appending to body
+                const rect = profileBtn.getBoundingClientRect();
+                if (profileMenu.parentNode !== document.body) {
+                    document.body.appendChild(profileMenu);
+                }
+                profileMenu.style.top = (rect.bottom + window.scrollY + 12) + 'px';
+                profileMenu.style.left = (rect.right + window.scrollX - 260) + 'px';
+                
+                profileMenu.style.display = 'flex';
+                // Trigger reflow
+                profileMenu.offsetHeight;
+                profileMenu.style.opacity = '1';
+                profileMenu.style.transform = 'scale(1)';
+            }
+        });
+
+        profileMenu.querySelectorAll('.dropdown-item[data-action]').forEach(item => {
+            item.addEventListener('click', () => {
+                const action = item.dataset.action;
+                if (action.startsWith('settings-')) {
+                    const tab = action.split('-')[1];
+                    window._targetSettingsTab = tab === 'prop' ? 'propriedade' : 'integracoes';
+                    
+                    // Close menu gracefully before navigation
+                    profileMenu.style.opacity = '0';
+                    profileMenu.style.transform = 'scale(0.95)';
+                    setTimeout(() => {
+                        profileMenu.style.display = 'none';
+                        navigate('settings');
+                    }, 200);
+                }
+            });
+        });
+    }
 
     // Config Iniciais
     const valText = document.getElementById('umidade-valor');
@@ -745,7 +1144,11 @@ const initDashboard = async () => {
     if (nasaCard) {
         nasaCard.addEventListener('click', () => {
             if (!window._latestSat || !window._latestSat.historico) return;
-            document.getElementById('nasa-modal').style.display = 'flex';
+            
+            const modal = document.getElementById('nasa-modal');
+            document.body.appendChild(modal);
+            modal.style.display = 'flex';
+            document.body.style.overflow = 'hidden';
             
             const hist = window._latestSat.historico;
             const ctxNasa = document.getElementById('nasaChart').getContext('2d');
@@ -777,7 +1180,12 @@ const initDashboard = async () => {
     const closeNasaBtn = document.getElementById('close-nasa-modal');
     if (closeNasaBtn) {
         closeNasaBtn.addEventListener('click', () => {
-            document.getElementById('nasa-modal').style.display = 'none';
+            const modal = document.getElementById('nasa-modal');
+            modal.style.display = 'none';
+            document.body.style.overflow = '';
+            
+            const appContent = document.getElementById('app-content');
+            if (appContent) appContent.appendChild(modal);
         });
     }
 
@@ -1490,6 +1898,45 @@ const initHistory = () => {
 
 // ----- SETTINGS -----
 const initSettings = async () => {
+    // Tab logic
+    document.querySelectorAll('.settings-tab').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            // Reset all tabs
+            document.querySelectorAll('.settings-tab').forEach(b => {
+                b.classList.remove('active');
+                b.style.background = 'transparent';
+                b.style.color = 'var(--neutral-300)';
+                b.style.borderColor = 'transparent';
+                const icon = b.querySelector('.material-symbols-rounded');
+                if (icon) icon.style.color = 'inherit';
+            });
+            
+            // Activate clicked tab
+            const target = e.currentTarget;
+            target.classList.add('active');
+            target.style.background = 'rgba(255,255,255,0.05)';
+            target.style.color = '#fff';
+            target.style.borderColor = 'rgba(255,255,255,0.1)';
+            const icon = target.querySelector('.material-symbols-rounded');
+            if (icon) icon.style.color = 'var(--sys-accent)';
+            
+            // Switch panels
+            document.querySelectorAll('.settings-panel').forEach(p => p.style.display = 'none');
+            const tabId = 'tab-' + target.dataset.tab;
+            const panel = document.getElementById(tabId);
+            if (panel) panel.style.display = 'block';
+        });
+    });
+
+    // Check if there is a target tab selected from dropdown navigation
+    if (window._targetSettingsTab) {
+        const tabBtn = document.querySelector(`.settings-tab[data-tab="${window._targetSettingsTab}"]`);
+        if (tabBtn) {
+            tabBtn.click(); // Trigger the logic above automatically
+        }
+        window._targetSettingsTab = null; // Clear it
+    }
+
     // Fill
     document.getElementById('set-nome').value = currentUser.nome || '';
     document.getElementById('set-cultura').value = currentUser.tipoPlantacao;
@@ -1505,6 +1952,11 @@ const initSettings = async () => {
         const btn = e.target.querySelector('button[type="submit"]');
         const originalText = btn.textContent;
         const stateInput = document.getElementById('set-estado').value;
+
+        if (isDemoMode) {
+            btn.disabled = false;
+            return showDemoUpsellModal();
+        }
 
         try {
             btn.disabled = true;
@@ -1585,5 +2037,18 @@ const bootApplication = async () => {
         navigate('login');
     }
 };
+
+// Global click event to close dropdowns
+document.addEventListener('click', (e) => {
+    const profileMenu = document.getElementById('profile-dropdown');
+    const profileBtn = document.getElementById('profile-menu-btn');
+    if (profileMenu && profileMenu.style.display === 'flex') {
+        if (!profileMenu.contains(e.target) && (!profileBtn || !profileBtn.contains(e.target))) {
+            profileMenu.style.opacity = '0';
+            profileMenu.style.transform = 'scale(0.95)';
+            setTimeout(() => profileMenu.style.display = 'none', 200);
+        }
+    }
+});
 
 document.addEventListener('DOMContentLoaded', bootApplication);

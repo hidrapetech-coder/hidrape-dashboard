@@ -15,9 +15,28 @@
             <span style="font-size: 0.8rem; font-weight: 600; color: var(--sys-light);">Online</span>
         </div>
 
-        <a href="javascript:void(0)" data-route="settings" class="card" style="width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0; text-decoration: none;">
-            <span class="material-symbols-rounded" style="color: var(--sys-light); font-size: 1.1rem;">person</span>
-        </a>
+        <div style="position: relative;">
+            <button id="profile-menu-btn" class="card" style="width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0; border: none; cursor: pointer; outline: none; transition: transform 0.2s;">
+                <span class="material-symbols-rounded" style="color: var(--sys-light); font-size: 1.1rem;">person</span>
+            </button>
+            
+            <!-- Apple-style Dropdown -->
+            <div id="profile-dropdown" style="display: none; opacity: 0; transform: scale(0.95); position: absolute; width: 260px; background: rgba(22, 28, 36, 0.65); backdrop-filter: blur(40px) saturate(200%); -webkit-backdrop-filter: blur(40px) saturate(200%); border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.2); z-index: 9999; padding: 8px; flex-direction: column; gap: 4px; transform-origin: top right; transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.1);">
+                <div class="dropdown-item" data-action="settings-prop" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; cursor: pointer; color: var(--sys-light); transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">
+                    <span class="material-symbols-rounded" style="font-size: 1.2rem; opacity: 0.8;">home_work</span>
+                    <span style="font-size: 0.9rem; font-weight: 500;">Propriedade & Cultura</span>
+                </div>
+                <div class="dropdown-item" data-action="settings-int" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; cursor: pointer; color: var(--sys-light); transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">
+                    <span class="material-symbols-rounded" style="font-size: 1.2rem; opacity: 0.8;">api</span>
+                    <span style="font-size: 0.9rem; font-weight: 500;">Integrações & Alertas</span>
+                </div>
+                <div style="height: 1px; background: rgba(255,255,255,0.08); margin: 4px 6px;"></div>
+                <div class="dropdown-item" onclick="logout()" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; cursor: pointer; color: #ff4444; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,68,68,0.15)'" onmouseout="this.style.background='transparent'">
+                    <span class="material-symbols-rounded" style="font-size: 1.2rem; opacity: 0.8;">logout</span>
+                    <span style="font-size: 0.9rem; font-weight: 500;">Sair da Conta</span>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -59,7 +78,6 @@
                 <p id="satelite-data" style="font-size: 0.7rem; opacity: 0.5; margin-top: 6px;">Buscando dados de satélite...</p>
             </div>
         </div>
-
 
         <!-- Saúde do Solo -->
         <div class="card card-light" style="padding: 22px;">

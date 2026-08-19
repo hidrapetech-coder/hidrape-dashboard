@@ -722,17 +722,16 @@ select.form-control option {
     display: flex;
     justify-content: center;
     align-items: center;
-    min-height: 100vh;
-    min-height: 100dvh;
-    padding: 24px;
+    height: 100vh;
+    height: 100dvh;
+    padding: 20px;
     background-color: var(--neutral-950);
     background-image: url('/assets/login-bg.jpg');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
     position: relative;
-    overflow-x: hidden;
-    overflow-y: auto;
+    overflow: hidden;
 }
 
 .auth-container::before {
@@ -1572,4 +1571,236 @@ select:focus-visible {
 
 ::-webkit-scrollbar-thumb:hover {
     background: var(--neutral-400);
+}
+
+/* ============================================
+   DEMO MODE STYLES
+   ============================================ */
+
+.demo-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    border-radius: 20px;
+    background: rgba(148, 180, 193, 0.15);
+    border: 1px solid rgba(148, 180, 193, 0.4);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    color: var(--sys-accent);
+    font-family: 'Space Grotesk', sans-serif;
+    font-weight: 600;
+    font-size: 0.75rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    box-shadow: 0 0 10px rgba(148, 180, 193, 0.2);
+    animation: demoPulse 3s infinite alternate;
+}
+
+@keyframes demoPulse {
+    0% { box-shadow: 0 0 5px rgba(148, 180, 193, 0.1); border-color: rgba(148, 180, 193, 0.2); }
+    100% { box-shadow: 0 0 15px rgba(148, 180, 193, 0.4); border-color: rgba(148, 180, 193, 0.6); }
+}
+
+.demo-exit-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(220, 53, 69, 0.1);
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    border-radius: 8px;
+    color: #ff6b6b;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--duration) ease;
+}
+
+.demo-exit-btn:hover {
+    background: rgba(220, 53, 69, 0.2);
+    border-color: rgba(220, 53, 69, 0.5);
+    transform: translateY(-1px);
+}
+
+.demo-upsell-modal {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(12, 17, 23, 0.6);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+}
+
+.demo-upsell-modal.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.demo-upsell-content {
+    background: rgba(28, 45, 63, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.4);
+    border-radius: 20px;
+    padding: 32px;
+    width: 90%;
+    max-width: 400px;
+    text-align: center;
+    transform: scale(0.95);
+    transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.demo-upsell-modal.active .demo-upsell-content {
+    transform: scale(1);
+}
+
+.demo-upsell-icon {
+    font-size: 48px;
+    color: var(--sys-accent);
+    margin-bottom: 16px;
+}
+
+.demo-upsell-title {
+    font-family: 'Space Grotesk', sans-serif;
+    font-size: 1.25rem;
+    color: var(--sys-light);
+    margin-bottom: 12px;
+}
+
+.demo-upsell-text {
+    font-size: 0.9rem;
+    color: var(--neutral-300);
+    line-height: 1.5;
+    margin-bottom: 24px;
+}
+
+.demo-upsell-btn {
+    background: var(--sys-accent);
+    color: var(--bg-main);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    width: 100%;
+    transition: transform 0.2s ease, opacity 0.2s ease;
+}
+
+.demo-upsell-btn:hover {
+    transform: scale(1.02);
+    opacity: 0.9;
+}
+
+.demo-upsell-close {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    color: var(--sys-light);
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    margin-top: 12px;
+    transition: background 0.2s ease;
+}
+
+.demo-upsell-close:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+/* Tour Guides */
+.tour-highlight {
+    position: relative;
+    z-index: 9998 !important;
+    border-radius: inherit;
+    pointer-events: none;
+}
+
+.demo-tour-popover {
+    position: absolute;
+    z-index: 9999;
+    background: var(--bg-surface);
+    border: 1px solid var(--sys-accent);
+    box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+    border-radius: 12px;
+    padding: 20px;
+    width: 280px;
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.25s var(--ease-out), transform 0.25s var(--ease-out), top 0.3s var(--ease-out), left 0.3s var(--ease-out);
+    pointer-events: none;
+}
+
+.demo-tour-popover.active {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+}
+
+.tour-step-info {
+    font-size: 0.75rem;
+    color: var(--sys-accent);
+    font-weight: 600;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.tour-title {
+    font-size: 1.1rem;
+    color: var(--sys-light);
+    margin-bottom: 8px;
+    font-family: 'Space Grotesk', sans-serif;
+}
+
+.tour-desc {
+    font-size: 0.85rem;
+    color: var(--neutral-300);
+    line-height: 1.4;
+    margin-bottom: 16px;
+}
+
+.tour-actions {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.tour-btn {
+    background: transparent;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: var(--sys-light);
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tour-btn.primary {
+    background: var(--sys-accent);
+    color: var(--bg-main);
+    border: none;
+    font-weight: 600;
+}
+
+.tour-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.tour-btn.primary:hover {
+    background: #a9c5d1;
+}
+
+.fade-transition {
+    transition: opacity 0.4s ease, filter 0.4s ease;
+}
+.fade-out {
+    opacity: 0;
+    filter: blur(8px);
 }
