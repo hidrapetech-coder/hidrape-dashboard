@@ -1,0 +1,58 @@
+<div class="view-header" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 32px;">
+    <div class="brand-logo" style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-family: var(--font-family); font-size: 1.25rem; font-weight: 800; letter-spacing: -0.5px; color: var(--sys-light);">HIDRA<span style="color: var(--sys-accent); font-style: italic;">PE</span> <span style="font-weight: 500; opacity: 0.5; font-size: 1.15rem; margin-left: 4px; letter-spacing: -0.2px;">Dashboard</span></span>
+    </div>
+    <div>
+        <h1>Visão Geoespacial & Clima</h1>
+        <p>Monitoramento climático local e termal por satélite</p>
+    </div>
+</div>
+
+<div class="bento-grid">
+    <!-- Clima -->
+    <div id="clima-card" class="card card-blue" style="grid-column: span 12; padding: 22px; display: flex; flex-direction: row; justify-content: space-between; align-items: center;">
+        <div style="display: flex; gap: 16px; align-items: center;">
+            <span id="clima-icon" class="material-symbols-rounded" style="font-size: 3rem; color: var(--sys-accent);">routine</span>
+            <div>
+                <h2 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; margin-bottom: 4px;">Clima Local</h2>
+                <h3 id="clima-cidade" style="font-size: 1rem; font-weight: 600;">Localizando...</h3>
+                <span id="clima-umid" style="font-size: 0.85rem; opacity: 0.7;">Ar: --%</span>
+            </div>
+        </div>
+        <p id="clima-temp" class="font-kpi" style="font-size: 3.5rem; line-height: 1;">--°C</p>
+    </div>
+</div>
+
+<!-- Mapa Geoespacial -->
+<div class="card" style="margin-top: 20px; padding: 24px; min-height: 520px; display: flex; flex-direction: column; position: relative;">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px; flex-wrap: wrap; gap: 12px;">
+        <div>
+            <h2 style="font-size: 1rem; font-weight: 600; margin-bottom: 8px;">Mapeamento de Satélite</h2>
+            <div style="display: flex; gap: 4px; background: rgba(0,0,0,0.2); padding: 4px; border-radius: var(--radius-badge);">
+                <button id="btn-layer-ndvi" style="padding: 6px 14px; border-radius: 6px; border: none; background: var(--sys-secondary); color: white; cursor: pointer; font-size: 0.78rem; font-weight: 600; font-family: var(--font-family); transition: all 0.2s;">Estresse Hídrico</button>
+                <button id="btn-layer-rain" style="padding: 6px 14px; border-radius: 6px; border: none; background: transparent; color: var(--neutral-300); cursor: pointer; font-size: 0.78rem; font-weight: 600; font-family: var(--font-family); transition: all 0.2s;">Precipitação</button>
+            </div>
+        </div>
+        
+        <div id="legend-ndvi" style="display: flex; gap: 10px; font-size: 0.7rem; align-items: center; background: rgba(0,0,0,0.2); padding: 6px 12px; border-radius: 6px; color: var(--sys-light);">
+            <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: red; display: inline-block;"></span> Seca</span>
+            <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: lime; display: inline-block;"></span> Saudável</span>
+        </div>
+        <div id="legend-rain" style="display: none; gap: 10px; font-size: 0.7rem; align-items: center; background: rgba(0,0,0,0.2); padding: 6px 12px; border-radius: 6px; color: var(--sys-light);">
+            <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: cyan; display: inline-block;"></span> Garoa</span>
+            <span style="display: flex; align-items: center; gap: 4px;"><span style="width: 8px; height: 8px; border-radius: 50%; background: blue; display: inline-block;"></span> Forte</span>
+        </div>
+    </div>
+    <div style="background: rgba(0,0,0,0.15); padding: 14px; border-radius: 10px; font-size: 0.8rem; line-height: 1.5; margin-bottom: 16px;">
+        <div style="display: flex; gap: 8px; margin-bottom: 6px; align-items: center; color: var(--sys-accent);">
+            <span class="material-symbols-rounded" style="font-size: 1.1rem;">psychology</span>
+            <strong style="font-size: 0.85rem;">Análise Termal Agronômica (IA)</strong>
+        </div>
+        <div id="ndvi-analysis-text" style="color: rgba(234,224,207,0.7);">
+            Aguardando varredura do satélite...
+        </div>
+    </div>
+
+    <div id="farm-map" style="flex: 1; min-height: 280px; width: 100%; border-radius: 10px; overflow: hidden; background: var(--neutral-700); position: relative; z-index: 1;">
+    </div>
+</div>

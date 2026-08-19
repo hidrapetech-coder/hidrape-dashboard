@@ -1,0 +1,92 @@
+<div class="view-header" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 32px;">
+    <div class="brand-logo" style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-family: var(--font-family); font-size: 1.25rem; font-weight: 800; letter-spacing: -0.5px; color: var(--sys-light);">HIDRA<span style="color: var(--sys-accent); font-style: italic;">PE</span> <span style="font-weight: 500; opacity: 0.5; font-size: 1.15rem; margin-left: 4px; letter-spacing: -0.2px;">Dashboard</span></span>
+    </div>
+    <div>
+        <h1>Configurações e Alertas</h1>
+        <p>Ajuste as preferências de notificação e regras do pivô</p>
+    </div>
+</div>
+
+<div class="bento-grid">
+    <!-- Dados da Fazenda -->
+    <div class="card" style="grid-column: span 6;">
+        <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 4px;">Propriedade & Cultura</h2>
+        <p style="font-size: 0.8rem; color: var(--neutral-300); margin-bottom: 24px;">Dados de localização e tipo de plantação para calibrar a IA</p>
+        <form id="settings-form">
+            <div class="form-group">
+                <label>Seu Nome</label>
+                <input type="text" id="set-nome" name="operator-name" autocomplete="name" class="form-control" required>
+            </div>
+            
+            <div class="form-group">
+                <label>Cultura Primária</label>
+                <select id="set-cultura" class="form-control" required>
+                    <option value="Milho">Milho</option>
+                    <option value="Feijão">Feijão</option>
+                    <option value="Hortaliças">Hortaliças</option>
+                    <option value="Cana-de-açúcar">Cana-de-açúcar</option>
+                    <option value="Personalizado">Outro (Personalizado)</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label>Tamanho da Plantação (Hectares)</label>
+                <input type="number" id="set-tamanho" name="farm-size" class="form-control" placeholder="Ex: 10" min="1" max="100000" required>
+            </div>
+            
+            <div style="display: flex; gap: 16px;">
+                <div class="form-group" style="flex: 2;">
+                    <label>Cidade</label>
+                    <input type="text" id="set-cidade" class="form-control" placeholder="Ex: Piracicaba">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label>UF</label>
+                    <input type="text" id="set-estado" class="form-control" maxlength="2" style="text-transform: uppercase;" placeholder="SP">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Endereço da Propriedade <span style="font-weight: 400; opacity: 0.5;">(opcional)</span></label>
+                <input type="text" id="set-endereco" class="form-control" placeholder="Ex: Rodovia BR-101, Km 45, Lote 12">
+                <small style="opacity: 0.45; font-size: 0.72rem; margin-top: 2px;">Endereço detalhado permite mapeamento de satélite com precisão.</small>
+            </div>
+
+            <button type="submit" class="btn-primary" style="margin-top: 12px;">Salvar Dados</button>
+            <div id="set-success" style="color: var(--color-good); margin-top: 14px; display: none; font-size: 0.9rem; font-weight: 500;">✓ Salvo com sucesso</div>
+        </form>
+    </div>
+
+    <!-- Integrações -->
+    <div class="card" style="grid-column: span 6;">
+        <h2 style="font-size: 1.1rem; font-weight: 600; margin-bottom: 4px;">Integrações & Alertas</h2>
+        <p style="font-size: 0.8rem; color: var(--neutral-300); margin-bottom: 24px;">Conecte seu sensor IoT e configure notificações automáticas</p>
+        
+        <form id="integrations-form">
+            <div class="form-group">
+                <label>Token do Sensor (Blynk)</label>
+                <input type="text" id="set-blynk" name="blynk-device-token" autocomplete="off" class="form-control" placeholder="Deixe vazio para usar sensor global">
+            </div>
+
+            <div style="border-top: 1px solid var(--glass-border); margin: 20px 0; padding-top: 20px;">
+                <h3 style="font-size: 0.9rem; font-weight: 600; color: var(--sys-accent); margin-bottom: 16px; display: flex; align-items: center; gap: 8px;">
+                    <span class="material-symbols-rounded" style="font-size: 1rem;">notifications_active</span>
+                    Alertas WhatsApp
+                </h3>
+            </div>
+            
+            <div class="form-group">
+                <label>Telefone (com DDI)</label>
+                <input type="tel" id="set-phone" name="whatsapp-phone" autocomplete="tel" class="form-control" placeholder="Ex: 5581999999999">
+            </div>
+
+            <div class="form-group">
+                <label>API Key (CallMeBot)</label>
+                <input type="password" id="set-apikey" name="callmebot-apikey" autocomplete="off" class="form-control" placeholder="Chave do serviço CallMeBot">
+            </div>
+
+            <button type="submit" class="btn-primary" style="margin-top: 12px;">Atualizar Integrações</button>
+            <div id="int-success" style="color: var(--color-good); margin-top: 14px; display: none; font-size: 0.9rem; font-weight: 500;">✓ Integrações salvas</div>
+        </form>
+    </div>
+</div>

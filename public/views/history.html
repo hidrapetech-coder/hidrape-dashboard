@@ -1,0 +1,41 @@
+<div class="view-header" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 32px;">
+    <div class="brand-logo" style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-family: var(--font-family); font-size: 1.25rem; font-weight: 800; letter-spacing: -0.5px; color: var(--sys-light);">HIDRA<span style="color: var(--sys-accent); font-style: italic;">PE</span> <span style="font-weight: 500; opacity: 0.5; font-size: 1.15rem; margin-left: 4px; letter-spacing: -0.2px;">Dashboard</span></span>
+    </div>
+    <div>
+        <h1>Histórico e Tendências</h1>
+        <p>Acompanhe o consumo e a resposta hídrica da fazenda</p>
+    </div>
+</div>
+
+<div class="card" style="margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <div>
+            <h2 style="font-size: 1.1rem; font-weight: 600;">Registros do Sensor</h2>
+            <p style="font-size: 0.8rem; color: var(--neutral-300); margin-top: 4px;">Dados persistidos no banco — ordenados por data</p>
+        </div>
+        <button id="btn-refresh-history" class="btn-primary" style="width: auto; padding: 8px 20px; font-size: 0.85rem;">Atualizar</button>
+    </div>
+    
+    <div style="overflow-x: auto;">
+        <table class="font-table data-table">
+            <thead>
+                <tr>
+                    <th>Data / Hora</th>
+                    <th>Umidade (%)</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody id="history-tbody">
+                <!-- Injetados via JS -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Paginação -->
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--glass-border);">
+        <button id="hist-prev" class="btn-primary" style="width: auto; padding: 8px 16px; font-size: 0.85rem; background: var(--neutral-600);">« Ant</button>
+        <span id="hist-page-info" style="color: var(--neutral-300); font-size: 0.85rem;">Página 1 de ?</span>
+        <button id="hist-next" class="btn-primary" style="width: auto; padding: 8px 16px; font-size: 0.85rem; background: var(--neutral-600);">Próx »</button>
+    </div>
+</div>

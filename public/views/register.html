@@ -1,0 +1,59 @@
+<div class="auth-container">
+    <div class="card auth-card" style="max-width: 480px;">
+        <div style="text-align: center; margin-bottom: 32px;">
+            <svg viewBox="0 0 240 60" style="height: 44px; width: auto; margin-bottom: 12px;" xmlns="http://www.w3.org/2000/svg">
+                <g transform="translate(35, 0)">
+                    <text x="0" y="40" font-family="'Inter', sans-serif" font-weight="800" font-size="34" fill="#EAE0CF" letter-spacing="-1">HIDRA</text>
+                    <text x="110" y="40" font-family="'Inter', sans-serif" font-weight="800" font-style="italic" font-size="34" fill="#94B4C1" letter-spacing="-2">PE</text>
+                </g>
+            </svg>
+            <p style="color: var(--neutral-300); font-size: 0.9rem;">Comece a monitorar seu solo</p>
+        </div>
+        
+        <form id="register-form" autocomplete="on">
+            <div class="form-group">
+                <label for="reg-nome">Nome Completo</label>
+                <input type="text" id="reg-nome" name="name" autocomplete="name" class="form-control" required placeholder="João da Silva">
+            </div>
+            <div class="form-group">
+                <label for="reg-email">E-mail</label>
+                <input type="email" id="reg-email" name="email" autocomplete="email" class="form-control" required placeholder="joao@email.com">
+            </div>
+            <div class="form-group">
+                <label for="reg-senha">Senha</label>
+                <input type="password" id="reg-senha" name="password" autocomplete="new-password" class="form-control" required placeholder="Mínimo 6 caracteres" minlength="6">
+            </div>
+            
+            <div style="display: flex; gap: 16px;">
+                <div class="form-group" style="flex: 2;">
+                    <label for="reg-cidade">Cidade</label>
+                    <input type="text" id="reg-cidade" name="city" autocomplete="address-level2" class="form-control" required placeholder="Ex: Piracicaba">
+                </div>
+                <div class="form-group" style="flex: 1;">
+                    <label for="reg-estado">UF</label>
+                    <input type="text" id="reg-estado" name="state" autocomplete="address-level1" class="form-control" required placeholder="SP" maxlength="2" style="text-transform: uppercase;">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="reg-cultura">Cultura Primária</label>
+                <select id="reg-cultura" class="form-control" required>
+                    <option value="Milho">Milho</option>
+                    <option value="Feijão">Feijão</option>
+                    <option value="Hortaliças">Hortaliças</option>
+                    <option value="Cana-de-açúcar">Cana-de-açúcar</option>
+                    <option value="Personalizado">Outro (Personalizado)</option>
+                </select>
+            </div>
+
+            <div id="reg-error" style="color: var(--color-dry); margin-bottom: 12px; display: none; font-size: 0.85rem;"></div>
+            
+            <button type="submit" class="btn-primary" style="margin-top: 12px;">Cadastrar</button>
+        </form>
+
+        <div style="text-align: center; margin-top: 24px; font-size: 0.85rem;">
+            <span style="color: var(--neutral-300);">Já possui login?</span>
+            <a href="#" data-route="login" style="color: var(--sys-accent); font-weight: 600; text-decoration: none; margin-left: 4px;">Faça Login</a>
+        </div>
+    </div>
+</div>

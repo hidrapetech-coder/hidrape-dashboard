@@ -1,0 +1,79 @@
+<div class="auth-container">
+    <div class="auth-split-card">
+        <!-- Left Side: Login Form Panel -->
+        <div class="auth-form-panel">
+            <!-- Brand Logo -->
+            <div class="auth-brand">
+                <svg viewBox="0 0 240 60" style="height: 36px; width: auto;" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="translate(0, 0)">
+                        <text x="0" y="42" font-family="'Inter', sans-serif" font-weight="800" font-size="36" fill="#EAE0CF" letter-spacing="-1">HIDRA</text>
+                        <text x="115" y="42" font-family="'Inter', sans-serif" font-weight="800" font-style="italic" font-size="36" fill="#94B4C1" letter-spacing="-2">PE</text>
+                    </g>
+                </svg>
+            </div>
+
+            <!-- Header -->
+            <div class="auth-form-header">
+                <h1 class="auth-title">Entrar</h1>
+                <p class="auth-subtitle">Acesse sua plataforma de monitoramento agrícola e telemetria de solo em tempo real.</p>
+            </div>
+
+            <!-- Login Form -->
+            <form id="login-form" autocomplete="on" class="auth-form">
+                <div class="auth-input-group">
+                    <label for="email" class="auth-label">E-mail</label>
+                    <div class="auth-input-wrapper">
+                        <span class="material-symbols-rounded auth-input-icon">mail</span>
+                        <input type="email" id="email" name="email" autocomplete="email" class="auth-input" required placeholder="seu@email.com">
+                    </div>
+                </div>
+
+                <div class="auth-input-group">
+                    <label for="senha" class="auth-label">Senha</label>
+                    <div class="auth-input-wrapper">
+                        <span class="material-symbols-rounded auth-input-icon">lock</span>
+                        <input type="password" id="senha" name="senha" autocomplete="current-password" class="auth-input" required placeholder="••••••••">
+                        <button type="button" id="toggle-password" class="auth-toggle-pass" aria-label="Alternar visualização da senha">
+                            <span class="material-symbols-rounded" id="toggle-password-icon">visibility</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="auth-form-options">
+                    <label class="auth-checkbox-label">
+                        <input type="checkbox" id="remember-me" class="auth-checkbox">
+                        <span>Lembrar de mim</span>
+                    </label>
+                    <a href="javascript:void(0)" data-route="forgot-password" class="auth-forgot-link">Esqueci minha senha</a>
+                </div>
+
+                <div id="login-error" class="auth-error-alert" style="display: none;"></div>
+
+                <button type="submit" class="auth-btn-primary">
+                    <span>Entrar na Plataforma</span>
+                    <span class="material-symbols-rounded auth-btn-icon">arrow_forward</span>
+                </button>
+            </form>
+
+            <div class="auth-divider">
+                <span>ou acesse rapidamente</span>
+            </div>
+
+            <div class="auth-social-row">
+                <button type="button" class="auth-social-btn" id="btn-quick-demo" title="Preencher credenciais para teste">
+                    <span class="material-symbols-rounded" style="font-size: 16px; color: var(--sys-accent);">sensors</span>
+                    <span>Modo Demonstração</span>
+                </button>
+            </div>
+
+            <!-- Footer -->
+            <div class="auth-footer">
+                <span>Não tem uma conta?</span>
+                <a href="javascript:void(0)" data-route="register" class="auth-register-link">Cadastre-se</a>
+            </div>
+        </div>
+        
+        <!-- Right Side: Empty Glass Pane showing the background -->
+        <div style="flex: 1;"></div>
+    </div>
+</div>

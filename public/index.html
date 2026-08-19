@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Hidrape — Plataforma IoT Agrícola</title>
+    <meta name="description"
+        content="Dashboard SaaS Hidrape para mapeamento e monitoramento inteligente de dados em tempo real.">
+    <!-- Fonts: Helvetica Neue (fallback), Space Grotesk -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet" />
+
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+    <!-- Leaflet JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+    <!-- Leaflet Heat Plugin (NDVI) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+
+    <!-- Global CSS -->
+    <link rel="stylesheet" href="/css/style.css?v=3.0">
+</head>
+
+<body>
+    <div id="app-container" style="display: none;">
+        <!-- Mobile Header -->
+        <header class="mobile-header">
+            <svg viewBox="0 0 240 60" style="height: 26px; width: auto;" xmlns="http://www.w3.org/2000/svg">
+                <g transform="translate(10, 0)">
+                    <text x="0" y="40" font-family="'Inter', sans-serif" font-weight="800" font-size="34"
+                        fill="#EAE0CF" letter-spacing="-1">HIDRA</text>
+                    <text x="110" y="40" font-family="'Inter', sans-serif" font-weight="800" font-style="italic"
+                        font-size="34" fill="#94B4C1" letter-spacing="-2">PE</text>
+                </g>
+            </svg>
+            <button id="mobile-menu-btn" class="icon-btn" aria-label="Abrir menu">
+                <span class="material-symbols-rounded">menu</span>
+            </button>
+        </header>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-content">
+                <div class="sidebar-inner-glow"></div>
+
+                <nav class="sidebar-nav">
+                    <div class="glow-lantern" id="nav-lantern"></div>
+                    <a href="javascript:void(0)" data-route="dashboard" class="nav-link active" title="Dashboard">
+                        <span class="icon material-symbols-rounded">monitor_heart</span>
+                        <span class="text">Dashboard</span>
+                    </a>
+                    <a href="javascript:void(0)" data-route="geo" class="nav-link" title="Visão Geoespacial">
+                        <span class="icon material-symbols-rounded">explore</span>
+                        <span class="text">Geoespacial</span>
+                    </a>
+                    <a href="javascript:void(0)" data-route="history" class="nav-link" title="Histórico">
+                        <span class="icon material-symbols-rounded">calendar_month</span>
+                        <span class="text">Histórico</span>
+                    </a>
+                    <a href="javascript:void(0)" data-route="settings" class="nav-link" title="Configurações">
+                        <span class="icon material-symbols-rounded">tune</span>
+                        <span class="text">Configurações</span>
+                    </a>
+                </nav>
+                <div class="sidebar-footer">
+                    <a href="javascript:void(0)" id="btn-logout" class="nav-link logout-btn" title="Sair">
+                        <span class="icon material-symbols-rounded">logout</span>
+                        <span class="text">Sair</span>
+                    </a>
+                </div>
+            </div>
+        </aside>
+
+        <!-- SPA Content -->
+        <main class="main-content" id="app-content">
+            <div class="loader-spinner"></div>
+        </main>
+    </div>
+
+    <!-- Chart.js Global -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SPA Router e Core -->
+    <script src="/js/app.js?v=6"></script>
+</body>
+
+</html>
