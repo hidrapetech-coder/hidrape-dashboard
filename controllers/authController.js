@@ -121,7 +121,7 @@ exports.register = async (req, res) => {
 
     } catch (err) {
         console.error(err.message);
-        res.status(500).json({ error: 'Erro no servidor' });
+        res.status(500).json({ error: 'Erro no servidor: ' + err.message });
     }
 };
 
