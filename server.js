@@ -126,42 +126,49 @@ let MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/iot-saas';
 // Inicia o Banco de Dados (Nuvem ou RAM Automático)
 const iniciarBanco = async () => {
     try {
-        mongoose.set('strictQuery', false); // Suprime Mongoose Deprecation Warning
-        // Se estiver usando o IP padrão local, nós substituímos por um BD na Mémoria (Auto-hospedado) p/ facilitar:
+        mongoose.set('strictQuery', false);
+        
+        const isVercel = process.env.VERCEL || process.env.NODE_ENV === 'production';
+        if (isVercel && (!process.env.MONGO_URI || process.env.MONGO_URI.includes('127.0.0.1'))) {
+            throw new Error("ERRO CRÍTICO: MONGO_URI não configurada! Na Vercel/Produção, você DEVE configurar a variável MONGO_URI apontando para um banco real (ex: MongoDB Atlas). O banco em memória não funciona em Serverless.");
+        }
+
         if (MONGO_URI.includes('127.0.0.1') || MONGO_URI.includes('localhost')) {
-            console.log('⏳ Iniciando instalação/boot do MongoDB Integrado. (Pode levar alguns segundos na 1ª vez)...');
+            console.log('⏳ Iniciando instalação/boot do MongoDB Integrado...');
             const mongoServer = await MongoMemoryServer.create();
             MONGO_URI = mongoServer.getUri();
-            console.log('✨ Servidor MongoDB Invisível Criado com Sucesso!');
+            console.log('✨ Servidor MongoDB Invisível Criado!');
         }
 
         await mongoose.connect(MONGO_URI);
         console.log(`✅ Conectado com Sucesso no MongoDB: ${MONGO_URI}`);
 
-        // Inicialização do Servidor após Banco estar pronto
-        app.listen(PORT, () => {
-            console.log(`=========================================`);
-            console.log(`🚀 Plataforma SaaS IoT rodando na porta ${PORT}`);
-            console.log(`   - Acesso em http://localhost:${PORT}`);
-            console.log(`=========================================`);
-        });
-
+        if (!process.env.VERCEL) {
+            app.listen(PORT, () => {
+                console.log(`=========================================`);
+                console.log(`🚀 Plataforma SaaS IoT rodando na porta ${PORT}`);
+                console.log(`   - Acesso em http://localhost:${PORT}`);
+                console.log(`=========================================`);
+            });
+        }
     } catch (err) {
         console.error('❌ Erro Crítico na inicialização do Banco:', err.message);
-        process.exit(1);
+        if (!process.env.VERCEL) {
+            process.exit(1);
+        }
     }
 };
+
 iniciarBanco();
 
 // Definição das Rotas da API
 const authController = require('./controllers/authController');
 const sensorController = require('./controllers/sensorController');
-const agroController = require('./controllers/agroController'); // Novo Motor Agro AI
+const agroController = require('./controllers/agroController');
 const auth = require('./middleware/auth');
 const { validate, registerSchema, loginSchema, updateSchema, forgotPasswordSchema, resetPasswordSchema } = require('./middleware/validation');
 const checkRole = require('./middleware/checkRole');
 
-// Auth Routes (Rate Limited + Zod Validated)
 app.post('/api/auth/register', registerLimiter, validate(registerSchema), authController.register);
 app.post('/api/auth/login', loginLimiter, validate(loginSchema), authController.login);
 app.post('/api/auth/forgot-password', forgotPasswordLimiter, validate(forgotPasswordSchema), authController.forgotPassword);
@@ -169,21 +176,17 @@ app.post('/api/auth/reset-password', resetPasswordLimiter, validate(resetPasswor
 app.get('/api/auth/me', auth, authController.getMe);
 app.put('/api/auth/config', auth, validate(updateSchema), authController.updateConfig);
 
-// Admin Sample Route (Restrita a Administradores)
 app.get('/api/admin/stats', auth, checkRole('admin'), (req, res) => {
     res.json({ message: 'Acesso Administrativo Autorizado', data: 'Dados Sensíveis de Plataforma' });
 });
 
-// Sensor/IoT Routes (Rate Limited — API Geral)
 app.get('/api/sensores/umidade', apiLimiter, auth, sensorController.getLiveSystem);
 app.get('/api/sensores/historico', apiLimiter, auth, sensorController.getHistorico);
 
-// Smart-Agro Routes (Clima e IA Analítica)
 app.get('/api/agro/clima', apiLimiter, auth, agroController.getClimaEDashboard);
 app.get('/api/agro/media-semanal', apiLimiter, auth, agroController.getMediaSemanal);
 app.get('/api/agro/insights-ia', apiLimiter, auth, agroController.getInsightsIA);
 
-// Fallback do SPA (React/Vanilla Router): Qualquer rota não mapeada entrega o index.html
 app.get('*', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
@@ -191,4 +194,5 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
-// Inicialização movida para depois que o banco conectar.
+// Exporta o app para ambientes Serverless (ex: Vercel)
+module.exports = app;
