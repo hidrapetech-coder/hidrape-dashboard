@@ -1,6 +1,5 @@
 const axios = require('axios');
-const Sensor = require('../models/Sensor');
-const User = require('../models/User');
+const prisma = require('../lib/prisma');
 
 // --- IA DE DIAGNÓSTICO (SISTEMA BASEADO EM REGRAS) ---
 const gerarDiagnostico = (umidade, tipoPlantacao) => {
@@ -40,7 +39,7 @@ const testarEEnviarWhatsApp = async (user, umidade, statusIA, recomendacaoIA) =>
     if(!user.whatsappPhone || !user.callmebotApiKey) return;
 
     // 2. Transição de status
-    const historicoAlerta = alertasPorUser[user._id] || { lastStatus: null, timer: 0 };
+    const historicoAlerta = alertasPorUser[user.id] || { lastStatus: null, timer: 0 };
     
     // Se mudou de estado OU se já faz muito tempo que enviou aviso (evitar spam 30min)
     const mudouEstado = historicoAlerta.lastStatus !== statusIA;
@@ -57,7 +56,7 @@ const testarEEnviarWhatsApp = async (user, umidade, statusIA, recomendacaoIA) =>
             console.log(`[WhatsApp] Alerta Inteligente enviado p/ ${user.nome} - Status: ${statusIA}`);
             
             // Atualizar status
-            alertasPorUser[user._id] = { lastStatus: statusIA, timer: Date.now() };
+            alertasPorUser[user.id] = { lastStatus: statusIA, timer: Date.now() };
 
         } catch (error) {
             console.error(`[WhatsApp Error] - User ${user.nome}:`, error.message);
@@ -65,7 +64,7 @@ const testarEEnviarWhatsApp = async (user, umidade, statusIA, recomendacaoIA) =>
     } else if (statusIA === 'IDEAL' && mudouEstado && historicoAlerta.lastStatus !== null) {
         // Enviar aviso de que normalizou? Pode ser muito spam.
         // Vamos setar o status e timer para não mandar msg atoa
-        alertasPorUser[user._id] = { lastStatus: 'IDEAL', timer: Date.now() };
+        alertasPorUser[user.id] = { lastStatus: 'IDEAL', timer: Date.now() };
     }
 };
 
@@ -74,7 +73,7 @@ const testarEEnviarWhatsApp = async (user, umidade, statusIA, recomendacaoIA) =>
 // @access  Private
 exports.getLiveSystem = async (req, res) => {
     try {
-        const user = await User.findById(req.user.id);
+        const user = await prisma.user.findUnique({ where: { id: req.user.id } });
         if(!user) return res.status(404).json({error: 'Usuário não encontrado'});
 
         // Determinar chave Blynk (Usar a do usuário ou fallback global)
@@ -106,12 +105,13 @@ exports.getLiveSystem = async (req, res) => {
         const { statusIA, recomendacaoIA } = gerarDiagnostico(valor, user.tipoPlantacao);
 
         // Salvar Leitura no DB
-        const novaLeitura = new Sensor({
-            userId: user._id,
-            umidade: valor,
-            status: statusIA
+        const novaLeitura = await prisma.sensor.create({
+            data: {
+                userId: user.id,
+                umidade: valor,
+                status: statusIA
+            }
         });
-        await novaLeitura.save();
 
         // Verificar / Disparar Whatsapp Inteligente
         testarEEnviarWhatsApp(user, valor, statusIA, recomendacaoIA);
@@ -139,15 +139,17 @@ exports.getHistorico = async (req, res) => {
         const limit = parseInt(req.query.limit) || 20; // Default 20 para o frontend grafico
         const page = parseInt(req.query.page) || 1;
         
-        // Paginação via Mongoose
+        // Paginação via Prisma
         const startIndex = (page - 1) * limit;
 
-        const results = await Sensor.find({ userId })
-            .sort({ data: -1 }) // Mais novos primeiro
-            .skip(startIndex)
-            .limit(limit);
+        const results = await prisma.sensor.findMany({
+            where: { userId },
+            orderBy: { data: 'desc' }, // Mais novos primeiro
+            skip: startIndex,
+            take: limit
+        });
 
-        const total = await Sensor.countDocuments({ userId });
+        const total = await prisma.sensor.count({ where: { userId } });
 
         // Para facilitar no client, revertemos para dar do mais antigo pro mais novo (para o gráfico chart.js)
         const formatados = results.map(r => ({

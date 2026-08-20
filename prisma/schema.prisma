@@ -1,0 +1,59 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id                  String    @id @default(uuid())
+  nome                String
+  email               String    @unique
+  senha               String
+  tipoPlantacao       String    @default("Personalizado")
+  cidade              String    @default("São Paulo")
+  estado              String    @default("SP")
+  lat                 String    @default("-23.5505")
+  lon                 String    @default("-46.6333")
+  tamanhoFazenda      Float     @default(10)
+  blynkToken          String    @default("")
+  whatsappPhone       String    @default("")
+  callmebotApiKey     String    @default("")
+  criadoEm            DateTime  @default(now())
+  resetPasswordToken  String?
+  resetPasswordExpire DateTime?
+  role                String    @default("user")
+
+  sensors             Sensor[]
+  logs                Log[]
+}
+
+model Sensor {
+  id      String   @id @default(uuid())
+  userId  String
+  umidade Float
+  status  String
+  data    DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Log {
+  id         String   @id @default(uuid())
+  userId     String?
+  email      String?
+  rota       String
+  metodo     String
+  ip         String
+  userAgent  String?
+  statusCode Int?
+  timestamp  DateTime @default(now())
+
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}

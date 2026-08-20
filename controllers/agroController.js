@@ -1,7 +1,5 @@
-const mongoose = require('mongoose');
 const https = require('https');
-const Sensor = require('../models/Sensor');
-const User = require('../models/User');
+const prisma = require('../lib/prisma');
 const satelliteService = require('../services/satelliteService');
 const iaService = require('../services/iaService');
 const weatherCache = {};
@@ -57,7 +55,11 @@ const preverIrrigacao = async (user, clima, satData) => {
     const limiteMinimo = config.min;
 
     // 2. Cálculo da Taxa Real de Secagem (Droprate)
-    const historico = await Sensor.find({ userId: user._id }).sort({ data: -1 }).limit(10);
+    const historico = await prisma.sensor.findMany({ 
+        where: { userId: user.id },
+        orderBy: { data: 'desc' },
+        take: 10
+    });
     
     let currentMoisture = 50; 
     let dropRatePerHour = 0.8; // Padrão base recalibrado
@@ -156,7 +158,9 @@ const preverIrrigacao = async (user, clima, satData) => {
 // Endpoint Primário: Clima via Lat/Lon da Cidade + Computação em Tempo Real da Previsão Baseada em Sensor Dinâmico
 exports.getClimaEDashboard = async (req, res) => {
     try {
-        const u = await User.findById(req.user.id);
+        const u = await prisma.user.findUnique({ where: { id: req.user.id } });
+        if(!u) return res.status(404).json({error: 'Usuário não encontrado'});
+        
         const { lat, lon, cidade } = u;
 
         // Busca dados de satélite da NASA (possui cache próprio de 12h)
@@ -199,12 +203,12 @@ exports.getClimaEDashboard = async (req, res) => {
     }
 };
 
-// Endpoint Secundário: Analytics Média Semanal Seg-Sexta (Pipeline Aggregation no Mongo)
+// Endpoint Secundário: Analytics Média Semanal Seg-Sexta
 exports.getMediaSemanal = async (req, res) => {
     try {
         const uId = req.user.id;
         
-        // Cache L2 (Descarrega o MongoDB)
+        // Cache L2 (Descarrega o Banco)
         if (weeklyCache[uId] && weeklyCache[uId].expiration > Date.now()) {
             return res.json(weeklyCache[uId].data);
         }
@@ -212,31 +216,35 @@ exports.getMediaSemanal = async (req, res) => {
         const pastWeek = new Date();
         pastWeek.setDate(pastWeek.getDate() - 7);
         
-        // Carga Direta na Pipeline do MongoDB sem afogar o express Javascript
-        const aggregation = await Sensor.aggregate([
-            { $match: { userId: new mongoose.Types.ObjectId(req.user.id), data: { $gte: pastWeek } } },
-            { $project: {
-                dayOfWeek: { $dayOfWeek: "$data" }, // Retorna 1 (Dom) até 7 (Sáb)
-                umidade: 1
-            }},
-            { $match: { dayOfWeek: { $in: [2, 3, 4, 5, 6] } } }, // Peneira Cirúrgica Úteis (Seg-Sexta)
-            { $group: {
-                _id: "$dayOfWeek",
-                media: { $avg: "$umidade" }
-            }},
-            { $sort: { _id: 1 } }
-        ]);
+        // Com Prisma, calculamos as médias em memória (são no máximo 1000 registros de uma semana por usuário)
+        const sensores = await prisma.sensor.findMany({
+            where: { 
+                userId: uId,
+                data: { gte: pastWeek }
+            },
+            select: { data: true, umidade: true }
+        });
+
+        // Agrupamento manual: Domingo=0 a Sábado=6 em JS (Mongo era 1-7)
+        const groups = { 1: [], 2: [], 3: [], 4: [], 5: [] }; // Seg (1) a Sexta (5)
+
+        sensores.forEach(s => {
+            const day = new Date(s.data).getDay(); 
+            if (day >= 1 && day <= 5) {
+                groups[day].push(s.umidade);
+            }
+        });
 
         const diasSemanaMap = {
-            2: "Segunda", 3: "Terça", 4: "Quarta", 5: "Quinta", 6: "Sexta"
+            1: "Segunda", 2: "Terça", 3: "Quarta", 4: "Quinta", 5: "Sexta"
         };
         
-        // Padrozinação Visual Array O(1)
-        const formatado = Object.keys(diasSemanaMap).map(id => {
-            const achou = aggregation.find(a => a._id == Number(id));
+        const formatado = Object.keys(diasSemanaMap).map(day => {
+            const umidades = groups[day];
+            const media = umidades.length > 0 ? (umidades.reduce((a, b) => a + b, 0) / umidades.length) : 0;
             return {
-                dia: diasSemanaMap[id].slice(0, 3), // "Seg", "Ter", etc
-                media: achou ? Math.round(achou.media) : 0
+                dia: diasSemanaMap[day].slice(0, 3), // "Seg", "Ter", etc
+                media: Math.round(media)
             };
         });
 
@@ -258,7 +266,9 @@ const IA_CACHE_MS = 3 * 60 * 60 * 1000; // 3 Horas
 
 exports.getInsightsIA = async (req, res) => {
     try {
-        const u = await User.findById(req.user.id);
+        const u = await prisma.user.findUnique({ where: { id: req.user.id } });
+        if(!u) return res.status(404).json({error: 'Usuário não encontrado'});
+        
         const { lat, lon } = u;
 
         // Verifica Cache
@@ -278,7 +288,10 @@ exports.getInsightsIA = async (req, res) => {
         // Calcular previsão (motor de regras determinístico)
         const previsao = await preverIrrigacao(u, climaData, satData);
 
-        const ultimoSensor = await Sensor.findOne({ userId: u.id }).sort({ data: -1 });
+        const ultimoSensor = await prisma.sensor.findFirst({
+            where: { userId: u.id },
+            orderBy: { data: 'desc' }
+        });
         const umidadeAtual = ultimoSensor ? ultimoSensor.umidade : "Desconhecida";
 
         // Prepara dados formatados p/ a IA

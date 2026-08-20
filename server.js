@@ -2,11 +2,9 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-const mongoose = require('mongoose');
-const { MongoMemoryServer } = require('mongodb-memory-server');
+
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const mongoSanitize = require('express-mongo-sanitize');
 
 const app = express();
 
@@ -101,7 +99,6 @@ const apiLimiter = rateLimit({
 
 // 4. Middlewares Core
 app.use(express.json({ limit: '1mb' })); // Limita payload JSON (anti-DoS)
-app.use(mongoSanitize()); // Defesa ativa contra NoSQL Injection
 app.set('trust proxy', 1); // Confia em proxies (ex: Nginx, Heroku) para capturar IPs reais de Rate Limit
 app.disable('x-powered-by'); // Oculta Express
 
@@ -121,45 +118,16 @@ app.use(express.static(path.join(__dirname, 'public'), {
 })); // Serve a SPA
 
 const PORT = process.env.PORT || 3000;
-let MONGO_URI = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/iot-saas';
 
-// Inicia o Banco de Dados (Nuvem ou RAM Automático)
-const iniciarBanco = async () => {
-    try {
-        mongoose.set('strictQuery', false);
-        
-        const isVercel = process.env.VERCEL || process.env.NODE_ENV === 'production';
-        if (isVercel && (!process.env.MONGO_URI || process.env.MONGO_URI.includes('127.0.0.1'))) {
-            throw new Error("ERRO CRÍTICO: MONGO_URI não configurada! Na Vercel/Produção, você DEVE configurar a variável MONGO_URI apontando para um banco real (ex: MongoDB Atlas). O banco em memória não funciona em Serverless.");
-        }
-
-        if (MONGO_URI.includes('127.0.0.1') || MONGO_URI.includes('localhost')) {
-            console.log('⏳ Iniciando instalação/boot do MongoDB Integrado...');
-            const mongoServer = await MongoMemoryServer.create();
-            MONGO_URI = mongoServer.getUri();
-            console.log('✨ Servidor MongoDB Invisível Criado!');
-        }
-
-        await mongoose.connect(MONGO_URI);
-        console.log(`✅ Conectado com Sucesso no MongoDB: ${MONGO_URI}`);
-
-        if (!process.env.VERCEL) {
-            app.listen(PORT, () => {
-                console.log(`=========================================`);
-                console.log(`🚀 Plataforma SaaS IoT rodando na porta ${PORT}`);
-                console.log(`   - Acesso em http://localhost:${PORT}`);
-                console.log(`=========================================`);
-            });
-        }
-    } catch (err) {
-        console.error('❌ Erro Crítico na inicialização do Banco:', err.message);
-        if (!process.env.VERCEL) {
-            process.exit(1);
-        }
-    }
-};
-
-iniciarBanco();
+// Inicia o servidor local se não estiver na Vercel
+if (!process.env.VERCEL) {
+    app.listen(PORT, () => {
+        console.log(`=========================================`);
+        console.log(`🚀 Plataforma SaaS IoT rodando na porta ${PORT}`);
+        console.log(`   - Acesso em http://localhost:${PORT}`);
+        console.log(`=========================================`);
+    });
+}
 
 // Definição das Rotas da API
 const authController = require('./controllers/authController');

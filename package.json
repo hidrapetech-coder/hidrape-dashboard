@@ -14,16 +14,16 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "express-mongo-sanitize": "^2.2.0",
     "express-rate-limit": "^8.3.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
-    "mongodb-memory-server": "^8.16.1",
-    "mongoose": "^7.8.9",
     "nodemailer": "^8.0.4",
+    "pg": "^8.23.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "nodemon": "^3.1.0"
+    "@prisma/client": "^6.19.3",
+    "nodemon": "^3.1.0",
+    "prisma": "^6.19.3"
   }
 }

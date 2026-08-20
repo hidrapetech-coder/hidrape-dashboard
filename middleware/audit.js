@@ -1,12 +1,10 @@
-const Log = require('../models/Log');
+const prisma = require('../lib/prisma');
 
 /**
  * Middleware para Auditoria de Acessos
  * Registra atividade do usuário de forma estruturada para segurança e depuração.
  */
 module.exports = async function (req, res, next) {
-    const start = Date.now();
-
     // Intercepta a finalização da resposta para capturar o StatusCode decorrente
     res.on('finish', async () => {
         try {
@@ -24,7 +22,7 @@ module.exports = async function (req, res, next) {
             // Somente registrar logs de mutação ou acessos críticos (POST, PUT, DELETE) e falhas (4xx, 5xx)
             // Para não sobrecarregar o banco com GETs de rotina em produção massiva.
             if (req.method !== 'GET' || res.statusCode >= 400 || req.originalUrl.includes('/auth/me')) {
-                await Log.create(logData);
+                await prisma.log.create({ data: logData });
             }
         } catch (err) {
             console.error('[Audit Log Error]:', err.message);
