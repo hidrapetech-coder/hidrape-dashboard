@@ -46,8 +46,8 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Permitir requisições sem origem (como apps mobile ou curl) se em dev
-        if (!origin || allowedOrigins.includes(origin)) {
+        // Permitir requisições sem origem, domínios permitidos, ou se estiver na Vercel (onde a origem varia)
+        if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app') || origin.endsWith('.onrender.com')) {
             callback(null, true);
         } else {
             callback(new Error('Bloqueado pelo CORS'));
