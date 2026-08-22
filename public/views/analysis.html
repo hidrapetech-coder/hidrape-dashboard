@@ -1,0 +1,583 @@
+<!-- ============================================
+     ANÁLISE INTELIGENTE — HIDRAPE DASHBOARD
+     ============================================ -->
+
+<!-- HEADER -->
+<div class="view-header" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 32px;">
+    <div class="brand-logo" style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-family: var(--font-family); font-size: 1.25rem; font-weight: 800; letter-spacing: -0.5px; color: var(--sys-light);">HIDRA<span style="color: var(--sys-accent); font-style: italic;">PE</span> <span style="font-weight: 500; opacity: 0.5; font-size: 1.15rem; margin-left: 4px; letter-spacing: -0.2px;">Dashboard</span></span>
+    </div>
+    <div>
+        <h1>Análise Inteligente</h1>
+        <p>Uma visão integrada das condições da sua plantação</p>
+    </div>
+    <div id="analysis-last-update" style="display: flex; align-items: center; gap: 8px; font-size: 0.78rem; opacity: 0.6;">
+        <span id="analysis-status-dot" style="width: 7px; height: 7px; border-radius: 50%; background: var(--neutral-400); flex-shrink: 0;"></span>
+        <span id="analysis-update-text">Carregando dados...</span>
+    </div>
+</div>
+
+<!-- ============================================
+     1. RESUMO PRINCIPAL (HERO)
+     ============================================ -->
+<div class="analysis-hero card card-blue analysis-section" id="analysis-hero">
+    <div style="display: flex; align-items: center; gap: 16px; margin-bottom: 16px;">
+        <div id="analysis-hero-icon-wrap" style="width: 56px; height: 56px; border-radius: 16px; display: flex; align-items: center; justify-content: center; background: var(--color-good); flex-shrink: 0; transition: background 0.4s ease;">
+            <span id="analysis-hero-icon" class="material-symbols-rounded" style="font-size: 1.8rem; color: var(--bg-main);">psychiatry</span>
+        </div>
+        <div style="flex: 1; min-width: 0;">
+            <h2 style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; opacity: 0.6; margin-bottom: 4px;">Análise Atual</h2>
+            <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <span id="analysis-hero-status" class="font-kpi" style="font-size: 1.1rem; font-weight: 700; color: var(--color-good); text-transform: uppercase; letter-spacing: 0.04em;">CARREGANDO</span>
+            </div>
+        </div>
+    </div>
+    <p id="analysis-hero-reco" style="font-size: 0.95rem; line-height: 1.6; margin-bottom: 16px; opacity: 0.9;">Processando recomendação...</p>
+    <div style="display: flex; align-items: center; gap: 12px; background: rgba(0,0,0,0.15); padding: 14px 18px; border-radius: 12px;">
+        <span class="material-symbols-rounded" style="font-size: 1.3rem; color: var(--sys-accent); flex-shrink: 0;">schedule</span>
+        <div>
+            <span style="font-size: 0.75rem; opacity: 0.5;">Próxima irrigação estimada</span>
+            <h3 id="analysis-hero-time" class="font-kpi" style="font-size: 1.6rem; line-height: 1; margin-top: 2px;">--</h3>
+        </div>
+    </div>
+    <!-- Skeleton overlay -->
+    <div id="analysis-hero-skeleton" class="analysis-skeleton-overlay">
+        <div class="analysis-skeleton-bar" style="width: 40%; height: 16px;"></div>
+        <div class="analysis-skeleton-bar" style="width: 80%; height: 14px; margin-top: 12px;"></div>
+        <div class="analysis-skeleton-bar" style="width: 60%; height: 14px; margin-top: 8px;"></div>
+        <div class="analysis-skeleton-bar" style="width: 50%; height: 32px; margin-top: 16px; border-radius: 12px;"></div>
+    </div>
+</div>
+
+<!-- ============================================
+     2. COMO CHEGAMOS A ESSA CONCLUSÃO?
+     ============================================ -->
+<div class="analysis-section">
+    <div class="analysis-section-title">
+        <span class="material-symbols-rounded" style="font-size: 1.1rem; color: var(--sys-accent);">psychology</span>
+        <h2>Como chegamos a essa conclusão?</h2>
+    </div>
+    <div class="card" style="padding: 20px;">
+        <p style="font-size: 0.88rem; line-height: 1.7; opacity: 0.85;">
+            O Hidrape cruzou dados recentes de <strong>umidade do solo</strong> (sensor IoT), 
+            <strong>condições climáticas</strong> (temperatura, vento, umidade do ar), 
+            <strong>evapotranspiração</strong> (estimativa FAO), 
+            <strong>previsão de chuva</strong> (próximas 12 horas), 
+            <strong>umidade regional via satélite</strong> (NASA POWER) 
+            e as <strong>necessidades específicas</strong> da cultura monitorada para calcular o estado atual e a previsão de irrigação.
+        </p>
+    </div>
+</div>
+
+<!-- ============================================
+     3. SEÇÃO 01 — PREVISÃO DE IRRIGAÇÃO
+     ============================================ -->
+<div class="analysis-section">
+    <div class="analysis-section-title">
+        <span class="analysis-section-number">01</span>
+        <div>
+            <h2>Previsão de Irrigação</h2>
+            <p style="font-size: 0.78rem; opacity: 0.5; margin-top: 2px;">Análise baseada em dados reais do ambiente</p>
+        </div>
+    </div>
+
+    <!-- KPI Grid -->
+    <div class="analysis-kpi-grid">
+        <div class="card" style="padding: 18px;">
+            <span style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5;">Umidade do Solo</span>
+            <h3 id="an-kpi-umid" class="font-kpi" style="font-size: 1.8rem; margin-top: 4px;">--%</h3>
+            <span id="an-kpi-umid-status" style="font-size: 0.75rem; opacity: 0.6;">--</span>
+        </div>
+        <div class="card" style="padding: 18px;">
+            <span style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5;">Taxa de Secagem</span>
+            <h3 id="an-kpi-drop" class="font-kpi" style="font-size: 1.8rem; margin-top: 4px;">--</h3>
+            <span class="analysis-tooltip-trigger" style="font-size: 0.72rem; color: var(--sys-accent); cursor: help; border-bottom: 1px dashed var(--sys-accent);" title="Velocidade estimada de redução da umidade do solo, calculada a partir das últimas 10 leituras do sensor, ajustada por fatores climáticos.">O que é isso?</span>
+        </div>
+        <div class="card" style="padding: 18px;">
+            <span style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5;">Prob. de Chuva</span>
+            <h3 id="an-kpi-rain" class="font-kpi" style="font-size: 1.8rem; margin-top: 4px;">--%</h3>
+            <span style="font-size: 0.75rem; opacity: 0.6;">Próximas 12h</span>
+        </div>
+        <div class="card" style="padding: 18px;">
+            <span style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5;">Evapotranspiração</span>
+            <h3 id="an-kpi-et0" class="font-kpi" style="font-size: 1.8rem; margin-top: 4px;">--</h3>
+            <span style="font-size: 0.75rem; opacity: 0.6;">FAO ET₀</span>
+        </div>
+        <div class="card" style="padding: 18px;">
+            <span style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5;">Temperatura</span>
+            <h3 id="an-kpi-temp" class="font-kpi" style="font-size: 1.8rem; margin-top: 4px;">--°C</h3>
+            <span id="an-kpi-temp-desc" style="font-size: 0.75rem; opacity: 0.6;">--</span>
+        </div>
+        <div class="card" style="padding: 18px;">
+            <span style="font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5;">Umidade do Ar</span>
+            <h3 id="an-kpi-airhum" class="font-kpi" style="font-size: 1.8rem; margin-top: 4px;">--%</h3>
+            <span style="font-size: 0.75rem; opacity: 0.6;">Relativa</span>
+        </div>
+    </div>
+
+    <!-- Timeline visual -->
+    <div class="card card-blue" style="padding: 24px; margin-top: 20px;">
+        <h3 style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5; margin-bottom: 20px;">Linha do Tempo — Previsão</h3>
+        <div class="analysis-timeline">
+            <div class="analysis-timeline-node">
+                <div class="analysis-timeline-dot" style="background: var(--color-good);"></div>
+                <div class="analysis-timeline-content">
+                    <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5;">Agora</span>
+                    <strong id="an-tl-now" class="font-kpi" style="font-size: 1.1rem;">--%</strong>
+                    <span style="font-size: 0.75rem; opacity: 0.6;">umidade</span>
+                </div>
+            </div>
+            <div class="analysis-timeline-connector"></div>
+            <div class="analysis-timeline-node">
+                <div class="analysis-timeline-dot" style="background: var(--sys-accent);"></div>
+                <div class="analysis-timeline-content">
+                    <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5;">Secagem</span>
+                    <strong id="an-tl-drop" class="font-kpi" style="font-size: 1.1rem;">--</strong>
+                    <span style="font-size: 0.75rem; opacity: 0.6;">por hora</span>
+                </div>
+            </div>
+            <div class="analysis-timeline-connector"></div>
+            <div class="analysis-timeline-node">
+                <div class="analysis-timeline-dot" style="background: var(--color-mid);"></div>
+                <div class="analysis-timeline-content">
+                    <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5;">Limite da Cultura</span>
+                    <strong id="an-tl-limit" class="font-kpi" style="font-size: 1.1rem;">--%</strong>
+                    <span id="an-tl-limit-desc" style="font-size: 0.75rem; opacity: 0.6;">--</span>
+                </div>
+            </div>
+            <div class="analysis-timeline-connector"></div>
+            <div class="analysis-timeline-node">
+                <div class="analysis-timeline-dot analysis-timeline-dot-pulse" style="background: var(--sys-secondary);"></div>
+                <div class="analysis-timeline-content">
+                    <span style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5;">Irrigação</span>
+                    <strong id="an-tl-irrig" class="font-kpi" style="font-size: 1.1rem;">--</strong>
+                    <span style="font-size: 0.75rem; opacity: 0.6;">estimado</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     4. DADOS CONSIDERADOS NA ANÁLISE
+     ============================================ -->
+<div class="analysis-section">
+    <div class="analysis-section-title">
+        <span class="material-symbols-rounded" style="font-size: 1.1rem; color: var(--sys-accent);">database</span>
+        <h2>Dados considerados na análise</h2>
+    </div>
+
+    <div class="analysis-source-grid">
+        <!-- Sensor IoT -->
+        <div class="card" style="padding: 20px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                <div style="width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(6,214,160,0.12); flex-shrink: 0;">
+                    <span class="material-symbols-rounded" style="font-size: 1.1rem; color: var(--color-good);">sensors</span>
+                </div>
+                <div>
+                    <h3 style="font-size: 0.85rem; font-weight: 600;">Sensor IoT</h3>
+                    <span style="font-size: 0.72rem; opacity: 0.5;">Umidade real do solo</span>
+                </div>
+            </div>
+            <div style="font-size: 0.82rem; line-height: 1.6; opacity: 0.8;">
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                    <span>Leitura atual</span>
+                    <strong id="an-src-sensor-val">--</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 4px 0;">
+                    <span>Status</span>
+                    <span id="an-src-sensor-status" style="color: var(--color-good); font-weight: 600;">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Open-Meteo -->
+        <div class="card" style="padding: 20px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                <div style="width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(148,180,193,0.12); flex-shrink: 0;">
+                    <span class="material-symbols-rounded" style="font-size: 1.1rem; color: var(--sys-accent);">cloud</span>
+                </div>
+                <div>
+                    <h3 style="font-size: 0.85rem; font-weight: 600;">Open-Meteo</h3>
+                    <span style="font-size: 0.72rem; opacity: 0.5;">Condições climáticas</span>
+                </div>
+            </div>
+            <div style="font-size: 0.82rem; line-height: 1.6; opacity: 0.8;">
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                    <span>Temperatura</span>
+                    <strong id="an-src-clima-temp">--</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                    <span>Umidade do ar</span>
+                    <strong id="an-src-clima-hum">--</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                    <span>Vento</span>
+                    <strong id="an-src-clima-wind">--</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 4px 0;">
+                    <span>ET₀ (FAO)</span>
+                    <strong id="an-src-clima-et0">--</strong>
+                </div>
+            </div>
+        </div>
+
+        <!-- NASA POWER -->
+        <div class="card" style="padding: 20px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                <div style="width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(243,156,18,0.12); flex-shrink: 0;">
+                    <span class="material-symbols-rounded" style="font-size: 1.1rem; color: var(--sat-orange);">satellite_alt</span>
+                </div>
+                <div>
+                    <h3 style="font-size: 0.85rem; font-weight: 600;">NASA POWER</h3>
+                    <span style="font-size: 0.72rem; opacity: 0.5;">Condição macro da região</span>
+                </div>
+            </div>
+            <div style="font-size: 0.82rem; line-height: 1.6; opacity: 0.8;">
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                    <span>Umidade regional</span>
+                    <strong id="an-src-nasa-val">--</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 4px 0;">
+                    <span>Referência</span>
+                    <span id="an-src-nasa-date" style="font-size: 0.78rem; opacity: 0.7;">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cultura -->
+        <div class="card" style="padding: 20px;">
+            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                <div style="width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(148,180,193,0.12); flex-shrink: 0;">
+                    <span class="material-symbols-rounded" style="font-size: 1.1rem; color: var(--sys-accent);">eco</span>
+                </div>
+                <div>
+                    <h3 style="font-size: 0.85rem; font-weight: 600;">Cultura</h3>
+                    <span style="font-size: 0.72rem; opacity: 0.5;">Necessidades específicas</span>
+                </div>
+            </div>
+            <div style="font-size: 0.82rem; line-height: 1.6; opacity: 0.8;">
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                    <span>Tipo</span>
+                    <strong id="an-src-cult-tipo">--</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.04);">
+                    <span>Faixa ideal</span>
+                    <strong id="an-src-cult-faixa">--</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 4px 0;">
+                    <span>Centro ideal</span>
+                    <strong id="an-src-cult-center">--</strong>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     5. COMO OS DADOS SE CONECTAM (Fluxo Visual)
+     ============================================ -->
+<div class="analysis-section">
+    <div class="analysis-section-title">
+        <span class="material-symbols-rounded" style="font-size: 1.1rem; color: var(--sys-accent);">account_tree</span>
+        <h2>Como os dados se conectam</h2>
+    </div>
+
+    <div class="card card-blue" style="padding: 28px;">
+        <div class="analysis-flow">
+            <div class="analysis-flow-node" style="--flow-color: var(--color-good);">
+                <span class="material-symbols-rounded">sensors</span>
+                <div>
+                    <strong>Sensor IoT</strong>
+                    <span>Umidade do solo</span>
+                </div>
+            </div>
+            <div class="analysis-flow-connector"><div class="analysis-flow-connector-line"></div></div>
+            <div class="analysis-flow-node" style="--flow-color: var(--sys-accent);">
+                <span class="material-symbols-rounded">cloud</span>
+                <div>
+                    <strong>Clima</strong>
+                    <span>Temperatura • ET₀ • Chuva • Umidade</span>
+                </div>
+            </div>
+            <div class="analysis-flow-connector"><div class="analysis-flow-connector-line"></div></div>
+            <div class="analysis-flow-node" style="--flow-color: var(--sat-orange);">
+                <span class="material-symbols-rounded">satellite_alt</span>
+                <div>
+                    <strong>Satélite</strong>
+                    <span>NASA POWER</span>
+                </div>
+            </div>
+            <div class="analysis-flow-connector"><div class="analysis-flow-connector-line"></div></div>
+            <div class="analysis-flow-node" style="--flow-color: var(--sys-accent);">
+                <span class="material-symbols-rounded">eco</span>
+                <div>
+                    <strong>Cultura</strong>
+                    <span>Necessidades próprias</span>
+                </div>
+            </div>
+            <div class="analysis-flow-connector"><div class="analysis-flow-connector-line"></div></div>
+            <div class="analysis-flow-node analysis-flow-node-final" style="--flow-color: var(--sys-secondary);">
+                <span class="material-symbols-rounded">auto_awesome</span>
+                <div>
+                    <strong>Hidrape</strong>
+                    <span>Previsão + Recomendação</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     6. SEÇÃO 02 — INTERPRETAÇÃO AGRONÔMICA (IA)
+     ============================================ -->
+<div class="analysis-section">
+    <div class="analysis-section-title">
+        <span class="analysis-section-number">02</span>
+        <div>
+            <h2>Interpretação Agronômica</h2>
+            <p style="font-size: 0.78rem; opacity: 0.5; margin-top: 2px;">Laudo gerado por IA Generativa</p>
+        </div>
+    </div>
+
+    <div class="card" style="padding: 20px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: flex-start; gap: 10px; margin-bottom: 14px;">
+            <span class="material-symbols-rounded" style="font-size: 1rem; color: var(--sys-accent); margin-top: 2px; flex-shrink: 0;">info</span>
+            <p style="font-size: 0.82rem; line-height: 1.6; opacity: 0.7;">
+                Os indicadores são calculados a partir dos dados coletados pelo motor de análise. 
+                A IA utiliza esses resultados como contexto para gerar uma explicação em linguagem natural. 
+                Ela <strong>não inventa dados</strong> — apenas traduz os números reais em um laudo acessível.
+            </p>
+        </div>
+    </div>
+
+    <div class="card card-blue" style="padding: 24px; position: relative;">
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 14px;">
+            <span style="font-size: 0.72rem; background: var(--color-good); padding: 3px 8px; border-radius: 4px; font-weight: 700; color: white; letter-spacing: 0.02em;">✦ IA GENERATIVA</span>
+            <span id="an-ia-cache" style="font-size: 0.68rem; opacity: 0.4; display: none;">em cache</span>
+        </div>
+        <p id="an-ia-laudo" style="font-size: 0.9rem; line-height: 1.8; opacity: 0.9;">
+            <span style="opacity: 0.5;">Gerando interpretação agronômica...</span>
+        </p>
+        <!-- Skeleton overlay -->
+        <div id="an-ia-skeleton" class="analysis-skeleton-overlay">
+            <div class="analysis-skeleton-bar" style="width: 90%; height: 12px;"></div>
+            <div class="analysis-skeleton-bar" style="width: 75%; height: 12px; margin-top: 10px;"></div>
+            <div class="analysis-skeleton-bar" style="width: 85%; height: 12px; margin-top: 10px;"></div>
+            <div class="analysis-skeleton-bar" style="width: 60%; height: 12px; margin-top: 10px;"></div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     7. SEÇÃO 03 — INDICADORES AGRONÔMICOS
+     ============================================ -->
+<div class="analysis-section">
+    <div class="analysis-section-title">
+        <span class="analysis-section-number">03</span>
+        <div>
+            <h2>Indicadores Agronômicos</h2>
+            <p style="font-size: 0.78rem; opacity: 0.5; margin-top: 2px;">Métricas calculadas em tempo real</p>
+        </div>
+    </div>
+
+    <div class="analysis-indicators-grid">
+        <!-- Saúde do Solo -->
+        <div class="card card-light" style="padding: 24px; flex: 1;">
+            <h3 style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.6; margin-bottom: 16px;">Saúde do Solo</h3>
+            <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 16px;">
+                <div style="position: relative; width: 80px; height: 80px; flex-shrink: 0;">
+                    <svg viewBox="0 0 36 36" style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                        <circle cx="18" cy="18" r="15.91549430918954" fill="none" stroke="rgba(28,45,63,0.1)" stroke-width="3" />
+                        <circle id="an-saude-progress" cx="18" cy="18" r="15.91549430918954" fill="none" stroke="var(--color-good)" stroke-width="3" stroke-dasharray="0, 100" stroke-linecap="round" style="transition: stroke-dasharray 1s ease, stroke 0.4s ease;" />
+                    </svg>
+                    <div style="position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;">
+                        <span id="an-saude-score" class="font-kpi" style="font-size: 1.3rem; font-weight: 700;">--</span>
+                    </div>
+                </div>
+                <div>
+                    <h4 id="an-saude-status" style="font-size: 1rem; font-weight: 600;">--</h4>
+                    <p style="font-size: 0.78rem; opacity: 0.6; margin-top: 2px;">Score de saúde</p>
+                </div>
+            </div>
+            <!-- Fatores -->
+            <div style="display: flex; flex-direction: column; gap: 10px;">
+                <div class="analysis-factor">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 4px;">
+                        <span>Posição na faixa ideal</span>
+                        <span style="opacity: 0.5;">40%</span>
+                    </div>
+                    <div class="analysis-factor-track"><div class="analysis-factor-fill" style="width: 40%; background: var(--sys-secondary);"></div></div>
+                </div>
+                <div class="analysis-factor">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 4px;">
+                        <span>Consistência semanal</span>
+                        <span style="opacity: 0.5;">25%</span>
+                    </div>
+                    <div class="analysis-factor-track"><div class="analysis-factor-fill" style="width: 25%; background: var(--sys-accent);"></div></div>
+                </div>
+                <div class="analysis-factor">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 4px;">
+                        <span>Estabilidade diária</span>
+                        <span style="opacity: 0.5;">20%</span>
+                    </div>
+                    <div class="analysis-factor-track"><div class="analysis-factor-fill" style="width: 20%; background: var(--color-mid);"></div></div>
+                </div>
+                <div class="analysis-factor">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.75rem; margin-bottom: 4px;">
+                        <span>Estresse climático</span>
+                        <span style="opacity: 0.5;">15%</span>
+                    </div>
+                    <div class="analysis-factor-track"><div class="analysis-factor-fill" style="width: 15%; background: var(--color-good);"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Evapotranspiração + Análise Avançada -->
+        <div style="display: flex; flex-direction: column; gap: 20px; flex: 1;">
+            <!-- Evapotranspiração -->
+            <div class="card" style="padding: 20px; flex: 1;">
+                <h3 style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5; margin-bottom: 12px;">Evapotranspiração</h3>
+                <div class="inner-glass-pane" style="display: flex; align-items: center; gap: 12px; margin-bottom: 12px;">
+                    <div id="an-evapo-icon-wrap" style="width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(148,180,193,0.12); flex-shrink: 0;">
+                        <span id="an-evapo-icon" class="material-symbols-rounded" style="font-size: 1.2rem;">air</span>
+                    </div>
+                    <div>
+                        <h4 id="an-evapo-nivel" class="font-kpi" style="font-size: 1.1rem; line-height: 1;">--</h4>
+                        <p id="an-evapo-desc" style="font-size: 0.72rem; opacity: 0.5; margin-top: 2px;">Perda de água pelo clima</p>
+                    </div>
+                </div>
+                <p style="font-size: 0.78rem; opacity: 0.6; line-height: 1.5;">
+                    Estimativa da quantidade de água perdida para a atmosfera por evaporação e transpiração das plantas.
+                </p>
+            </div>
+
+            <!-- Análise Avançada -->
+            <div class="card card-blue" style="padding: 20px; flex: 1;">
+                <h3 style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5; margin-bottom: 8px;">Análise Avançada</h3>
+                <div style="display: flex; align-items: flex-start; gap: 8px;">
+                    <span class="material-symbols-rounded" style="color: var(--sys-accent); font-size: 1.1rem; flex-shrink: 0; margin-top: 2px;">auto_awesome</span>
+                    <p id="an-analise-texto" style="font-size: 0.85rem; line-height: 1.6; opacity: 0.85;">Coletando dados da fazenda...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     8. ÚLTIMOS 7 DIAS (Chart.js)
+     ============================================ -->
+<div class="analysis-section">
+    <div class="analysis-section-title">
+        <span class="material-symbols-rounded" style="font-size: 1.1rem; color: var(--sys-accent);">bar_chart</span>
+        <h2>Comportamento nos últimos 7 dias</h2>
+    </div>
+
+    <div class="card card-blue" style="padding: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 8px;">
+            <div>
+                <h3 style="font-size: 0.9rem; font-weight: 600;">Uso de Água na Semana</h3>
+                <p style="font-size: 0.75rem; opacity: 0.5; margin-top: 2px;">Média de umidade por dia útil</p>
+            </div>
+            <div id="an-week-avg" style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 0.72rem; opacity: 0.5;">Média geral:</span>
+                <strong id="an-week-avg-val" class="font-kpi" style="font-size: 0.9rem;">--</strong>
+            </div>
+        </div>
+        <div style="position: relative; height: 240px;">
+            <canvas id="an-weeklyChart"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- ============================================
+     9. TENDÊNCIA REGIONAL — NASA POWER
+     ============================================ -->
+<div class="analysis-section">
+    <div class="analysis-section-title">
+        <span class="material-symbols-rounded" style="font-size: 1.1rem; color: var(--sat-orange);">satellite_alt</span>
+        <h2>Tendência Regional</h2>
+    </div>
+
+    <div class="card" style="padding: 20px; margin-bottom: 16px;">
+        <div style="display: flex; align-items: flex-start; gap: 10px;">
+            <span class="material-symbols-rounded" style="font-size: 1rem; color: var(--sys-accent); margin-top: 2px; flex-shrink: 0;">info</span>
+            <p style="font-size: 0.82rem; line-height: 1.6; opacity: 0.7;">
+                Os dados de satélite ajudam a contextualizar as condições da região e complementam as leituras locais dos sensores. 
+                A escala do satélite é <strong>regional</strong> — diferente da leitura pontual do sensor no solo.
+            </p>
+        </div>
+    </div>
+
+    <div id="an-nasa-chart-card" class="card card-blue" style="padding: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 8px;">
+            <div>
+                <h3 style="font-size: 0.9rem; font-weight: 600;">Umidade Superficial — NASA POWER</h3>
+                <p style="font-size: 0.75rem; opacity: 0.5; margin-top: 2px;">Últimos 7 dias observados por satélite</p>
+            </div>
+            <span style="font-size: 0.65rem; font-weight: 700; color: var(--sat-orange); background: rgba(243,156,18,0.1); padding: 4px 10px; border-radius: var(--radius-badge); text-transform: uppercase; letter-spacing: 0.08em;">NASA</span>
+        </div>
+        <div id="an-nasa-chart-wrap" style="position: relative; height: 220px;">
+            <canvas id="an-nasaChart"></canvas>
+        </div>
+        <p id="an-nasa-unavailable" style="display: none; text-align: center; font-size: 0.85rem; opacity: 0.5; padding: 40px 0;">Dados de satélite temporariamente indisponíveis.</p>
+    </div>
+</div>
+
+<!-- ============================================
+     10. SOBRE ESTA ANÁLISE (Transparência)
+     ============================================ -->
+<div class="analysis-section">
+    <div class="analysis-section-title">
+        <span class="material-symbols-rounded" style="font-size: 1.1rem; color: var(--sys-accent);">verified</span>
+        <h2>Sobre esta análise</h2>
+    </div>
+
+    <div class="card" style="padding: 24px; margin-bottom: 16px;">
+        <p style="font-size: 0.88rem; line-height: 1.7; opacity: 0.85; margin-bottom: 16px;">
+            O Hidrape combina diferentes fontes de informação para contextualizar as condições da plantação. 
+            Os sensores fornecem dados locais, enquanto clima e satélite ajudam a interpretar o ambiente ao redor.
+        </p>
+        <div style="background: rgba(148,180,193,0.06); padding: 14px 18px; border-radius: 10px; border-left: 3px solid var(--sys-accent);">
+            <p style="font-size: 0.82rem; line-height: 1.6; opacity: 0.7;">
+                Os resultados são estimativas e recomendações baseadas nos dados disponíveis no momento. 
+                Fatores locais como microclima, irrigação manual recente ou variações no terreno podem não ser capturados automaticamente.
+            </p>
+        </div>
+    </div>
+
+    <!-- Qualidade dos dados (checklist de fontes) -->
+    <div class="card card-blue" style="padding: 20px;">
+        <h3 style="font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5; margin-bottom: 14px;">Disponibilidade das fontes</h3>
+        <div style="display: flex; flex-direction: column; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 10px; font-size: 0.85rem;">
+                <span id="an-check-sensor" class="material-symbols-rounded" style="font-size: 1rem; color: var(--neutral-400);">radio_button_unchecked</span>
+                <span>Sensor IoT</span>
+                <span id="an-check-sensor-label" style="margin-left: auto; font-size: 0.72rem; opacity: 0.5;">Verificando...</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; font-size: 0.85rem;">
+                <span id="an-check-clima" class="material-symbols-rounded" style="font-size: 1rem; color: var(--neutral-400);">radio_button_unchecked</span>
+                <span>Dados Climáticos</span>
+                <span id="an-check-clima-label" style="margin-left: auto; font-size: 0.72rem; opacity: 0.5;">Verificando...</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; font-size: 0.85rem;">
+                <span id="an-check-nasa" class="material-symbols-rounded" style="font-size: 1rem; color: var(--neutral-400);">radio_button_unchecked</span>
+                <span>Satélite NASA</span>
+                <span id="an-check-nasa-label" style="margin-left: auto; font-size: 0.72rem; opacity: 0.5;">Verificando...</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px; font-size: 0.85rem;">
+                <span id="an-check-ia" class="material-symbols-rounded" style="font-size: 1rem; color: var(--neutral-400);">radio_button_unchecked</span>
+                <span>IA Generativa</span>
+                <span id="an-check-ia-label" style="margin-left: auto; font-size: 0.72rem; opacity: 0.5;">Verificando...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Observação / Alerta -->
+    <div id="an-alert-box" class="card" style="padding: 16px; margin-top: 16px; display: none; border-left: 3px solid var(--color-mid);">
+        <div style="display: flex; align-items: flex-start; gap: 8px;">
+            <span class="material-symbols-rounded" style="font-size: 1rem; color: var(--color-mid); flex-shrink: 0; margin-top: 2px;">warning</span>
+            <p id="an-alert-text" style="font-size: 0.82rem; line-height: 1.5; opacity: 0.8;"></p>
+        </div>
+    </div>
+</div>

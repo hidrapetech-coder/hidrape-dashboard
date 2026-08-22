@@ -48,8 +48,8 @@ const demoData = {
         }
     ],
     iaIndex: 0,
-    historico: Array.from({length: 24}, (_, i) => ({
-        horario: new Date(Date.now() - (23-i)*3600000).toISOString(),
+    historico: Array.from({ length: 24 }, (_, i) => ({
+        horario: new Date(Date.now() - (23 - i) * 3600000).toISOString(),
         umidade: 65 + Math.random() * 5,
         temperatura: 22 + Math.random() * 4,
         status_bomba: i % 12 === 0 ? 'Ligada' : 'Desligada'
@@ -57,10 +57,10 @@ const demoData = {
 };
 
 const originalFetch = window.fetch;
-window.fetch = async function(resource, config) {
+window.fetch = async function (resource, config) {
     if (isDemoMode) {
         const urlStr = typeof resource === 'string' ? resource : resource.url;
-        
+
         // Allowed bypasses: views, chartjs, local assets
         if (urlStr.startsWith('/views/') || urlStr.startsWith('http') && !urlStr.includes('/api/')) {
             if (urlStr.includes('api.rainviewer.com')) {
@@ -85,13 +85,13 @@ window.fetch = async function(resource, config) {
         }
         if (urlStr.includes('/api/agro/media-semanal')) {
             return Promise.resolve(new Response(JSON.stringify([
-                {_id: 'Seg', media_umidade: 66, max_temp: 25},
-                {_id: 'Ter', media_umidade: 64, max_temp: 26},
-                {_id: 'Qua', media_umidade: 62, max_temp: 27},
-                {_id: 'Qui', media_umidade: 60, max_temp: 28},
-                {_id: 'Sex', media_umidade: 68, max_temp: 24},
-                {_id: 'Sáb', media_umidade: 69, max_temp: 23},
-                {_id: 'Dom', media_umidade: 68, max_temp: 24}
+                { dia: 'Seg', media: 66 },
+                { dia: 'Ter', media: 64 },
+                { dia: 'Qua', media: 62 },
+                { dia: 'Qui', media: 60 },
+                { dia: 'Sex', media: 68 },
+                { dia: 'Sáb', media: 69 },
+                { dia: 'Dom', media: 68 }
             ]), { status: 200 }));
         }
         if (urlStr.includes('/api/sensores/historico')) {
@@ -100,25 +100,25 @@ window.fetch = async function(resource, config) {
         if (urlStr.includes('/api/auth/config')) {
             return Promise.resolve(new Response(JSON.stringify({ error: 'Disponível na versão completa.' }), { status: 403 }));
         }
-        
+
         // Guard-rail: throw error on unmocked routes
         console.error(`[DEMO GUARD] Bloqueada requisição para rota não-mockada: ${urlStr}`);
         throw new Error(`Rota ${urlStr} não foi mockada na Demonstração.`);
     }
-    
+
     return originalFetch.apply(this, arguments);
 };
 
 const updateDemoData = () => {
-    if(!isDemoMode) return;
-    
+    if (!isDemoMode) return;
+
     demoData.sensor.umidade += (Math.random() > 0.5 ? 0.5 : -0.5);
     demoData.sensor.umidade = Math.min(100, Math.max(0, demoData.sensor.umidade));
-    
+
     demoData.sensor.temperatura += (Math.random() > 0.5 ? 0.2 : -0.2);
     demoData.clima.temp = demoData.sensor.temperatura;
-    
-    if(Math.random() > 0.9) demoData.iaIndex++;
+
+    if (Math.random() > 0.9) demoData.iaIndex++;
 
     // Mutate history incrementally (push/shift)
     demoData.historico.shift();
@@ -132,7 +132,7 @@ const updateDemoData = () => {
 
 const escapeHTML = (str) => {
     if (!str) return '';
-    return String(str).replace(/[&<>'"]/g, 
+    return String(str).replace(/[&<>'"]/g,
         tag => ({
             '&': '&amp;',
             '<': '&lt;',
@@ -145,7 +145,7 @@ const escapeHTML = (str) => {
 
 const showDemoUpsellModal = () => {
     let modal = document.getElementById('demo-upsell-modal');
-    if(!modal) {
+    if (!modal) {
         modal = document.createElement('div');
         modal.id = 'demo-upsell-modal';
         modal.className = 'demo-upsell-modal';
@@ -181,7 +181,7 @@ const startGuidedTour = () => {
         { route: 'history', sel: '.view-header', title: 'Histórico e Tendências', text: 'Acesse os dados armazenados e entenda o comportamento hídrico da fazenda ao longo do tempo.' },
         { route: 'settings', sel: '.view-header', title: 'Configurações e Alertas', text: 'Gerencie suas credenciais e configure seus alertas via WhatsApp e Telegram.' }
     ];
-    
+
     let popover = document.getElementById('demo-tour-popover');
     if (!popover) {
         popover = document.createElement('div');
@@ -204,7 +204,7 @@ const startGuidedTour = () => {
             e.preventDefault();
         }
     };
-    
+
     // Bloquear scroll do usuário durante a tour
     window.addEventListener('wheel', preventDefault, { passive: false });
     window.addEventListener('touchmove', preventDefault, { passive: false });
@@ -214,45 +214,45 @@ const startGuidedTour = () => {
         window.removeEventListener('wheel', preventDefault);
         window.removeEventListener('touchmove', preventDefault);
         window.removeEventListener('keydown', preventScrollKeys);
-        
+
         document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
         popover.classList.remove('active');
         backdrop.style.opacity = '0';
         setTimeout(() => logout(), 300);
     };
-    
+
     const highlightEl = async (stepIdx) => {
         if (stepIdx >= steps.length) return endTour();
-        
+
         const step = steps[stepIdx];
-        
+
         // Navigate if needed
         const activeLink = document.querySelector('.nav-link.active');
         if (activeLink && activeLink.getAttribute('data-route') !== step.route) {
             await navigate(step.route);
             await new Promise(r => requestAnimationFrame(r));
         }
-        
+
         document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
-        
+
         let el = document.querySelector(step.sel);
-        if(!el) {
+        if (!el) {
             let retries = 0;
-            while(!el && retries < 10) {
+            while (!el && retries < 10) {
                 await new Promise(r => setTimeout(r, 200));
                 el = document.querySelector(step.sel);
                 retries++;
             }
         }
-        if(!el) return highlightEl(stepIdx + 1);
-        
+        if (!el) return highlightEl(stepIdx + 1);
+
         backdrop.style.opacity = '1';
         el.scrollIntoView({ behavior: 'auto', block: 'center' });
         el.classList.add('tour-highlight');
-        
+
         // Aguarda renderização síncrona real
         await new Promise(r => requestAnimationFrame(r));
-        
+
         // Use clip-path to punch a hole in the blurred backdrop
         const rect = el.getBoundingClientRect();
         const padding = 12;
@@ -260,11 +260,11 @@ const startGuidedTour = () => {
         const r = Math.min(window.innerWidth, rect.right + padding);
         const b = Math.min(window.innerHeight, rect.bottom + padding);
         const l = Math.max(0, rect.left - padding);
-        
+
         const clipPathStr = `polygon(0% 0%, 0% 100%, ${l}px 100%, ${l}px ${t}px, ${r}px ${t}px, ${r}px ${b}px, ${l}px ${b}px, ${l}px 100%, 100% 100%, 100% 0%)`;
         backdrop.style.clipPath = clipPathStr;
         backdrop.style.webkitClipPath = clipPathStr;
-        
+
         popover.innerHTML = `
             <span class="tour-step-info">Passo ${stepIdx + 1} de ${steps.length}</span>
             <h4 class="tour-title">${step.title}</h4>
@@ -274,7 +274,7 @@ const startGuidedTour = () => {
                 <button class="tour-btn primary" id="tour-next">${stepIdx === steps.length - 1 ? 'Concluir' : 'Próximo'}</button>
             </div>
         `;
-        
+
         let topPos = rect.bottom + window.scrollY + 15;
         // Se o popover for ficar muito próximo do limite inferior da tela (ou vazar), jogue-o para cima do elemento
         if (rect.bottom + 220 > window.innerHeight) {
@@ -284,19 +284,19 @@ const startGuidedTour = () => {
         if (topPos < window.scrollY + 10) {
             topPos = window.scrollY + 10;
         }
-        
+
         popover.style.top = `${topPos}px`;
-        
+
         let leftPos = rect.left;
-        if(leftPos + 280 > window.innerWidth) leftPos = window.innerWidth - 300;
+        if (leftPos + 280 > window.innerWidth) leftPos = window.innerWidth - 300;
         popover.style.left = `${Math.max(10, leftPos)}px`;
-        
+
         popover.classList.add('active');
-        
+
         document.getElementById('tour-next').onclick = () => highlightEl(stepIdx + 1);
         document.getElementById('tour-skip').onclick = endTour;
     };
-    
+
     highlightEl(0);
 };
 
@@ -312,18 +312,18 @@ let weeklyChartObj = null;
 
 // Verifica se está logado e carrega usuário
 const initAuth = async () => {
-    if(!currentToken) return false;
-    
+    if (!currentToken) return false;
+
     try {
         const res = await fetch('/api/auth/me', {
             headers: { 'x-auth-token': currentToken }
         });
-        
-        if(!res.ok) throw new Error('Token Expirou');
-        
+
+        if (!res.ok) throw new Error('Token Expirou');
+
         currentUser = await res.json();
         return true;
-    } catch(e) {
+    } catch (e) {
         logout(false);
         return false;
     }
@@ -333,19 +333,19 @@ const logout = (redirect = true) => {
     localStorage.removeItem('jwt');
     currentToken = null;
     currentUser = null;
-    if(liveInterval) clearTimeout(liveInterval);
-    if(weatherInterval) clearTimeout(weatherInterval);
-    if(demoIntervalId) clearInterval(demoIntervalId);
+    if (liveInterval) clearTimeout(liveInterval);
+    if (weatherInterval) clearTimeout(weatherInterval);
+    if (demoIntervalId) clearInterval(demoIntervalId);
     isDemoMode = false;
-    if(redirect) navigate('login');
+    if (redirect) navigate('login');
 };
 
 // Navegação Básica (SPA)
 const navigate = async (route) => {
     // 1. Limpar timers (Impedir vazamento assíncrono)
-    if(liveInterval) { clearTimeout(liveInterval); liveInterval = null; }
-    if(weatherInterval) { clearTimeout(weatherInterval); weatherInterval = null; }
-    if(demoIntervalId) { clearInterval(demoIntervalId); demoIntervalId = null; }
+    if (liveInterval) { clearTimeout(liveInterval); liveInterval = null; }
+    if (weatherInterval) { clearTimeout(weatherInterval); weatherInterval = null; }
+    if (demoIntervalId) { clearInterval(demoIntervalId); demoIntervalId = null; }
     _cardCache = null; // Invalida cache de cards (DOM vai mudar)
 
     const zombieDropdown = document.getElementById('profile-dropdown');
@@ -355,15 +355,15 @@ const navigate = async (route) => {
 
     // 2. Proteção de Rota
     const unauthRoutes = ['login', 'register', 'forgot-password', 'reset-password'];
-    if(!currentToken && !unauthRoutes.includes(route)) {
+    if (!currentToken && !unauthRoutes.includes(route)) {
         return navigate('login');
     }
-    if(currentToken && unauthRoutes.includes(route)) {
+    if (currentToken && unauthRoutes.includes(route)) {
         return navigate('dashboard');
     }
 
     // 3. UI da Sidebar
-    if(unauthRoutes.includes(route)) {
+    if (unauthRoutes.includes(route)) {
         sidebar.style.display = 'none';
         appContent.style.margin = '0';
         appContent.style.padding = '0';
@@ -379,20 +379,20 @@ const navigate = async (route) => {
         appContent.style.background = '';
         appContent.style.backdropFilter = '';
         appContent.style.webkitBackdropFilter = '';
-        
+
         // Atualizar nav ativa e Lanterna
         const lantern = document.getElementById('nav-lantern');
         document.querySelectorAll('.nav-link').forEach(link => {
             link.classList.remove('active');
-            if(link.getAttribute('data-route') === route) {
+            if (link.getAttribute('data-route') === route) {
                 link.classList.add('active');
-                if(lantern) {
+                if (lantern) {
                     // Mover fisicamente o glow para o slot do menu
                     lantern.style.transform = `translateY(${link.offsetTop}px)`;
                 }
             }
         });
-        
+
         // Mobile Sidebar auto-close upon navigation
         sidebar.classList.remove('open');
 
@@ -400,11 +400,11 @@ const navigate = async (route) => {
         const exitBtn = document.getElementById('btn-demo-exit');
         const logoutBtn = document.getElementById('btn-logout');
         if (isDemoMode) {
-            if(exitBtn) exitBtn.style.display = 'flex';
-            if(logoutBtn) logoutBtn.style.display = 'none';
+            if (exitBtn) exitBtn.style.display = 'flex';
+            if (logoutBtn) logoutBtn.style.display = 'none';
         } else {
-            if(exitBtn) exitBtn.style.display = 'none';
-            if(logoutBtn) logoutBtn.style.display = 'flex';
+            if (exitBtn) exitBtn.style.display = 'none';
+            if (logoutBtn) logoutBtn.style.display = 'flex';
         }
     }
 
@@ -413,13 +413,13 @@ const navigate = async (route) => {
         appContent.innerHTML = `<div class="loader-spinner"></div>`;
         const res = await fetch(`/views/${route}.html?v=${Date.now()}`);
         const html = await res.text();
-        
+
         const wrapper = document.createElement('div');
         wrapper.className = 'animate-enter-stagger';
         wrapper.innerHTML = html;
         appContent.innerHTML = '';
         appContent.appendChild(wrapper);
-        
+
         // 5. Iniciar Lógica Específica da Rota
         initRouteScript(route);
 
@@ -432,7 +432,7 @@ const navigate = async (route) => {
 // Mapeia clicks do roteamento
 document.body.addEventListener('click', e => {
     const trigger = e.target.closest('[data-route]');
-    if(trigger) {
+    if (trigger) {
         e.preventDefault();
         navigate(trigger.getAttribute('data-route'));
     }
@@ -441,9 +441,9 @@ document.body.addEventListener('click', e => {
 // Pesquisa Global
 document.getElementById('global-search')?.addEventListener('change', e => {
     const term = e.target.value.toLowerCase();
-    if(term.includes('hist')) navigate('history');
-    else if(term.includes('config')) navigate('settings');
-    else if(term.includes('dash') || term.includes('geral')) navigate('dashboard');
+    if (term.includes('hist')) navigate('history');
+    else if (term.includes('config')) navigate('settings');
+    else if (term.includes('dash') || term.includes('geral')) navigate('dashboard');
     e.target.value = '';
 });
 
@@ -463,7 +463,7 @@ const getCards = () => {
 };
 
 document.body.addEventListener('mousemove', e => {
-    if(!ticking) {
+    if (!ticking) {
         requestAnimationFrame(() => {
             const cards = getCards();
             for (let i = 0; i < cards.length; i++) {
@@ -480,7 +480,7 @@ document.body.addEventListener('mousemove', e => {
 // Listener Mobile Hambúrguer Toggle
 document.body.addEventListener('click', e => {
     const btnMenu = e.target.closest('#mobile-menu-btn');
-    if(btnMenu) {
+    if (btnMenu) {
         document.getElementById('sidebar')?.classList.toggle('open');
     }
 });
@@ -493,7 +493,7 @@ btnLogout?.addEventListener('click', (e) => {
 // Listener dinâmico para botão Sair da Demo, caso carregue de forma assíncrona
 document.body.addEventListener('click', e => {
     const exitBtn = e.target.closest('#btn-demo-exit');
-    if(exitBtn) {
+    if (exitBtn) {
         e.preventDefault();
         const conf = confirm("Deseja realmente encerrar a demonstração e voltar ao login?");
         if (conf) {
@@ -512,7 +512,7 @@ window._latestSemana = [];
 window._latestSat = null;
 
 const renderInteligence = () => {
-    if(!window._latestClima || !document.getElementById('analise-texto')) return;
+    if (!window._latestClima || !document.getElementById('analise-texto')) return;
 
     // 1. Evapotranspiração
     const evapo = calcularEvapotranspiracao(window._latestClima);
@@ -557,12 +557,12 @@ const calcularEvapotranspiracao = (clima) => {
 
 // Thresholds ideais por cultura (espelha backend sensorController)
 const getCropLimits = (tipo) => {
-    switch((tipo || '').toLowerCase()) {
-        case 'milho':           return { min: 40, max: 70, center: 55 };
-        case 'feijão':           return { min: 40, max: 60, center: 50 };
-        case 'hortaliças':      return { min: 50, max: 80, center: 65 };
-        case 'cana-de-açúcar':  return { min: 35, max: 60, center: 47.5 };
-        default:                return { min: 40, max: 60, center: 50 };
+    switch ((tipo || '').toLowerCase()) {
+        case 'milho': return { min: 40, max: 70, center: 55 };
+        case 'feijão': return { min: 40, max: 60, center: 50 };
+        case 'hortaliças': return { min: 50, max: 80, center: 65 };
+        case 'cana-de-açúcar': return { min: 35, max: 60, center: 47.5 };
+        default: return { min: 40, max: 60, center: 50 };
     }
 };
 
@@ -661,7 +661,7 @@ const analiseAvancada = (umidade, status, clima, tipoPlantacao, satData = null) 
     if (status === 'SECO' && temp > 30) {
         return `Com a temperatura de ${temp.toFixed(1)}°C, a evaporação da cultura de ${tipoPlantacao.toLowerCase()} está acelerada. Recomenda-se irrigação.`;
     }
-    
+
     if (status === 'ENCHARCADO' && umidAr > 80) {
         return `Solo com excesso de umidade e umidade do ar elevada. Atenção ao risco de doenças fúngicas na cultura de ${tipoPlantacao.toLowerCase()}.`;
     }
@@ -689,14 +689,15 @@ const analiseAvancada = (umidade, status, clima, tipoPlantacao, satData = null) 
 // MÓDULOS DE ROTA
 // ==========================================
 const initRouteScript = (route) => {
-    if(route === 'login') initLogin();
-    if(route === 'register') initRegister();
-    if(route === 'forgot-password') initForgotPassword();
-    if(route === 'reset-password') initResetPassword();
-    if(route === 'dashboard') initDashboard();
-    if(route === 'geo') initGeo();
-    if(route === 'history') initHistory();
-    if(route === 'settings') initSettings();
+    if (route === 'login') initLogin();
+    if (route === 'register') initRegister();
+    if (route === 'forgot-password') initForgotPassword();
+    if (route === 'reset-password') initResetPassword();
+    if (route === 'dashboard') initDashboard();
+    if (route === 'geo') initGeo();
+    if (route === 'history') initHistory();
+    if (route === 'analysis') initAnalysis();
+    if (route === 'settings') initSettings();
 };
 
 const setupAuthFetch = (url, options = {}) => {
@@ -711,7 +712,7 @@ const setupAuthFetch = (url, options = {}) => {
 // ----- LOGIN -----
 const initLogin = () => {
     const form = document.getElementById('login-form');
-    if(!form) return;
+    if (!form) return;
     const errObj = document.getElementById('login-error');
     const togglePassBtn = document.getElementById('toggle-password');
     const passInput = document.getElementById('senha');
@@ -719,23 +720,23 @@ const initLogin = () => {
     const demoBtn = document.getElementById('btn-quick-demo');
 
     // Password visibility toggle
-    if(togglePassBtn && passInput) {
+    if (togglePassBtn && passInput) {
         togglePassBtn.addEventListener('click', () => {
             const isPass = passInput.type === 'password';
             passInput.type = isPass ? 'text' : 'password';
-            if(toggleIcon) {
+            if (toggleIcon) {
                 toggleIcon.textContent = isPass ? 'visibility_off' : 'visibility';
             }
         });
     }
 
     // Quick demo button
-    if(demoBtn) {
+    if (demoBtn) {
         demoBtn.addEventListener('click', () => {
             isDemoMode = true;
             currentToken = "demo_token";
             currentUser = { id: 'demo123', nome: 'Visitante (Demo)', empresa: 'Fazenda Hidrape', area_hectares: 42, tipoPlantacao: 'Milho', data_cadastro: new Date().toISOString() };
-            
+
             const card = document.querySelector('.auth-card');
             if (card) {
                 card.classList.add('fade-out');
@@ -745,21 +746,21 @@ const initLogin = () => {
             }
         });
     }
-    
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = form.querySelector('button[type="submit"]');
         const originalHtml = btn.innerHTML;
         const email = document.getElementById('email').value;
         const senha = document.getElementById('senha').value;
-        
+
         try {
             btn.disabled = true;
             btn.innerHTML = `<span class="material-symbols-rounded" style="animation: rotate 0.8s linear infinite; font-size: 18px;">progress_activity</span><span>Autenticando...</span>`;
             const res = await fetch('/api/auth/login', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({email, senha})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email, senha })
             });
             let data;
             const contentType = res.headers.get('content-type');
@@ -768,18 +769,18 @@ const initLogin = () => {
             } else {
                 throw new Error('Servidor temporariamente indisponível.');
             }
-            
-            if(!res.ok) throw new Error(data.error || 'Falha ao autenticar.');
-            
+
+            if (!res.ok) throw new Error(data.error || 'Falha ao autenticar.');
+
             currentToken = data.token;
             currentUser = data.user;
             localStorage.setItem('jwt', currentToken);
-            if(errObj) errObj.style.display = 'none';
+            if (errObj) errObj.style.display = 'none';
             navigate('dashboard');
-        } catch(e) {
+        } catch (e) {
             btn.disabled = false;
             btn.innerHTML = originalHtml;
-            if(errObj) {
+            if (errObj) {
                 errObj.textContent = e.message;
                 errObj.style.display = 'block';
             }
@@ -791,30 +792,30 @@ const initLogin = () => {
 const initForgotPassword = () => {
     const form = document.getElementById('forgot-form');
     const msgObj = document.getElementById('forgot-msg');
-    
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = form.querySelector('button[type="submit"]');
         const originalText = btn.textContent;
         const email = document.getElementById('email').value;
-        
+
         try {
             btn.disabled = true;
             btn.textContent = 'Enviando...';
             const res = await fetch('/api/auth/forgot-password', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({email})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email })
             });
             const data = await res.json();
-            
-            if(!res.ok) throw new Error(data.error);
-            
+
+            if (!res.ok) throw new Error(data.error);
+
             msgObj.textContent = data.message;
             msgObj.style.color = 'var(--color-good)';
             msgObj.style.display = 'block';
             btn.textContent = 'Enviado';
-        } catch(e) {
+        } catch (e) {
             btn.disabled = false;
             btn.textContent = originalText;
             msgObj.textContent = e.message;
@@ -835,10 +836,10 @@ const initResetPassword = () => {
         msgObj.textContent = 'Token de recuperação não encontrado. Solicite novamente.';
         msgObj.style.color = 'var(--color-dry)';
         msgObj.style.display = 'block';
-        if(form) form.style.display = 'none';
+        if (form) form.style.display = 'none';
         return;
     }
-    
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = form.querySelector('button[type="submit"]');
@@ -852,19 +853,19 @@ const initResetPassword = () => {
             msgObj.style.display = 'block';
             return;
         }
-        
+
         try {
             btn.disabled = true;
             btn.textContent = 'Atualizando...';
             const res = await fetch('/api/auth/reset-password', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({token, senha})
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ token, senha })
             });
             const data = await res.json();
-            
-            if(!res.ok) throw new Error(data.error);
-            
+
+            if (!res.ok) throw new Error(data.error);
+
             msgObj.textContent = data.message;
             msgObj.style.color = 'var(--color-good)';
             msgObj.style.display = 'block';
@@ -876,7 +877,7 @@ const initResetPassword = () => {
             setTimeout(() => {
                 navigate('login');
             }, 3000);
-        } catch(e) {
+        } catch (e) {
             btn.disabled = false;
             btn.textContent = originalText;
             msgObj.textContent = e.message;
@@ -890,7 +891,7 @@ const initResetPassword = () => {
 const initRegister = () => {
     const form = document.getElementById('register-form');
     const errObj = document.getElementById('reg-error');
-    
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = form.querySelector('button[type="submit"]');
@@ -905,15 +906,15 @@ const initRegister = () => {
             estado: stateInput ? stateInput.toUpperCase() : 'SP',
             tipoPlantacao: document.getElementById('reg-cultura').value
         };
-        
+
         try {
             btn.disabled = true;
             btn.textContent = 'Processando Cadastro...';
             errObj.style.display = 'none';
-            
+
             const res = await fetch('/api/auth/register', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body)
             });
             let data;
@@ -923,16 +924,16 @@ const initRegister = () => {
             } else {
                 throw new Error('Servidor temporariamente indisponível.');
             }
-            if(!res.ok) throw new Error(data.error);
-            
+            if (!res.ok) throw new Error(data.error);
+
             currentToken = data.token;
             currentUser = data.user;
             localStorage.setItem('jwt', currentToken);
             navigate('dashboard');
-        } catch(e) {
+        } catch (e) {
             btn.disabled = false;
             btn.textContent = originalText;
-            
+
             // Tratamento amigável para Network Errors (CORS, Load failed, ou Servidor Reiniciando)
             if (e.message.includes('Load failed') || e.message === 'Failed to fetch') {
                 errObj.textContent = "Erro de conexão com o servidor. Aguarde 5 segundos e tente novamente.";
@@ -947,16 +948,16 @@ const initRegister = () => {
 // ----- DASHBOARD (IA + CHART + AGRO) -----
 const initDashboard = async () => {
     // 1. Limpeza Garantida (Travar Phantom Timers de duplo carregamento)
-    if(liveInterval) { clearTimeout(liveInterval); liveInterval = null; }
-    if(weatherInterval) { clearTimeout(weatherInterval); weatherInterval = null; }
-    if(demoIntervalId) { clearInterval(demoIntervalId); demoIntervalId = null; }
+    if (liveInterval) { clearTimeout(liveInterval); liveInterval = null; }
+    if (weatherInterval) { clearTimeout(weatherInterval); weatherInterval = null; }
+    if (demoIntervalId) { clearInterval(demoIntervalId); demoIntervalId = null; }
 
     if (isDemoMode) {
         // Exibe badge demo
         const badge = document.getElementById('global-demo-badge');
-        if(!badge) {
+        if (!badge) {
             const header = document.querySelector('.dash-top-bar > div:first-child');
-            if(header) {
+            if (header) {
                 const b = document.createElement('div');
                 b.id = 'global-demo-badge';
                 b.className = 'demo-badge';
@@ -965,12 +966,12 @@ const initDashboard = async () => {
                 header.appendChild(b);
             }
         }
-        
+
         demoIntervalId = setInterval(updateDemoData, 5000);
         setTimeout(startGuidedTour, 1000); // Tentar iniciar o tour 1s depois
     } else {
         const badge = document.getElementById('global-demo-badge');
-        if(badge) badge.remove();
+        if (badge) badge.remove();
     }
 
     document.getElementById('dash-user').textContent = currentUser.nome.split(' ')[0];
@@ -993,9 +994,20 @@ const initDashboard = async () => {
                 if (profileMenu.parentNode !== document.body) {
                     document.body.appendChild(profileMenu);
                 }
-                profileMenu.style.top = (rect.bottom + window.scrollY + 12) + 'px';
-                profileMenu.style.left = (rect.right + window.scrollX - 260) + 'px';
                 
+                profileMenu.style.top = (rect.bottom + window.scrollY + 12) + 'px';
+                
+                // Mobile-first fix for dropdown overflow
+                if (window.innerWidth <= 768) {
+                    profileMenu.style.left = '16px';
+                    profileMenu.style.width = 'calc(100vw - 32px)';
+                    profileMenu.style.maxWidth = 'calc(100vw - 32px - env(safe-area-inset-left) - env(safe-area-inset-right))';
+                } else {
+                    profileMenu.style.left = (rect.right + window.scrollX - 260) + 'px';
+                    profileMenu.style.width = '260px';
+                    profileMenu.style.maxWidth = 'none';
+                }
+
                 profileMenu.style.display = 'flex';
                 // Trigger reflow
                 profileMenu.offsetHeight;
@@ -1010,7 +1022,7 @@ const initDashboard = async () => {
                 if (action.startsWith('settings-')) {
                     const tab = action.split('-')[1];
                     window._targetSettingsTab = tab === 'prop' ? 'propriedade' : 'integracoes';
-                    
+
                     // Close menu gracefully before navigation
                     profileMenu.style.opacity = '0';
                     profileMenu.style.transform = 'scale(0.95)';
@@ -1029,7 +1041,7 @@ const initDashboard = async () => {
     const iaCard = document.getElementById('predict-card'); // updated to predict-card from generic copy
     const iaText = document.getElementById('ia-text');
     const iaIcon = document.getElementById('ia-icon');
-    
+
     // Init Live Chart (Garbage Collector)
     if (liveChartObj) liveChartObj.destroy();
     const ctxLive = document.getElementById('liveChart').getContext('2d');
@@ -1040,23 +1052,23 @@ const initDashboard = async () => {
     liveChartObj = new Chart(ctxLive, {
         type: 'line',
         data: { labels: [], datasets: [{ label: 'Umidade (%)', data: [], borderColor: '#94B4C1', backgroundColor: 'rgba(148, 180, 193, 0.05)', fill: true, tension: 0.4, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4 }] },
-        options: { 
-            animation: false, 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(20, 28, 38, 0.9)', titleColor: '#fff', bodyColor: '#94B4C1', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 12, padding: 12 } }, 
-            scales: { 
-                x: { 
+        options: {
+            animation: false,
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(20, 28, 38, 0.9)', titleColor: '#fff', bodyColor: '#94B4C1', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 12, padding: 12 } },
+            scales: {
+                x: {
                     ticks: { color: 'rgba(255, 255, 255, 0.4)' },
-                    grid: { display: false } 
+                    grid: { display: false }
                 },
-                y: { 
-                    max: 100, 
+                y: {
+                    max: 100,
                     min: 0,
                     ticks: { color: 'rgba(255, 255, 255, 0.4)' },
                     grid: { color: 'rgba(255, 255, 255, 0.03)' }
-                } 
-            } 
+                }
+            }
         }
     });
 
@@ -1066,23 +1078,23 @@ const initDashboard = async () => {
     weeklyChartObj = new Chart(ctxWeekly, {
         type: 'bar',
         data: { labels: [], datasets: [{ label: 'Média Semanal (%)', data: [], backgroundColor: 'rgba(148, 180, 193, 0.4)', borderRadius: 4, hoverBackgroundColor: '#94B4C1' }] },
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
-            plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(20, 28, 38, 0.9)', titleColor: '#fff', bodyColor: '#94B4C1', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 12, padding: 12 } }, 
-            scales: { 
-                x: { 
+            plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(20, 28, 38, 0.9)', titleColor: '#fff', bodyColor: '#94B4C1', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 12, padding: 12 } },
+            scales: {
+                x: {
                     ticks: { color: 'rgba(255, 255, 255, 0.4)' },
-                    grid: { display: false } 
+                    grid: { display: false }
                 },
-                y: { 
-                    max: 100, 
+                y: {
+                    max: 100,
                     min: 0,
                     ticks: { color: 'rgba(255, 255, 255, 0.4)' },
                     grid: { color: 'rgba(255, 255, 255, 0.03)' }
-                } 
-            } 
+                }
+            }
         }
     });
 
@@ -1091,12 +1103,12 @@ const initDashboard = async () => {
     let farmCircle = null;
     if (document.getElementById('farm-map') && typeof L !== 'undefined') {
         const mapContainer = L.DomUtil.get('farm-map');
-        if(mapContainer != null){
+        if (mapContainer != null) {
             mapContainer._leaflet_id = null;
         }
         const lat = parseFloat(currentUser.lat) || -23.55;
         const lon = parseFloat(currentUser.lon) || -46.63;
-        
+
         if (isNaN(lat) || isNaN(lon)) {
             console.error("Coordenadas inválidas para o mapa", currentUser);
         }
@@ -1105,10 +1117,10 @@ const initDashboard = async () => {
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: '&copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
         }).addTo(farmMap);
-        
+
         L.marker([lat, lon]).addTo(farmMap)
             .bindPopup(`<b>${currentUser.nome}</b><br>Cultivo: ${currentUser.tipoPlantacao}`).openPopup();
-            
+
         farmCircle = L.circle([lat, lon], {
             color: 'var(--color-good)',
             fillColor: 'var(--color-good)',
@@ -1131,10 +1143,10 @@ const initDashboard = async () => {
                 (pos) => {
                     const userLat = pos.coords.latitude;
                     const userLon = pos.coords.longitude;
-                    
+
                     const userMarker = L.marker([userLat, userLon]).addTo(farmMap)
                         .bindPopup("<b>Você está aqui</b><br>Monitorando remotamente");
-                    
+
                     // Cria um grupo visual para centralizar a câmera enxergando tanto você quanto a fazenda
                     const group = new L.featureGroup([
                         L.marker([lat, lon]),
@@ -1156,32 +1168,32 @@ const initDashboard = async () => {
     if (nasaCard) {
         nasaCard.addEventListener('click', () => {
             if (!window._latestSat || !window._latestSat.historico) return;
-            
+
             const modal = document.getElementById('nasa-modal');
             document.body.appendChild(modal);
             modal.style.display = 'flex';
             document.body.style.overflow = 'hidden';
-            
+
             const hist = window._latestSat.historico;
             const ctxNasa = document.getElementById('nasaChart').getContext('2d');
             if (nasaChartObj) nasaChartObj.destroy();
             nasaChartObj = new Chart(ctxNasa, {
                 type: 'line',
-                data: { 
-                    labels: hist.map(h => h.data.slice(-5)), 
-                    datasets: [{ 
-                        label: 'Umidade Macro (%)', 
-                        data: hist.map(h => h.valor), 
-                        borderColor: '#f39c12', 
-                        backgroundColor: 'rgba(243, 156, 18, 0.2)', 
-                        fill: true, 
-                        tension: 0.3 
-                    }] 
+                data: {
+                    labels: hist.map(h => h.data.slice(-5)),
+                    datasets: [{
+                        label: 'Umidade Macro (%)',
+                        data: hist.map(h => h.valor),
+                        borderColor: '#f39c12',
+                        backgroundColor: 'rgba(243, 156, 18, 0.2)',
+                        fill: true,
+                        tension: 0.3
+                    }]
                 },
-                options: { 
+                options: {
                     responsive: true, maintainAspectRatio: false,
                     plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(20, 28, 38, 0.9)', titleColor: '#fff', bodyColor: '#f39c12', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 12, padding: 12 } },
-                    scales: { 
+                    scales: {
                         x: { ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { display: false } },
                         y: { max: 100, min: 0, ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { color: 'rgba(255, 255, 255, 0.03)' } }
                     }
@@ -1195,7 +1207,7 @@ const initDashboard = async () => {
             const modal = document.getElementById('nasa-modal');
             modal.style.display = 'none';
             document.body.style.overflow = '';
-            
+
             const appContent = document.getElementById('app-content');
             if (appContent) appContent.appendChild(modal);
         });
@@ -1206,12 +1218,12 @@ const initDashboard = async () => {
         try {
             const valText = document.getElementById('umidade-valor');
             const varBar = document.getElementById('umidade-progress');
-            const iaCard = document.getElementById('predict-card'); 
+            const iaCard = document.getElementById('predict-card');
             const iaText = document.getElementById('ia-text');
             const iaIcon = document.getElementById('ia-icon');
-            
+
             // Proteção Assíncrona
-            if(!valText) return;
+            if (!valText) return;
 
             const setOfflineState = () => {
                 if (valText) {
@@ -1234,7 +1246,7 @@ const initDashboard = async () => {
                     soilInsight.style.color = "#ff4444";
                     soilInsight.style.fontWeight = "bold";
                 }
-                
+
                 const sysStatus = document.getElementById('sys-status');
                 if (sysStatus) {
                     sysStatus.style.background = '#ff4444';
@@ -1270,9 +1282,9 @@ const initDashboard = async () => {
 
             let color = 'var(--color-good)';
             let glowKey = 'good';
-            if(data.status === 'SECO') { color = 'var(--color-dry)'; glowKey = 'dry'; iaIcon.textContent = 'water_drop'; }
-            if(data.status === 'ENCHARCADO') { color = 'var(--color-dry)'; glowKey = 'dry'; iaIcon.textContent = 'flood'; }
-            if(data.status === 'IDEAL') { color = 'var(--color-good)'; glowKey = 'good'; iaIcon.textContent = 'eco'; }
+            if (data.status === 'SECO') { color = 'var(--color-dry)'; glowKey = 'dry'; iaIcon.textContent = 'water_drop'; }
+            if (data.status === 'ENCHARCADO') { color = 'var(--color-dry)'; glowKey = 'dry'; iaIcon.textContent = 'flood'; }
+            if (data.status === 'IDEAL') { color = 'var(--color-good)'; glowKey = 'good'; iaIcon.textContent = 'eco'; }
 
             // Signature card glow
             const sigCard = document.querySelector('.card-signature');
@@ -1303,7 +1315,7 @@ const initDashboard = async () => {
             const tLabel = new Date(data.timestamp).toLocaleTimeString('pt-BR');
             liveChartObj.data.labels.push(tLabel);
             liveChartObj.data.datasets[0].data.push(data.umidade);
-            if(liveChartObj.data.labels.length > 20) {
+            if (liveChartObj.data.labels.length > 20) {
                 liveChartObj.data.labels.shift();
                 liveChartObj.data.datasets[0].data.shift();
             }
@@ -1313,9 +1325,9 @@ const initDashboard = async () => {
             window._latestUmid = data.umidade;
             window._latestStatus = data.status;
             renderInteligence();
-        } catch(e) { console.error('API IoT Error', e); }
+        } catch (e) { console.error('API IoT Error', e); }
         finally {
-            if(document.getElementById('umidade-valor')) {
+            if (document.getElementById('umidade-valor')) {
                 liveInterval = setTimeout(updateIoT, 5000); // Polling Seguro em Fila
             }
         }
@@ -1327,51 +1339,51 @@ const initDashboard = async () => {
             // -- CLIMA & IA --
             const resClima = await setupAuthFetch('/api/agro/clima');
             const agroData = await resClima.json();
-            
-            if(!document.getElementById('predict-text')) return;
-            
-            if(agroData && agroData.clima && agroData.clima.current) {
-                if(document.getElementById('clima-cidade')) {
 
-                document.getElementById('clima-cidade').textContent = agroData.cidade;
-                document.getElementById('clima-temp').textContent = Math.round(agroData.clima.current.temperature_2m) + '°C';
-                
-                // O Open-Meteo V1 entrega exato em .current
-                const arNivel = agroData.clima.current.relative_humidity_2m !== undefined ? agroData.clima.current.relative_humidity_2m : '--';
-                document.getElementById('clima-umid').textContent = 'Ar: ' + arNivel + '%';
+            if (!document.getElementById('predict-text')) return;
 
-                // Tradução do Ícone WeatherCode (WMO) Standard (Ex: 0 = limpo, 1,2,3 = parcial, 61+ = chuva)
-                const code = agroData.clima.current.weather_code;
-                const isDay = agroData.clima.current.is_day === 1; // Booleano retornado 1(Dia) / 0(Noite)
+            if (agroData && agroData.clima && agroData.clima.current) {
+                if (document.getElementById('clima-cidade')) {
 
-                let icon = 'routine';
-                if(code <= 3) {
-                    // Limpo ou Parcialmente Nublado
-                    icon = isDay ? 'sunny' : 'mode_night';
+                    document.getElementById('clima-cidade').textContent = agroData.cidade;
+                    document.getElementById('clima-temp').textContent = Math.round(agroData.clima.current.temperature_2m) + '°C';
+
+                    // O Open-Meteo V1 entrega exato em .current
+                    const arNivel = agroData.clima.current.relative_humidity_2m !== undefined ? agroData.clima.current.relative_humidity_2m : '--';
+                    document.getElementById('clima-umid').textContent = 'Ar: ' + arNivel + '%';
+
+                    // Tradução do Ícone WeatherCode (WMO) Standard (Ex: 0 = limpo, 1,2,3 = parcial, 61+ = chuva)
+                    const code = agroData.clima.current.weather_code;
+                    const isDay = agroData.clima.current.is_day === 1; // Booleano retornado 1(Dia) / 0(Noite)
+
+                    let icon = 'routine';
+                    if (code <= 3) {
+                        // Limpo ou Parcialmente Nublado
+                        icon = isDay ? 'sunny' : 'mode_night';
+                    }
+                    else if (code <= 69) {
+                        // Chuvoso ou Neve
+                        icon = 'rainy';
+                    }
+                    else if (code <= 99) {
+                        // Tempestade
+                        icon = 'thunderstorm';
+                    }
+                    document.getElementById('clima-icon').textContent = icon;
                 }
-                else if(code <= 69) {
-                    // Chuvoso ou Neve
-                    icon = 'rainy';
-                }
-                else if(code <= 99) {
-                    // Tempestade
-                    icon = 'thunderstorm';
-                }
-                document.getElementById('clima-icon').textContent = icon;
-                }
-            } else if(document.getElementById('clima-cidade')) {
+            } else if (document.getElementById('clima-cidade')) {
                 document.getElementById('clima-cidade').textContent = "Erro API Clima";
                 document.getElementById('clima-temp').textContent = "--°C";
             }
 
             // Binding Previsão Regras UI (Matemática Pura -> IA Generativa)
             document.getElementById('predict-text').innerHTML = `<span style="opacity:0.7">Gerando IA...</span>`;
-            
+
             try {
                 const iaRes = await setupAuthFetch('/api/agro/insights-ia');
                 if (!iaRes.ok) throw new Error("IA Fallback");
                 const iaData = await iaRes.json();
-                
+
                 document.getElementById('predict-text').innerHTML = `
                     <span style="font-size: 0.75rem; background: var(--color-good); padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-bottom: 6px; display: inline-block; color: white;">✦ IA GENERATIVA</span><br/>
                     ${iaData.diagnostico}
@@ -1380,23 +1392,23 @@ const initDashboard = async () => {
                 // Fallback para a recomendação puramente matemática se a IA falhar
                 document.getElementById('predict-text').textContent = agroData.previsao.recomendacao;
             }
-            
+
             let timeText = Math.round(agroData.previsao.tempoHoras) + 'H';
             if (agroData.previsao.tempoHoras <= 0) timeText = 'AGORA';
             if (agroData.previsao.tempoHoras === 99) timeText = 'LOCK'; // Trava de Segurança Hídrica (Chuva)
-            
+
             document.getElementById('predict-time').textContent = timeText;
-            
+
             const pCard = document.getElementById('predict-card');
             const pIconWrap = document.getElementById('predict-icon-wrapper');
             const pIcon = document.getElementById('predict-icon');
-            
-            if(agroData.previsao.status === 'critico') {
+
+            if (agroData.previsao.status === 'critico') {
                 pCard.style.borderLeft = '4px solid var(--color-dry)';
                 pIconWrap.style.background = 'var(--color-dry)';
                 pIcon.style.color = 'white';
                 pIcon.textContent = 'warning';
-            } else if(agroData.previsao.status === 'alerta') {
+            } else if (agroData.previsao.status === 'alerta') {
                 pCard.style.borderLeft = '4px solid #f39c12';
                 pIconWrap.style.background = '#f39c12';
                 pIcon.style.color = 'white';
@@ -1419,7 +1431,7 @@ const initDashboard = async () => {
             window._latestClima = agroData.clima;
             window._latestSemana = weekData;
             window._latestSat = agroData.satelite;
-            
+
             // Satelite Update UI
             if (agroData.satelite && document.getElementById('satelite-valor')) {
                 document.getElementById('satelite-valor').textContent = agroData.satelite.umidadeMacro;
@@ -1429,22 +1441,22 @@ const initDashboard = async () => {
             }
 
             renderInteligence();
-            
+
             // Render Heatmap NDVI (Estresse Hídrico) no Mapa
             if (typeof farmMap !== 'undefined' && farmMap && typeof L !== 'undefined' && L.heatLayer) {
                 if (window._heatLayer) {
                     farmMap.removeLayer(window._heatLayer);
                 }
-                
+
                 // Baseado no status da IA: critico (seco/vermelho), alerta (amarelo), bom (verde)
                 const isCritico = agroData.previsao.status === 'critico';
                 const isAlerta = agroData.previsao.status === 'alerta';
-                
+
                 // Recuperar tamanho em Hectares
                 const tamanhoHectares = currentUser.tamanhoFazenda || 10;
                 const sideMeters = Math.sqrt(tamanhoHectares * 10000);
                 const degreeOffset = (sideMeters / 2) / 111000; // Aproximação métrica para graus
-                
+
                 const baseLat = parseFloat(currentUser.lat) || -23.55;
                 const baseLon = parseFloat(currentUser.lon) || -46.63;
 
@@ -1461,10 +1473,10 @@ const initDashboard = async () => {
                 // Gerar vértices do Polígono Orgânico de forma fixa usando o PRNG
                 const numVertices = 6;
                 const polygonPoints = [];
-                for(let v = 0; v < numVertices; v++) {
+                for (let v = 0; v < numVertices; v++) {
                     const angle = (v / numVertices) * Math.PI * 2;
                     // Variação orgânica entre 70% e 130% do raio projetado, mas fixo para a coordenada
-                    const deformacao = 0.7 + randomGen() * 0.6; 
+                    const deformacao = 0.7 + randomGen() * 0.6;
                     const vLat = baseLat + Math.cos(angle) * degreeOffset * deformacao;
                     const vLon = baseLon + Math.sin(angle) * degreeOffset * deformacao;
                     polygonPoints.push([vLat, vLon]);
@@ -1472,22 +1484,22 @@ const initDashboard = async () => {
 
                 // Limpar polígono anterior se existir
                 if (window._farmBoundary) farmMap.removeLayer(window._farmBoundary);
-                
+
                 // Desenhar Polígono (Cerca Orgânica da Fazenda)
                 window._farmBoundary = L.polygon(polygonPoints, {
-                    color: 'var(--sys-accent, #ff3300)', 
-                    weight: 2, 
-                    dashArray: '5, 5', 
+                    color: 'var(--sys-accent, #ff3300)',
+                    weight: 2,
+                    dashArray: '5, 5',
                     fillOpacity: 0
                 }).addTo(farmMap);
 
                 // Forçar a câmera a focar na área exata do polígono irregular
                 farmMap.fitBounds(window._farmBoundary.getBounds(), { padding: [20, 20] });
-                
+
                 // Criar malha térmica (Grid) fixo (Seeded Noise) no relevo da fazenda para parecer uma máscara de satélite real
                 const heatPoints = [];
                 // Preencher o polígono com uma grade densa para efeito de "lente"
-                for(let i = 0; i < 600; i++) {
+                for (let i = 0; i < 600; i++) {
                     const angle = randomGen() * Math.PI * 2;
                     const r = Math.sqrt(randomGen()) * degreeOffset * 0.9; // sqrt para distribuição uniforme no círculo
                     const rLat = baseLat + Math.cos(angle) * r;
@@ -1495,7 +1507,7 @@ const initDashboard = async () => {
                     const intensity = 0.4 + randomGen() * 0.6; // Intensidade fixa da matriz local
                     heatPoints.push([rLat, rLon, intensity]);
                 }
-                
+
                 // Buscar dados reais do Radar Meteorológico Global (RainViewer)
                 let rainUrl = '';
                 try {
@@ -1503,25 +1515,25 @@ const initDashboard = async () => {
                     if (rvRes.ok) {
                         const rvData = await rvRes.json();
                         if (rvData.radar && rvData.radar.past && rvData.radar.past.length > 0) {
-                            const lastFrame = rvData.radar.past[rvData.radar.past.length - 1]; 
+                            const lastFrame = rvData.radar.past[rvData.radar.past.length - 1];
                             rainUrl = `https://tilecache.rainviewer.com${lastFrame.path}/256/{z}/{x}/{y}/2/1_1.png`;
                         }
                     }
-                } catch(e) { console.error('Erro ao buscar RainViewer', e); }
+                } catch (e) { console.error('Erro ao buscar RainViewer', e); }
 
                 // Definir Cores do NDVI: Verde (Bom) | Amarelo (Alerta) | Vermelho (Estresse Crítico)
                 // A intensidade das manchas será direcionada pelos dados reais do agroData.
-                let hGradient = { 0.4: '#00ff00', 0.65: '#ffff00', 1.0: '#ff0000' }; 
+                let hGradient = { 0.4: '#00ff00', 0.65: '#ffff00', 1.0: '#ff0000' };
                 if (!isCritico && !isAlerta) hGradient = { 0.3: '#00ffff', 0.6: '#00ff00', 1.0: '#00aa00' };
                 else if (isAlerta) hGradient = { 0.4: '#00ff00', 0.7: '#ffff00', 1.0: '#ff9900' };
-                
-                if(window._ndviLayer) farmMap.removeLayer(window._ndviLayer);
-                if(window._rainLayer) farmMap.removeLayer(window._rainLayer);
+
+                if (window._ndviLayer) farmMap.removeLayer(window._ndviLayer);
+                if (window._rainLayer) farmMap.removeLayer(window._rainLayer);
 
                 // Camada 1: NDVI (Máscara Hídrica)
                 window._ndviLayer = L.heatLayer(heatPoints, {
-                    radius: Math.max(25, 80 - Math.log(tamanhoHectares)*5),
-                    blur: Math.max(20, 50 - Math.log(tamanhoHectares)*3),
+                    radius: Math.max(25, 80 - Math.log(tamanhoHectares) * 5),
+                    blur: Math.max(20, 50 - Math.log(tamanhoHectares) * 3),
                     maxZoom: 18,
                     minOpacity: 0.4,
                     gradient: hGradient
@@ -1537,7 +1549,7 @@ const initDashboard = async () => {
                     });
                 } else {
                     // Fallback visual vazio se API de radar falhar
-                    window._rainLayer = L.heatLayer([], {maxZoom:18});
+                    window._rainLayer = L.heatLayer([], { maxZoom: 18 });
                 }
 
                 // Default layer é NDVI
@@ -1587,14 +1599,14 @@ const initDashboard = async () => {
                         farmMap.removeLayer(window._rainLayer);
                         window._ndviLayer.addTo(farmMap);
                         window._currentLayer = 'ndvi';
-                        
+
                         newBtnNdvi.style.background = 'var(--sys-secondary)';
                         newBtnNdvi.style.color = 'white';
                         newBtnRain.style.background = 'transparent';
                         newBtnRain.style.color = 'rgba(255,255,255,0.6)';
-                        
-                        if(legNdvi) legNdvi.style.display = 'flex';
-                        if(legRain) legRain.style.display = 'none';
+
+                        if (legNdvi) legNdvi.style.display = 'flex';
+                        if (legRain) legRain.style.display = 'none';
 
                         updateIAText('ndvi');
                     });
@@ -1604,23 +1616,23 @@ const initDashboard = async () => {
                         farmMap.removeLayer(window._ndviLayer);
                         window._rainLayer.addTo(farmMap);
                         window._currentLayer = 'rain';
-                        
+
                         newBtnRain.style.background = 'var(--sys-secondary)';
                         newBtnRain.style.color = 'white';
                         newBtnNdvi.style.background = 'transparent';
                         newBtnNdvi.style.color = 'rgba(255,255,255,0.6)';
-                        
-                        if(legRain) legRain.style.display = 'flex';
-                        if(legNdvi) legNdvi.style.display = 'none';
+
+                        if (legRain) legRain.style.display = 'flex';
+                        if (legNdvi) legNdvi.style.display = 'none';
 
                         updateIAText('rain');
                     });
                 }
             }
 
-        } catch(e) { console.error('Agro Sync Error', e); }
+        } catch (e) { console.error('Agro Sync Error', e); }
         finally {
-            if(document.getElementById('clima-cidade')) {
+            if (document.getElementById('clima-cidade')) {
                 weatherInterval = setTimeout(updateAgro, 10 * 60 * 1000); // Polling Seguro em Fila
             }
         }
@@ -1634,27 +1646,27 @@ const initDashboard = async () => {
 
 // ----- GEOESPACIAL (MAPA + CLIMA) -----
 const initGeo = async () => {
-    if(weatherInterval) { clearTimeout(weatherInterval); weatherInterval = null; }
+    if (weatherInterval) { clearTimeout(weatherInterval); weatherInterval = null; }
 
     // Leaflet Map Init
     let farmMap = null;
     let farmCircle = null;
     if (document.getElementById('farm-map') && typeof L !== 'undefined') {
         const mapContainer = L.DomUtil.get('farm-map');
-        if(mapContainer != null){
+        if (mapContainer != null) {
             mapContainer._leaflet_id = null;
         }
         const lat = parseFloat(currentUser.lat) || -23.55;
         const lon = parseFloat(currentUser.lon) || -46.63;
-        
+
         farmMap = L.map('farm-map').setView([lat, lon], 14);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: '&copy; Esri'
         }).addTo(farmMap);
-        
+
         L.marker([lat, lon]).addTo(farmMap)
             .bindPopup(`<b>${currentUser.nome}</b><br>Cultivo: ${currentUser.tipoPlantacao}`).openPopup();
-            
+
         farmCircle = L.circle([lat, lon], {
             color: 'var(--color-good)',
             fillColor: 'var(--color-good)',
@@ -1674,13 +1686,13 @@ const initGeo = async () => {
         try {
             const resClima = await setupAuthFetch('/api/agro/clima');
             const agroData = await resClima.json();
-            
-            if(!document.getElementById('clima-cidade')) return;
-            
-            if(agroData && agroData.clima && agroData.clima.current) {
+
+            if (!document.getElementById('clima-cidade')) return;
+
+            if (agroData && agroData.clima && agroData.clima.current) {
                 document.getElementById('clima-cidade').textContent = agroData.cidade;
                 document.getElementById('clima-temp').textContent = Math.round(agroData.clima.current.temperature_2m) + '°C';
-                
+
                 const arNivel = agroData.clima.current.relative_humidity_2m !== undefined ? agroData.clima.current.relative_humidity_2m : '--';
                 document.getElementById('clima-umid').textContent = 'Ar: ' + arNivel + '%';
 
@@ -1688,22 +1700,22 @@ const initGeo = async () => {
                 const isDay = agroData.clima.current.is_day === 1;
 
                 let icon = 'routine';
-                if(code <= 3) icon = isDay ? 'sunny' : 'mode_night';
-                else if(code <= 69) icon = 'rainy';
-                else if(code <= 99) icon = 'thunderstorm';
+                if (code <= 3) icon = isDay ? 'sunny' : 'mode_night';
+                else if (code <= 69) icon = 'rainy';
+                else if (code <= 99) icon = 'thunderstorm';
                 document.getElementById('clima-icon').textContent = icon;
             }
 
             if (typeof farmMap !== 'undefined' && farmMap && typeof L !== 'undefined' && L.heatLayer) {
                 if (window._heatLayer) farmMap.removeLayer(window._heatLayer);
-                
+
                 const isCritico = agroData.previsao && agroData.previsao.status === 'critico';
                 const isAlerta = agroData.previsao && agroData.previsao.status === 'alerta';
-                
+
                 const tamanhoHectares = currentUser.tamanhoFazenda || 10;
                 const sideMeters = Math.sqrt(tamanhoHectares * 10000);
                 const degreeOffset = (sideMeters / 2) / 111000;
-                
+
                 const baseLat = parseFloat(currentUser.lat) || -23.55;
                 const baseLon = parseFloat(currentUser.lon) || -46.63;
 
@@ -1717,27 +1729,27 @@ const initGeo = async () => {
 
                 const numVertices = 6;
                 const polygonPoints = [];
-                for(let v = 0; v < numVertices; v++) {
+                for (let v = 0; v < numVertices; v++) {
                     const angle = (v / numVertices) * Math.PI * 2;
-                    const deformacao = 0.7 + randomGen() * 0.6; 
+                    const deformacao = 0.7 + randomGen() * 0.6;
                     const vLat = baseLat + Math.cos(angle) * degreeOffset * deformacao;
                     const vLon = baseLon + Math.sin(angle) * degreeOffset * deformacao;
                     polygonPoints.push([vLat, vLon]);
                 }
 
                 if (window._farmBoundary) farmMap.removeLayer(window._farmBoundary);
-                
+
                 window._farmBoundary = L.polygon(polygonPoints, {
-                    color: 'var(--sys-accent, #ff3300)', 
-                    weight: 2, 
-                    dashArray: '5, 5', 
+                    color: 'var(--sys-accent, #ff3300)',
+                    weight: 2,
+                    dashArray: '5, 5',
                     fillOpacity: 0
                 }).addTo(farmMap);
 
                 farmMap.fitBounds(window._farmBoundary.getBounds(), { padding: [20, 20] });
-                
+
                 const heatPoints = [];
-                for(let i = 0; i < 600; i++) {
+                for (let i = 0; i < 600; i++) {
                     const angle = randomGen() * Math.PI * 2;
                     const r = Math.sqrt(randomGen()) * degreeOffset * 0.9;
                     const rLat = baseLat + Math.cos(angle) * r;
@@ -1745,29 +1757,29 @@ const initGeo = async () => {
                     const intensity = 0.4 + randomGen() * 0.6;
                     heatPoints.push([rLat, rLon, intensity]);
                 }
-                
+
                 let rainUrl = '';
                 try {
                     const rvRes = await fetch('https://api.rainviewer.com/public/weather-maps.json');
                     if (rvRes.ok) {
                         const rvData = await rvRes.json();
                         if (rvData.radar && rvData.radar.past && rvData.radar.past.length > 0) {
-                            const lastFrame = rvData.radar.past[rvData.radar.past.length - 1]; 
+                            const lastFrame = rvData.radar.past[rvData.radar.past.length - 1];
                             rainUrl = `https://tilecache.rainviewer.com${lastFrame.path}/256/{z}/{x}/{y}/2/1_1.png`;
                         }
                     }
-                } catch(e) {}
+                } catch (e) { }
 
-                let hGradient = { 0.4: '#00ff00', 0.65: '#ffff00', 1.0: '#ff0000' }; 
+                let hGradient = { 0.4: '#00ff00', 0.65: '#ffff00', 1.0: '#ff0000' };
                 if (!isCritico && !isAlerta) hGradient = { 0.3: '#00ffff', 0.6: '#00ff00', 1.0: '#00aa00' };
                 else if (isAlerta) hGradient = { 0.4: '#00ff00', 0.7: '#ffff00', 1.0: '#ff9900' };
-                
-                if(window._ndviLayer) farmMap.removeLayer(window._ndviLayer);
-                if(window._rainLayer) farmMap.removeLayer(window._rainLayer);
+
+                if (window._ndviLayer) farmMap.removeLayer(window._ndviLayer);
+                if (window._rainLayer) farmMap.removeLayer(window._rainLayer);
 
                 window._ndviLayer = L.heatLayer(heatPoints, {
-                    radius: Math.max(25, 80 - Math.log(tamanhoHectares)*5),
-                    blur: Math.max(20, 50 - Math.log(tamanhoHectares)*3),
+                    radius: Math.max(25, 80 - Math.log(tamanhoHectares) * 5),
+                    blur: Math.max(20, 50 - Math.log(tamanhoHectares) * 3),
                     maxZoom: 18,
                     minOpacity: 0.4,
                     gradient: hGradient
@@ -1776,7 +1788,7 @@ const initGeo = async () => {
                 if (rainUrl) {
                     window._rainLayer = L.tileLayer(rainUrl, { maxZoom: 18, maxNativeZoom: 12, opacity: 0.7, zIndex: 10 });
                 } else {
-                    window._rainLayer = L.heatLayer([], {maxZoom:18});
+                    window._rainLayer = L.heatLayer([], { maxZoom: 18 });
                 }
 
                 window._ndviLayer.addTo(farmMap);
@@ -1815,14 +1827,14 @@ const initGeo = async () => {
                         farmMap.removeLayer(window._rainLayer);
                         window._ndviLayer.addTo(farmMap);
                         window._currentLayer = 'ndvi';
-                        
+
                         newBtnNdvi.style.background = 'var(--sys-secondary)';
                         newBtnNdvi.style.color = 'white';
                         newBtnRain.style.background = 'transparent';
                         newBtnRain.style.color = 'rgba(255,255,255,0.6)';
-                        
-                        if(legNdvi) legNdvi.style.display = 'flex';
-                        if(legRain) legRain.style.display = 'none';
+
+                        if (legNdvi) legNdvi.style.display = 'flex';
+                        if (legRain) legRain.style.display = 'none';
 
                         updateIAText('ndvi');
                     });
@@ -1832,22 +1844,22 @@ const initGeo = async () => {
                         farmMap.removeLayer(window._ndviLayer);
                         window._rainLayer.addTo(farmMap);
                         window._currentLayer = 'rain';
-                        
+
                         newBtnRain.style.background = 'var(--sys-secondary)';
                         newBtnRain.style.color = 'white';
                         newBtnNdvi.style.background = 'transparent';
                         newBtnNdvi.style.color = 'rgba(255,255,255,0.6)';
-                        
-                        if(legRain) legRain.style.display = 'flex';
-                        if(legNdvi) legNdvi.style.display = 'none';
+
+                        if (legRain) legRain.style.display = 'flex';
+                        if (legNdvi) legNdvi.style.display = 'none';
 
                         updateIAText('rain');
                     });
                 }
             }
-        } catch(e) { console.error('Geo Sync Error', e); }
+        } catch (e) { console.error('Geo Sync Error', e); }
         finally {
-            if(document.getElementById('clima-cidade')) {
+            if (document.getElementById('clima-cidade')) {
                 weatherInterval = setTimeout(updateGeo, 10 * 60 * 1000);
             }
         }
@@ -1877,8 +1889,8 @@ const initHistory = () => {
 
             tableData.forEach(d => {
                 let colorClass = 'text-good';
-                if(d.status === 'SECO') colorClass = 'text-dry';
-                else if(d.status === 'ENCHARCADO') colorClass = 'text-dry';
+                if (d.status === 'SECO') colorClass = 'text-dry';
+                else if (d.status === 'ENCHARCADO') colorClass = 'text-dry';
 
                 tbody.innerHTML += `
                     <tr>
@@ -1892,7 +1904,7 @@ const initHistory = () => {
             });
 
             document.getElementById('hist-page-info').textContent = `Página ${payload.meta.page} de ${payload.meta.pages || 1}`;
-            
+
             document.getElementById('hist-prev').disabled = payload.meta.page <= 1;
             document.getElementById('hist-next').disabled = payload.meta.page >= payload.meta.pages;
 
@@ -1902,7 +1914,7 @@ const initHistory = () => {
     };
 
     document.getElementById('btn-refresh-history').addEventListener('click', loadPage);
-    document.getElementById('hist-prev').addEventListener('click', () => { if(currentPage > 1) { currentPage--; loadPage(); } });
+    document.getElementById('hist-prev').addEventListener('click', () => { if (currentPage > 1) { currentPage--; loadPage(); } });
     document.getElementById('hist-next').addEventListener('click', () => { currentPage++; loadPage(); });
 
     loadPage();
@@ -1922,7 +1934,7 @@ const initSettings = async () => {
                 const icon = b.querySelector('.material-symbols-rounded');
                 if (icon) icon.style.color = 'inherit';
             });
-            
+
             // Activate clicked tab
             const target = e.currentTarget;
             target.classList.add('active');
@@ -1931,7 +1943,7 @@ const initSettings = async () => {
             target.style.borderColor = 'rgba(255,255,255,0.1)';
             const icon = target.querySelector('.material-symbols-rounded');
             if (icon) icon.style.color = 'var(--sys-accent)';
-            
+
             // Switch panels
             document.querySelectorAll('.settings-panel').forEach(p => p.style.display = 'none');
             const tabId = 'tab-' + target.dataset.tab;
@@ -1952,12 +1964,12 @@ const initSettings = async () => {
     // Fill
     document.getElementById('set-nome').value = currentUser.nome || '';
     document.getElementById('set-cultura').value = currentUser.tipoPlantacao;
-    if(currentUser.cidade) document.getElementById('set-cidade').value = currentUser.cidade;
-    if(currentUser.estado) document.getElementById('set-estado').value = currentUser.estado;
-    if(currentUser.endereco) document.getElementById('set-endereco').value = currentUser.endereco;
-    if(currentUser.tamanhoFazenda) document.getElementById('set-tamanho').value = currentUser.tamanhoFazenda;
-    if(currentUser.blynkToken) document.getElementById('set-blynk').value = currentUser.blynkToken;
-    if(currentUser.whatsappPhone) document.getElementById('set-phone').value = currentUser.whatsappPhone;
+    if (currentUser.cidade) document.getElementById('set-cidade').value = currentUser.cidade;
+    if (currentUser.estado) document.getElementById('set-estado').value = currentUser.estado;
+    if (currentUser.endereco) document.getElementById('set-endereco').value = currentUser.endereco;
+    if (currentUser.tamanhoFazenda) document.getElementById('set-tamanho').value = currentUser.tamanhoFazenda;
+    if (currentUser.blynkToken) document.getElementById('set-blynk').value = currentUser.blynkToken;
+    if (currentUser.whatsappPhone) document.getElementById('set-phone').value = currentUser.whatsappPhone;
 
     document.getElementById('settings-form').addEventListener('submit', async (e) => {
         e.preventDefault();
@@ -1987,33 +1999,33 @@ const initSettings = async () => {
                 })
             });
             const updated = await res.json();
-            if(!res.ok) throw new Error(updated.error || 'Erro ao salvar no BD');
+            if (!res.ok) throw new Error(updated.error || 'Erro ao salvar no BD');
 
             currentUser.nome = updated.nome;
             currentUser.tipoPlantacao = updated.tipoPlantacao;
             currentUser.cidade = updated.cidade;
             currentUser.estado = updated.estado;
-            if(updated.endereco !== undefined) currentUser.endereco = updated.endereco;
-            if(updated.tamanhoFazenda) currentUser.tamanhoFazenda = updated.tamanhoFazenda;
-            
+            if (updated.endereco !== undefined) currentUser.endereco = updated.endereco;
+            if (updated.tamanhoFazenda) currentUser.tamanhoFazenda = updated.tamanhoFazenda;
+
             if (updated.lat && updated.lon) {
                 currentUser.lat = updated.lat;
                 currentUser.lon = updated.lon;
-                
+
                 // Redesenha mapa e clima recarregando o painel em background 
                 if (typeof initDashboard === 'function') {
                     // Nós não forçamos navegação completa para manter a fluidez, mas as novas vars serão pegas
                 }
             }
-            
+
             btn.disabled = false;
             btn.textContent = originalText;
             document.getElementById('set-success').style.display = 'block';
             setTimeout(() => { document.getElementById('set-success').style.display = 'none'; }, 3000);
-        } catch(e) { 
+        } catch (e) {
             btn.disabled = false;
             btn.textContent = originalText;
-            alert(e.message); 
+            alert(e.message);
         }
     });
 
@@ -2033,8 +2045,365 @@ const initSettings = async () => {
             currentUser.whatsappPhone = updated.whatsappPhone;
             document.getElementById('int-success').style.display = 'block';
             setTimeout(() => { document.getElementById('int-success').style.display = 'none'; }, 3000);
-        } catch(e) { alert(e.message); }
+        } catch (e) { alert(e.message); }
     });
+};
+
+// ==========================================
+// ANÁLISE INTELIGENTE
+// ==========================================
+let analysisWeeklyChart = null;
+let analysisNasaChart = null;
+
+const initAnalysis = async () => {
+    // Helper to set check icon
+    const setCheck = (id, ok, label) => {
+        const el = document.getElementById(id);
+        const lbl = document.getElementById(id + '-label');
+        if (el) {
+            el.textContent = ok ? 'check_circle' : 'cancel';
+            el.style.color = ok ? 'var(--color-good)' : 'var(--color-dry)';
+        }
+        if (lbl) lbl.textContent = label || (ok ? 'Disponível' : 'Indisponível');
+    };
+
+    const hideSkeleton = (id) => {
+        const skel = document.getElementById(id);
+        if (skel) skel.classList.add('hidden');
+    };
+
+    // --- 1. CULTURA (Always available from currentUser) ---
+    const cultura = currentUser?.tipoPlantacao || 'Cultura';
+    const limits = getCropLimits(cultura);
+    const srcCultTipo = document.getElementById('an-src-cult-tipo');
+    const srcCultFaixa = document.getElementById('an-src-cult-faixa');
+    const srcCultCenter = document.getElementById('an-src-cult-center');
+    if (srcCultTipo) srcCultTipo.textContent = cultura;
+    if (srcCultFaixa) srcCultFaixa.textContent = limits.min + '% – ' + limits.max + '%';
+    if (srcCultCenter) srcCultCenter.textContent = limits.center + '%';
+
+    // Timeline: Limite da cultura
+    const tlLimit = document.getElementById('an-tl-limit');
+    const tlLimitDesc = document.getElementById('an-tl-limit-desc');
+    if (tlLimit) tlLimit.textContent = limits.min + '%';
+    if (tlLimitDesc) tlLimitDesc.textContent = cultura.toLowerCase();
+
+    // --- 2. FETCH SENSOR ---
+    let sensorData = null;
+    try {
+        const sensorRes = await setupAuthFetch('/api/sensores/umidade');
+        if (sensorRes.ok) {
+            sensorData = await sensorRes.json();
+            setCheck('an-check-sensor', true, 'Conectado');
+
+            // Populate sensor data
+            const kpiUmid = document.getElementById('an-kpi-umid');
+            const kpiUmidStatus = document.getElementById('an-kpi-umid-status');
+            const srcSensorVal = document.getElementById('an-src-sensor-val');
+            const srcSensorStatus = document.getElementById('an-src-sensor-status');
+            const tlNow = document.getElementById('an-tl-now');
+
+            if (kpiUmid) kpiUmid.textContent = sensorData.umidade.toFixed(1) + '%';
+            if (tlNow) tlNow.textContent = sensorData.umidade.toFixed(1) + '%';
+            if (srcSensorVal) srcSensorVal.textContent = sensorData.umidade.toFixed(1) + '%';
+
+            let statusText = sensorData.status === 'IDEAL' ? 'Faixa ideal' : sensorData.status === 'SECO' ? 'Abaixo do ideal' : 'Acima do ideal';
+            if (kpiUmidStatus) kpiUmidStatus.textContent = statusText;
+            if (srcSensorStatus) {
+                srcSensorStatus.textContent = 'Conectado';
+                srcSensorStatus.style.color = 'var(--color-good)';
+            }
+
+            // Update globals for intelligence functions
+            window._latestUmid = sensorData.umidade;
+            window._latestStatus = sensorData.status;
+        } else {
+            throw new Error('Sensor offline');
+        }
+    } catch (e) {
+        setCheck('an-check-sensor', false, 'Offline');
+        const srcSensorStatus = document.getElementById('an-src-sensor-status');
+        if (srcSensorStatus) {
+            srcSensorStatus.textContent = 'Offline';
+            srcSensorStatus.style.color = 'var(--color-dry)';
+        }
+        // Show alert
+        const alertBox = document.getElementById('an-alert-box');
+        const alertText = document.getElementById('an-alert-text');
+        if (alertBox && alertText) {
+            alertBox.style.display = 'block';
+            alertText.textContent = 'O sensor está sem comunicação. Algumas estimativas podem estar baseadas nos últimos dados disponíveis.';
+        }
+    }
+
+    // --- 3. FETCH AGRO (Clima + Previsão + Satélite) ---
+    let agroData = null;
+    try {
+        const agroRes = await setupAuthFetch('/api/agro/clima');
+        if (agroRes.ok) {
+            agroData = await agroRes.json();
+            setCheck('an-check-clima', true, 'Disponível');
+
+            const clima = agroData.clima;
+            const previsao = agroData.previsao;
+            const meta = previsao?._meta;
+
+            // Store globals
+            window._latestClima = clima;
+            window._latestSat = agroData.satelite;
+
+            // --- HERO CARD ---
+            const heroStatus = document.getElementById('analysis-hero-status');
+            const heroReco = document.getElementById('analysis-hero-reco');
+            const heroTime = document.getElementById('analysis-hero-time');
+            const heroIconWrap = document.getElementById('analysis-hero-icon-wrap');
+            const heroIcon = document.getElementById('analysis-hero-icon');
+
+            if (previsao) {
+                let statusLabel = 'IDEAL';
+                let statusColor = 'var(--color-good)';
+                let icon = 'psychiatry';
+
+                if (previsao.status === 'critico') {
+                    statusLabel = 'CRÍTICO';
+                    statusColor = 'var(--color-dry)';
+                    icon = 'warning';
+                } else if (previsao.status === 'alerta') {
+                    statusLabel = 'ATENÇÃO';
+                    statusColor = 'var(--color-mid)';
+                    icon = 'schedule';
+                }
+
+                if (heroStatus) {
+                    heroStatus.textContent = statusLabel;
+                    heroStatus.style.color = statusColor;
+                }
+                if (heroReco) heroReco.textContent = previsao.recomendacao;
+                if (heroIconWrap) heroIconWrap.style.background = statusColor;
+                if (heroIcon) heroIcon.textContent = icon;
+
+                let timeText = Math.round(previsao.tempoHoras) + ' horas';
+                if (previsao.tempoHoras <= 0) timeText = 'AGORA';
+                if (previsao.tempoHoras === 99) timeText = 'SUSPENSA (chuva)';
+                if (heroTime) heroTime.textContent = timeText;
+
+                // Timeline
+                const tlIrrig = document.getElementById('an-tl-irrig');
+                if (tlIrrig) tlIrrig.textContent = previsao.tempoHoras <= 0 ? 'AGORA' : '≈ ' + Math.round(previsao.tempoHoras) + 'h';
+            }
+
+            hideSkeleton('analysis-hero-skeleton');
+
+            // --- KPI Cards ---
+            if (meta) {
+                const kpiDrop = document.getElementById('an-kpi-drop');
+                const tlDrop = document.getElementById('an-tl-drop');
+                if (kpiDrop) kpiDrop.textContent = '-' + meta.dropRealTime + '%/h';
+                if (tlDrop) tlDrop.textContent = '-' + meta.dropRealTime + '%/h';
+
+                const kpiRain = document.getElementById('an-kpi-rain');
+                if (kpiRain) kpiRain.textContent = meta.rainProb + '%';
+            }
+
+            if (clima && clima.current) {
+                const kpiTemp = document.getElementById('an-kpi-temp');
+                const kpiAirHum = document.getElementById('an-kpi-airhum');
+                const kpiTempDesc = document.getElementById('an-kpi-temp-desc');
+
+                if (kpiTemp) kpiTemp.textContent = Math.round(clima.current.temperature_2m) + '°C';
+                if (kpiAirHum) kpiAirHum.textContent = (clima.current.relative_humidity_2m || '--') + '%';
+
+                let tempDesc = 'Normal';
+                if (clima.current.temperature_2m > 35) tempDesc = 'Extremo';
+                else if (clima.current.temperature_2m > 30) tempDesc = 'Elevada';
+                else if (clima.current.temperature_2m < 15) tempDesc = 'Baixa';
+                if (kpiTempDesc) kpiTempDesc.textContent = tempDesc;
+
+                // Source cards
+                const srcClimaTemp = document.getElementById('an-src-clima-temp');
+                const srcClimaHum = document.getElementById('an-src-clima-hum');
+                const srcClimaWind = document.getElementById('an-src-clima-wind');
+                if (srcClimaTemp) srcClimaTemp.textContent = Math.round(clima.current.temperature_2m) + '°C';
+                if (srcClimaHum) srcClimaHum.textContent = (clima.current.relative_humidity_2m || '--') + '%';
+                if (srcClimaWind) srcClimaWind.textContent = (clima.current.wind_speed_10m || '--') + ' km/h';
+            }
+
+            // ET₀
+            const et0Val = clima?.daily?.et0_fao_evapotranspiration?.[0];
+            const kpiEt0 = document.getElementById('an-kpi-et0');
+            const srcClimaEt0 = document.getElementById('an-src-clima-et0');
+            if (et0Val !== undefined) {
+                if (kpiEt0) kpiEt0.textContent = et0Val.toFixed(1) + ' mm';
+                if (srcClimaEt0) srcClimaEt0.textContent = et0Val.toFixed(1) + ' mm';
+            } else {
+                if (kpiEt0) kpiEt0.textContent = 'N/D';
+                if (srcClimaEt0) srcClimaEt0.textContent = 'N/D';
+            }
+
+            // --- SATÉLITE ---
+            if (agroData.satelite) {
+                setCheck('an-check-nasa', true, 'Disponível');
+                const srcNasaVal = document.getElementById('an-src-nasa-val');
+                const srcNasaDate = document.getElementById('an-src-nasa-date');
+                if (srcNasaVal) srcNasaVal.textContent = agroData.satelite.umidadeMacro + '%';
+                if (srcNasaDate) srcNasaDate.textContent = agroData.satelite.dataReferencia;
+
+                // NASA Chart
+                if (agroData.satelite.historico && agroData.satelite.historico.length > 0) {
+                    const ctxNasa = document.getElementById('an-nasaChart');
+                    if (ctxNasa) {
+                        if (analysisNasaChart) analysisNasaChart.destroy();
+                        analysisNasaChart = new Chart(ctxNasa.getContext('2d'), {
+                            type: 'line',
+                            data: {
+                                labels: agroData.satelite.historico.map(h => h.data.slice(-5)),
+                                datasets: [{
+                                    label: 'Umidade Macro (%)',
+                                    data: agroData.satelite.historico.map(h => h.valor),
+                                    borderColor: '#f39c12',
+                                    backgroundColor: 'rgba(243, 156, 18, 0.15)',
+                                    fill: true,
+                                    tension: 0.3,
+                                    borderWidth: 2,
+                                    pointRadius: 3,
+                                    pointBackgroundColor: '#f39c12'
+                                }]
+                            },
+                            options: {
+                                responsive: true, maintainAspectRatio: false,
+                                plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(20, 28, 38, 0.9)', titleColor: '#fff', bodyColor: '#f39c12', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 12, padding: 12 } },
+                                scales: {
+                                    x: { ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { display: false } },
+                                    y: { max: 100, min: 0, ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { color: 'rgba(255, 255, 255, 0.03)' } }
+                                }
+                            }
+                        });
+                    }
+                }
+            } else {
+                setCheck('an-check-nasa', false, 'Indisponível');
+                const nasaChartWrap = document.getElementById('an-nasa-chart-wrap');
+                const nasaUnavail = document.getElementById('an-nasa-unavailable');
+                if (nasaChartWrap) nasaChartWrap.style.display = 'none';
+                if (nasaUnavail) nasaUnavail.style.display = 'block';
+            }
+
+            // --- UPDATE TIMESTAMP ---
+            const statusDot = document.getElementById('analysis-status-dot');
+            const updateText = document.getElementById('analysis-update-text');
+            if (statusDot) statusDot.style.background = 'var(--color-good)';
+            if (updateText) updateText.textContent = 'Dados atualizados — ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+        } else {
+            throw new Error('Agro API error');
+        }
+    } catch (e) {
+        setCheck('an-check-clima', false, 'Indisponível');
+        setCheck('an-check-nasa', false, 'Indisponível');
+        hideSkeleton('analysis-hero-skeleton');
+        const heroReco = document.getElementById('analysis-hero-reco');
+        if (heroReco) heroReco.textContent = 'Não foi possível carregar os dados climáticos no momento.';
+    }
+
+    // --- 4. FETCH WEEKLY ---
+    try {
+        const weekRes = await setupAuthFetch('/api/agro/media-semanal');
+        const weekData = await weekRes.json();
+        window._latestSemana = weekData;
+
+        const ctxWeek = document.getElementById('an-weeklyChart');
+        if (ctxWeek) {
+            if (analysisWeeklyChart) analysisWeeklyChart.destroy();
+            analysisWeeklyChart = new Chart(ctxWeek.getContext('2d'), {
+                type: 'bar',
+                data: {
+                    labels: weekData.map(w => w.dia),
+                    datasets: [{
+                        label: 'Média Semanal (%)',
+                        data: weekData.map(w => w.media),
+                        backgroundColor: 'rgba(148, 180, 193, 0.4)',
+                        borderRadius: 4,
+                        hoverBackgroundColor: '#94B4C1'
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(20, 28, 38, 0.9)', titleColor: '#fff', bodyColor: '#94B4C1', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 12, padding: 12 } },
+                    scales: {
+                        x: { ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { display: false } },
+                        y: { max: 100, min: 0, ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { color: 'rgba(255, 255, 255, 0.03)' } }
+                    }
+                }
+            });
+
+            // Average
+            const diasComDados = weekData.filter(d => d.media > 0);
+            if (diasComDados.length > 0) {
+                const avg = diasComDados.reduce((s, d) => s + d.media, 0) / diasComDados.length;
+                const avgEl = document.getElementById('an-week-avg-val');
+                if (avgEl) avgEl.textContent = Math.round(avg) + '%';
+            }
+        }
+    } catch (e) {
+        console.error('Analysis: Weekly fetch failed', e);
+    }
+
+    // --- 5. INTELLIGENCE (Evapotranspiração, Saúde do Solo, Análise Avançada) ---
+    if (window._latestClima) {
+        // Evapotranspiração
+        const evapo = calcularEvapotranspiracao(window._latestClima);
+        const evapoNivel = document.getElementById('an-evapo-nivel');
+        const evapoDesc = document.getElementById('an-evapo-desc');
+        const evapoIcon = document.getElementById('an-evapo-icon');
+        const evapoIconWrap = document.getElementById('an-evapo-icon-wrap');
+        if (evapoNivel) { evapoNivel.textContent = evapo.nivel; evapoNivel.style.color = evapo.cor; }
+        if (evapoDesc) evapoDesc.textContent = evapo.desc;
+        if (evapoIcon) evapoIcon.textContent = evapo.icon;
+        if (evapoIconWrap) { evapoIconWrap.style.color = evapo.cor; evapoIconWrap.style.background = evapo.cor + '20'; }
+
+        // Saúde do Solo
+        const saude = calcularSaudeSolo(
+            window._latestUmid || 50,
+            window._latestSemana || [],
+            window._latestClima,
+            cultura
+        );
+        const saudeScore = document.getElementById('an-saude-score');
+        const saudeStatus = document.getElementById('an-saude-status');
+        const saudeProgress = document.getElementById('an-saude-progress');
+        if (saudeScore) saudeScore.textContent = saude.score;
+        if (saudeStatus) { saudeStatus.textContent = saude.status; saudeStatus.style.color = saude.cor; }
+        if (saudeProgress) { saudeProgress.style.strokeDasharray = saude.score + ', 100'; saudeProgress.style.stroke = saude.cor; }
+
+        // Análise Avançada
+        const analiseTexto = document.getElementById('an-analise-texto');
+        if (analiseTexto) {
+            const txt = analiseAvancada(window._latestUmid || 50, window._latestStatus || 'IDEAL', window._latestClima, cultura, window._latestSat);
+            analiseTexto.textContent = txt;
+        }
+    }
+
+    // --- 6. FETCH IA GENERATIVA ---
+    try {
+        const iaRes = await setupAuthFetch('/api/agro/insights-ia');
+        if (iaRes.ok) {
+            const iaData = await iaRes.json();
+            setCheck('an-check-ia', true, iaData.cached ? 'Em cache' : 'Atualizado');
+            const iaLaudo = document.getElementById('an-ia-laudo');
+            const iaCache = document.getElementById('an-ia-cache');
+            if (iaLaudo) iaLaudo.textContent = iaData.diagnostico;
+            if (iaCache && iaData.cached) iaCache.style.display = 'inline';
+            hideSkeleton('an-ia-skeleton');
+        } else {
+            throw new Error('IA fallback');
+        }
+    } catch (e) {
+        setCheck('an-check-ia', false, 'Indisponível');
+        hideSkeleton('an-ia-skeleton');
+        const iaLaudo = document.getElementById('an-ia-laudo');
+        if (iaLaudo) iaLaudo.innerHTML = '<span style="opacity:0.5;">Não foi possível gerar a interpretação agronômica no momento. A análise baseada em dados continua funcionando normalmente.</span>';
+    }
 };
 
 // ==========================================
@@ -2043,7 +2412,7 @@ const initSettings = async () => {
 const bootApplication = async () => {
     appContainer.style.display = 'flex';
     const isLogged = await initAuth();
-    if(isLogged) {
+    if (isLogged) {
         navigate('dashboard');
     } else {
         navigate('login');
