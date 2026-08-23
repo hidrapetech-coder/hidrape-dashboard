@@ -1291,6 +1291,9 @@ select.form-control option {
 
 /* Responsive */
 @media (max-width: 900px) {
+    .auth-visual-area {
+        display: none !important;
+    }
     .auth-split-card {
         max-width: 460px;
         min-height: auto;
@@ -2091,5 +2094,6 @@ select:focus-visible {
 
 /* Logo Beige Color Filter */
 .brand-logo img, .auth-brand img, .mobile-header img {
+    -webkit-filter: brightness(0) saturate(100%) invert(91%) sepia(3%) saturate(1508%) hue-rotate(347deg) brightness(105%) contrast(83%);
     filter: brightness(0) saturate(100%) invert(91%) sepia(3%) saturate(1508%) hue-rotate(347deg) brightness(105%) contrast(83%);
 }
