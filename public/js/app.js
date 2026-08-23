@@ -994,9 +994,9 @@ const initDashboard = async () => {
                 if (profileMenu.parentNode !== document.body) {
                     document.body.appendChild(profileMenu);
                 }
-                
+
                 profileMenu.style.top = (rect.bottom + window.scrollY + 12) + 'px';
-                
+
                 // Mobile-first fix for dropdown overflow
                 if (window.innerWidth <= 768) {
                     profileMenu.style.left = '16px';

@@ -96,21 +96,22 @@ body::after {
 
 .main-content {
     flex: 1;
-    margin-left: calc(var(--sidebar-width) + 40px);
-    margin-top: 24px;
-    margin-bottom: 24px;
-    margin-right: 24px;
+    margin-left: var(--sidebar-width);
+    margin-top: 0;
+    margin-bottom: 0;
+    margin-right: 0;
     padding: 40px 52px;
-    min-height: calc(100dvh - 48px);
+    min-height: 100dvh;
     max-width: 100%;
     
     /* Glass Panel Effect */
     background: rgba(28, 45, 63, 0.15);
     backdrop-filter: blur(40px);
     -webkit-backdrop-filter: blur(40px);
-    border: 1px solid var(--glass-border);
-    box-shadow: var(--glass-highlight), var(--glass-shadow);
-    border-radius: 36px;
+    border: none;
+    border-left: 1px solid var(--glass-border);
+    box-shadow: none;
+    border-radius: 0;
     position: relative;
     z-index: 10;
 }
@@ -123,20 +124,21 @@ body::after {
     background: var(--glass-bg);
     backdrop-filter: blur(40px);
     -webkit-backdrop-filter: blur(40px);
-    border: 1px solid var(--glass-border);
-    border-radius: 40px;
+    border: none;
+    border-right: 1px solid var(--glass-border);
+    border-radius: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     position: fixed;
-    height: auto;
-    max-height: calc(100vh - 48px);
-    left: 24px;
-    top: 50%;
-    transform: translateY(-50%);
+    height: 100dvh;
+    max-height: 100dvh;
+    left: 0;
+    top: 0;
+    transform: none;
     z-index: 100;
     padding: 24px 0;
-    box-shadow: var(--glass-highlight), var(--glass-shadow);
+    box-shadow: none;
 }
 
 .sidebar::before,
@@ -612,9 +614,9 @@ select.form-control option {
     gap: 20px;
 }
 
-.col-sidebar-alt { grid-column: span 3; }
-.col-main-alt { grid-column: span 6; }
-.col-aside-alt { grid-column: span 3; }
+.col-sidebar-alt { grid-column: span 4; }
+.col-main-alt { grid-column: span 4; }
+.col-aside-alt { grid-column: span 4; }
 
 /* ============================================
    TOP BAR
@@ -724,7 +726,7 @@ select.form-control option {
     align-items: center;
     height: 100vh;
     height: 100dvh;
-    padding: 20px;
+    padding: 0;
     background-color: var(--neutral-950);
     background-image: url('/assets/login-bg.jpg');
     background-size: cover;
@@ -765,25 +767,25 @@ select.form-control option {
     z-index: 1;
     display: flex;
     width: 100%;
-    max-width: 1020px;
-    min-height: 620px;
-    border-radius: 32px;
+    max-width: 100%;
+    min-height: 100dvh;
+    border-radius: 0;
     background: rgba(12, 17, 23, 0.25);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow: 0 30px 70px -10px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+    border: none;
+    box-shadow: none;
     backdrop-filter: blur(40px);
     -webkit-backdrop-filter: blur(40px);
     overflow: hidden;
 }
 
-/* Left Form Panel */
+/* Right Form Panel */
 .auth-form-panel {
     flex: 0 0 460px;
     max-width: 460px;
     background: rgba(12, 17, 23, 0.55);
     backdrop-filter: blur(60px);
     -webkit-backdrop-filter: blur(60px);
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
     padding: 44px 44px;
     display: flex;
     flex-direction: column;
@@ -2085,4 +2087,9 @@ select:focus-visible {
 .fade-out {
     opacity: 0;
     filter: blur(8px);
+}
+
+/* Logo Beige Color Filter */
+.brand-logo img, .auth-brand img, .mobile-header img {
+    filter: brightness(0) saturate(100%) invert(91%) sepia(3%) saturate(1508%) hue-rotate(347deg) brightness(105%) contrast(83%);
 }
