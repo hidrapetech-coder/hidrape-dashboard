@@ -27,6 +27,9 @@ const traduzirDiagnostico = async (dadosMatematicos, cultura) => {
     const payloadContexto = JSON.stringify({
         cultura: cultura || 'Mista',
         leituraSensorSoloAtual: dadosMatematicos._meta.umidadeAtual,
+        statusSensor: dadosMatematicos._meta.sensorState ? dadosMatematicos._meta.sensorState.status : 'desconhecido',
+        dadosValidos: dadosMatematicos._meta.sensorState ? dadosMatematicos._meta.sensorState.hasValidData : false,
+        idadeDadosMinutos: dadosMatematicos._meta.sensorState ? dadosMatematicos._meta.sensorState.dataAgeMinutes : null,
         taxaDeSecagemRealPorHora: dadosMatematicos._meta.dropRealTime,
         probabilidadeDeChuva: dadosMatematicos._meta.rainProb,
         horasRestantesAteSecarCalculado: dadosMatematicos.tempoHoras,
@@ -48,10 +51,14 @@ ${payloadContexto}
 
 SUAS REGRAS INEGOCIÁVEIS:
 1. NUNCA invente números, temperaturas ou porcentagens que não estejam no bloco DADOS BRUTOS acima.
-2. Se faltar algum dado no bloco (ex: undefined ou null), diga explicitamente: "Faltam dados de X no momento" e não invente valores.
+2. Se o statusSensor for "offline" ou "stale", ou se dadosValidos for false:
+   - VOCÊ NÃO PODE afirmar que a condição atual do solo está saudável, boa, ideal ou normal.
+   - VOCÊ NÃO PODE afirmar umidade atual.
+   - Sua única conclusão deve ser avisar que "O sensor está offline (ou desatualizado) e não há dados atuais suficientes para avaliar a condição da lavoura neste momento."
+   - Você pode mencionar os dados do satélite ou probabilidade de chuva, mas deixe claro que a leitura local não é confiável no momento.
 3. Não use a palavra "eu". Fale diretamente sobre o status da terra e da cultura.
 4. Explique o cenário para o agricultor de forma clara, técnica porém acessível, em no máximo 3 parágrafos curtos.
-5. Foco principal: A terra está bebendo a água rápido demais? Há risco iminente? A chuva vai salvar a lavoura ou precisa ligar o pivô de irrigação?
+5. Diferencie sempre dado observado, estimativa e dado indisponível.
 
 Traduza os dados para um laudo conciso e utilitário agora:
 `;
@@ -66,6 +73,44 @@ Traduza os dados para um laudo conciso e utilitário agora:
     }
 };
 
+const gerarResumoMensal = async (contexto) => {
+    if (!genAI) {
+        throw new Error('API Key do Gemini ausente.');
+    }
+
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+    const prompt = `
+Você é um engenheiro agrônomo especialista em irrigação e análise de dados gerenciais.
+Seu objetivo é escrever a "Leitura do Mês" para o relatório do produtor. 
+
+DADOS OBSERVADOS/ESTIMADOS (NÃO INVENTE NADA FORA DISSO):
+- Mês: ${contexto.mes}
+- Cultura: ${contexto.cultura}
+- Leituras na Faixa Ideal: ${contexto.pctIdeal}%
+- Leituras em Déficit (Seco): ${contexto.pctDeficit}%
+- Chuva acumulada: ${contexto.chuvaAcumulada} mm
+- Evapotranspiração (ET0) potencial: ${contexto.et0Acumulada} mm
+- Recomendações emitidas (períodos de alerta): ${contexto.recomendacoesEmitidas}
+
+REGRAS:
+1. Resuma como foi o mês focado em MANEJO HÍDRICO (O que aconteceu, o que influenciou).
+2. Forneça 1 ou 2 pontos de atenção baseados nesses números.
+3. NÃO afirme que X litros ou Y Reais foram economizados, nem cite m³ consumidos, pois não medimos isso.
+4. Mantenha o tom profissional, direto e em no máximo 2 parágrafos.
+`;
+
+    try {
+        const result = await model.generateContent(prompt);
+        const response = await result.response;
+        return response.text();
+    } catch (error) {
+        console.error("Erro na API do Gemini (Resumo Mensal):", error.message);
+        throw new Error("Serviço de IA Generativa indisponível.");
+    }
+};
+
 module.exports = {
-    traduzirDiagnostico
+    traduzirDiagnostico,
+    gerarResumoMensal
 };

@@ -1,0 +1,163 @@
+<div class="header-actions">
+    <div class="titles">
+        <h1 class="page-title">RELATÓRIO MENSAL</h1>
+        <p class="page-subtitle">Visão histórica do manejo hídrico da sua cultura.</p>
+    </div>
+    <div class="actions">
+        <div class="custom-select">
+            <select id="report-month-select" class="form-control" style="background: rgba(255, 255, 255, 0.05); color: #fff; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; padding: 10px 15px;">
+                <!-- Preenchido via JS (últimos 3 meses) -->
+            </select>
+        </div>
+        <button id="btn-export-pdf" class="btn-primary" style="margin-left: 10px; display: none;">Exportar PDF</button>
+    </div>
+</div>
+
+<div id="monthly-report-content" class="grid-layout fade-in" style="margin-top: 24px;">
+    <!-- Resumo do Mês (IA ou Dinâmico) -->
+    <div class="card glass-panel" style="grid-column: 1 / -1;">
+        <h3 class="card-title">Resumo do Mês</h3>
+        <p id="mr-resumo" style="font-family: 'Helvetica Neue', sans-serif; font-size: 1.1rem; line-height: 1.6; color: var(--neutral-100);">
+            Carregando resumo histórico...
+        </p>
+    </div>
+
+    <!-- Indicadores Principais -->
+    <div class="card stat-card">
+        <div class="stat-header">
+            <span class="stat-title">Faixa Ideal</span>
+            <span class="badge" style="background: rgba(255, 255, 255, 0.1); font-size: 0.7rem; padding: 3px 6px; border-radius: 4px;">DADO OBSERVADO</span>
+        </div>
+        <div class="stat-value" id="mr-faixa-ideal">--%</div>
+        <div class="stat-trend" style="color: var(--neutral-300);">Das leituras válidas do período</div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-header">
+            <span class="stat-title">Déficit</span>
+            <span class="badge" style="background: rgba(255, 255, 255, 0.1); font-size: 0.7rem; padding: 3px 6px; border-radius: 4px;">DADO OBSERVADO</span>
+        </div>
+        <div class="stat-value" id="mr-deficit" style="color: var(--danger);">--%</div>
+        <div class="stat-trend" style="color: var(--neutral-300);">Abaixo do limite mínimo</div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-header">
+            <span class="stat-title">Chuva Acumulada</span>
+            <span class="badge" style="background: rgba(255, 255, 255, 0.1); font-size: 0.7rem; padding: 3px 6px; border-radius: 4px;">OBSERVADO (CLIMA)</span>
+        </div>
+        <div class="stat-value" id="mr-chuva">-- mm</div>
+        <div class="stat-trend" style="color: var(--neutral-300);">No período selecionado</div>
+    </div>
+    <div class="card stat-card">
+        <div class="stat-header">
+            <span class="stat-title">ET₀</span>
+            <span class="badge" style="background: rgba(255, 255, 255, 0.1); font-size: 0.7rem; padding: 3px 6px; border-radius: 4px;">ESTIMATIVA</span>
+        </div>
+        <div class="stat-value" id="mr-et0">-- mm</div>
+        <div class="stat-trend" style="color: var(--neutral-300);">Evapotranspiração potencial</div>
+    </div>
+
+    <!-- Condição do Solo e Gráfico -->
+    <div class="card glass-panel" style="grid-column: 1 / span 2;">
+        <h3 class="card-title">Condição do Solo</h3>
+        <p class="text-sm" style="margin-bottom: 16px; color: var(--neutral-300);">Evolução da umidade em relação aos limites da cultura.</p>
+        <div style="height: 300px; position: relative;">
+            <canvas id="mr-soil-chart"></canvas>
+        </div>
+    </div>
+
+    <!-- Comportamento Climático Gráfico -->
+    <div class="card glass-panel" style="grid-column: span 2;">
+        <h3 class="card-title">Comportamento Climático</h3>
+        <p class="text-sm" style="margin-bottom: 16px; color: var(--neutral-300);">Chuva observada × ET₀ (Necessidade Hídrica).</p>
+        <div style="height: 300px; position: relative;">
+            <canvas id="mr-climate-chart"></canvas>
+        </div>
+    </div>
+
+    <!-- Histórico de Recomendações -->
+    <div class="card glass-panel" style="grid-column: 1 / -1;">
+        <h3 class="card-title">Necessidade Hídrica Estimada</h3>
+        <div class="report-section" style="display: flex; gap: 32px; margin-top: 16px; flex-wrap: wrap;">
+            <div style="flex: 1; min-width: 250px;">
+                <h4 style="font-size: 1rem; margin-bottom: 8px;">Recomendações de Irrigação</h4>
+                <p id="mr-recomendacoes-count" style="font-size: 2rem; font-family: 'Space Grotesk', sans-serif; font-weight: 600; color: var(--warning);">--</p>
+                <p class="text-sm" style="color: var(--neutral-300);">Eventos onde a umidade caiu abaixo do limite, disparando alerta.</p>
+                <div style="margin-top: 16px;">
+                    <span class="badge" style="background: rgba(255, 153, 0, 0.2); color: var(--warning); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">ESTIMATIVA</span>
+                </div>
+            </div>
+            <div style="flex: 1; min-width: 250px;">
+                <h4 style="font-size: 1rem; margin-bottom: 8px;">Volume Teórico</h4>
+                <p id="mr-volume-teorico" style="font-size: 2rem; font-family: 'Space Grotesk', sans-serif; font-weight: 600; color: var(--sys-accent);">-- m³</p>
+                <p class="text-sm" style="color: var(--neutral-300);">Baseado na ET₀ e área cadastrada. Não representa o volume efetivamente aplicado.</p>
+                <div style="margin-top: 16px;">
+                    <span class="badge" style="background: rgba(0, 163, 255, 0.2); color: var(--sys-accent); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">ESTIMATIVA</span>
+                </div>
+            </div>
+            <div style="flex: 1; min-width: 250px; border-left: 1px solid rgba(255,255,255,0.1); padding-left: 20px;">
+                <h4 style="font-size: 1rem; margin-bottom: 8px;">Leitura do Mês (IA)</h4>
+                <p id="mr-leitura-ia" style="font-size: 0.95rem; line-height: 1.5; color: var(--neutral-200);">
+                    Aguardando análise de dados...
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Limitações (Não Disponível) -->
+    <div class="card glass-panel" style="grid-column: 1 / span 2; border: 1px solid rgba(255,255,255,0.05); background: rgba(0,0,0,0.3);">
+        <h3 class="card-title" style="color: var(--neutral-400);">Limitações do Monitoramento</h3>
+        <ul style="margin-top: 16px; list-style: none; padding: 0;">
+            <li style="margin-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 500;">Consumo de Água (Real)</span>
+                    <span class="badge" style="background: rgba(255, 0, 0, 0.15); color: #ff6b6b; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem;">NÃO DISPONÍVEL</span>
+                </div>
+                <p class="text-sm" style="color: var(--neutral-400); margin-top: 4px;">O Hidrape atualmente não possui medição direta do volume de água aplicado.</p>
+            </li>
+            <li style="margin-bottom: 12px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 500;">Consumo de Energia</span>
+                    <span class="badge" style="background: rgba(255, 0, 0, 0.15); color: #ff6b6b; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem;">NÃO DISPONÍVEL</span>
+                </div>
+                <p class="text-sm" style="color: var(--neutral-400); margin-top: 4px;">O Hidrape atualmente não recebe dados de consumo elétrico da bomba.</p>
+            </li>
+            <li style="margin-bottom: 12px; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span style="font-weight: 500;">Custo de Energia / Bombeamento</span>
+                    <span class="badge" style="background: rgba(255, 0, 0, 0.15); color: #ff6b6b; padding: 4px 8px; border-radius: 4px; font-size: 0.7rem;">NÃO DISPONÍVEL</span>
+                </div>
+                <p class="text-sm" style="color: var(--neutral-400); margin-top: 4px;">O custo de bombeamento não pode ser calculado sem dados reais de consumo elétrico e tarifa.</p>
+            </li>
+        </ul>
+    </div>
+
+    <!-- Qualidade de Dados -->
+    <div class="card stat-card" style="grid-column: span 1; justify-content: flex-start;">
+        <h3 class="card-title">Qualidade dos Dados</h3>
+        <div style="margin-top: 16px;">
+            <p style="font-size: 2.5rem; font-family: 'Space Grotesk', sans-serif; font-weight: 600; color: #4ade80;" id="mr-qualidade-pct">--%</p>
+            <p class="text-sm" style="color: var(--neutral-300);">Dias com leituras válidas do sensor no período.</p>
+            
+            <div style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 16px;">
+                <p style="font-size: 0.9rem; color: var(--neutral-200); display: flex; justify-content: space-between;">
+                    Total de leituras: <span id="mr-total-leituras" style="font-weight: 600;">--</span>
+                </p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Link p/ Análise Inteligente -->
+    <div class="card stat-card" style="grid-column: span 1; justify-content: center; align-items: center; text-align: center; background: rgba(0, 163, 255, 0.05); cursor: pointer; transition: all 0.3s ease;" onclick="document.querySelector('[data-route=\'analysis\']').click()">
+        <span class="material-symbols-rounded" style="font-size: 3rem; color: var(--sys-accent); margin-bottom: 12px;">auto_awesome</span>
+        <h3 style="color: #fff; margin-bottom: 8px;">Análise Atual</h3>
+        <p class="text-sm" style="color: var(--neutral-300); margin-bottom: 16px;">Acompanhe o que está acontecendo agora e o que você deve fazer.</p>
+        <span style="color: var(--sys-accent); font-weight: 600; display: inline-flex; align-items: center; gap: 4px;">Ver análise atual <span class="material-symbols-rounded" style="font-size: 1.1rem;">arrow_forward</span></span>
+    </div>
+
+    <!-- Rodapé de Transparência -->
+    <div style="grid-column: 1 / -1; margin-top: 16px; margin-bottom: 32px; padding: 20px; border-radius: 8px; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1);">
+        <h4 style="font-size: 0.9rem; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; color: var(--neutral-400);">Sobre este relatório</h4>
+        <p style="font-size: 0.85rem; color: var(--neutral-300); line-height: 1.5;">O Hidrape analisa as condições do solo e do ambiente utilizando sensores e dados meteorológicos. O sistema atualmente não mede diretamente o volume de água aplicado, o consumo elétrico da bomba ou o custo da irrigação. Por isso, indicadores de necessidade hídrica, lâmina recomendada e volume teórico são <strong style="color: var(--sys-accent);">estimativas</strong> baseadas nos dados disponíveis.</p>
+    </div>
+
+</div>

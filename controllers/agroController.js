@@ -40,9 +40,60 @@ const fetchOpenMeteo = (lat, lon) => {
 };
 
 // ======================================
+// VERIFICAÇÃO DE DISPONIBILIDADE DO SENSOR (FAIL-SAFE)
+// ======================================
+const getSensorStatus = async (userId) => {
+    const lastReading = await prisma.sensor.findFirst({
+        where: { userId },
+        orderBy: { data: 'desc' }
+    });
+
+    if (!lastReading) {
+        return {
+            status: 'offline',
+            hasValidData: false,
+            lastReadingAt: null,
+            dataAgeMinutes: null,
+            umidadeAtual: null,
+            reason: 'Nenhuma leitura encontrada no histórico.'
+        };
+    }
+
+    const ageMs = Date.now() - new Date(lastReading.data).getTime();
+    const ageMinutes = Math.floor(ageMs / (1000 * 60));
+
+    // Thresholds:
+    // <= 30 mins: ONLINE
+    // > 30 mins && <= 24h: STALE (Desatualizado, mas ainda serve para histórico parcial, porém inseguro para tempo real)
+    // > 24h: OFFLINE
+    if (ageMinutes <= 30) {
+        return { status: 'online', hasValidData: true, lastReadingAt: lastReading.data, dataAgeMinutes: ageMinutes, umidadeAtual: lastReading.umidade, reason: 'Dados recentes.' };
+    } else if (ageMinutes <= 1440) {
+        return { status: 'stale', hasValidData: false, lastReadingAt: lastReading.data, dataAgeMinutes: ageMinutes, umidadeAtual: lastReading.umidade, reason: `Leitura desatualizada (${ageMinutes} min atrás).` };
+    } else {
+        return { status: 'offline', hasValidData: false, lastReadingAt: lastReading.data, dataAgeMinutes: ageMinutes, umidadeAtual: lastReading.umidade, reason: 'Sensor offline há mais de 24 horas.' };
+    }
+};
+
+// ======================================
 // IA PREDITIVA DE IRRIGAÇÃO (Análise Baseada e Tendências Históricas Módulo-Linear)
 // ======================================
-const preverIrrigacao = async (user, clima, satData) => {
+const preverIrrigacao = async (user, clima, satData, sensorState) => {
+    if (!sensorState || !sensorState.hasValidData) {
+        return {
+            tempoHoras: null,
+            recomendacao: "Não foi possível estimar a próxima irrigação porque o sensor de umidade do solo está offline ou desatualizado.",
+            status: 'indisponivel',
+            _meta: { 
+                dropRealTime: 0, 
+                limiteCultura: null,
+                rainProb: 0,
+                sensorState
+            }
+        };
+    }
+
+
     // 1. Definição de Limites por Cultura (Umidade Crítica)
     const CROP_CONFIG = {
         'cana-de-açúcar': { min: 35, retention: 'high' },
@@ -173,16 +224,18 @@ exports.getClimaEDashboard = async (req, res) => {
 
         // Recuperar Cache Node Server para proteção de rede (Rate Limits)
         if (weatherCache[u.id] && weatherCache[u.id].expiration > Date.now()) {
+            const sensorState = await getSensorStatus(u.id);
             
             // Note que embora o CLIMA seja Cacheado (ele não muda todo segundo), o SENSOR muda. 
             // Logo, recalculamos a Previsão de Rega AO VIVO a partir da Memória RAM. Tremenda abstração arquitetural.
-            const previsao = await preverIrrigacao(u, weatherCache[u.id].data, satData);
+            const previsao = await preverIrrigacao(u, weatherCache[u.id].data, satData, sensorState);
             
             return res.json({ 
                 clima: weatherCache[u.id].data, 
                 cidade: cidade,
                 previsao,
-                satelite: satData 
+                satelite: satData,
+                sensorState
             });
         }
 
@@ -194,9 +247,10 @@ exports.getClimaEDashboard = async (req, res) => {
             data: climaData
         };
 
-        const previsao = await preverIrrigacao(u, climaData, satData);
+        const sensorState = await getSensorStatus(u.id);
+        const previsao = await preverIrrigacao(u, climaData, satData, sensorState);
 
-        res.json({ clima: climaData, cidade: cidade, previsao, satelite: satData });
+        res.json({ clima: climaData, cidade: cidade, previsao, satelite: satData, sensorState });
     } catch (err) {
         console.error('Erro no Núcleo de Agro Meteorologia:', err.message);
         res.status(500).send('Erro na Nuvem Métrica');
@@ -286,13 +340,10 @@ exports.getInsightsIA = async (req, res) => {
         }
         
         // Calcular previsão (motor de regras determinístico)
-        const previsao = await preverIrrigacao(u, climaData, satData);
+        const sensorState = await getSensorStatus(u.id);
+        const previsao = await preverIrrigacao(u, climaData, satData, sensorState);
 
-        const ultimoSensor = await prisma.sensor.findFirst({
-            where: { userId: u.id },
-            orderBy: { data: 'desc' }
-        });
-        const umidadeAtual = ultimoSensor ? ultimoSensor.umidade : "Desconhecida";
+        const umidadeAtual = sensorState.umidadeAtual !== null ? sensorState.umidadeAtual : "Desconhecida";
 
         // Prepara dados formatados p/ a IA
         const dadosMatematicos = {
@@ -301,7 +352,8 @@ exports.getInsightsIA = async (req, res) => {
                 dropRealTime: previsao._meta?.dropRealTime || 0,
                 umidadeAtual: umidadeAtual,
                 rainProb: previsao._meta?.rainProb || 0,
-                satUmidadeMacro: satData ? satData.umidadeMacro : 'N/A'
+                satUmidadeMacro: satData ? satData.umidadeMacro : 'N/A',
+                sensorState: sensorState
             }
         };
         

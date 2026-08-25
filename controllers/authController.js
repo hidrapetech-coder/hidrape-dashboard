@@ -30,6 +30,23 @@ const sanitize = (str) => {
     return str.trim().replace(/[<>"'`;]/g, '');
 };
 
+// DTO (Data Transfer Object) Helper: Garante que NENHUMA informação confidencial vaze ao frontend
+const toSafeUser = (user) => {
+    return {
+        id: user.id,
+        nome: user.nome,
+        email: user.email,
+        tipoPlantacao: user.tipoPlantacao,
+        cidade: user.cidade,
+        estado: user.estado,
+        tamanhoFazenda: user.tamanhoFazenda,
+        role: user.role,
+        hasBlynkToken: !!user.blynkToken,
+        hasCallmebotApiKey: !!user.callmebotApiKey,
+        hasWhatsappPhone: !!user.whatsappPhone
+    };
+};
+
 // Utilitário Nominatim API (Sem dependência de API Keys)
 const geolocate = (cidade, estado, endereco = '') => {
     return new Promise((resolve, reject) => {
@@ -118,7 +135,7 @@ exports.register = async (req, res) => {
         emailService.enviarBoasVindas(user.email, user.nome).catch(e => console.error('Email Async Erro:', e.message));
 
         const token = await signToken(user.id, user.role);
-        res.json({ token, user: { id: user.id, nome, email, tipoPlantacao, role: user.role } });
+        res.json({ token, user: toSafeUser(user) });
 
     } catch (err) {
         console.error(err.message);
@@ -145,7 +162,7 @@ exports.login = async (req, res) => {
         if (!isMatch) return res.status(400).json(genericError);
 
         const token = await signToken(user.id, user.role);
-        res.json({ token, user: { id: user.id, nome: user.nome, email: user.email, tipoPlantacao: user.tipoPlantacao, role: user.role } });
+        res.json({ token, user: toSafeUser(user) });
 
     } catch (err) {
         console.error(err.message);
@@ -161,9 +178,7 @@ exports.getMe = async (req, res) => {
         const user = await prisma.user.findUnique({ where: { id: req.user.id } });
         if(!user) return res.status(404).json({error: 'Usuário não encontrado'});
         
-        const safeUser = { ...user };
-        delete safeUser.senha;
-        res.json(safeUser);
+        res.json(toSafeUser(user));
     } catch (err) {
         console.error(err.message);
         res.status(500).send('Erro no servidor');
@@ -218,9 +233,7 @@ exports.updateConfig = async (req, res) => {
         });
 
         // Resposta sem dados sensíveis
-        const safeUser = { ...updatedUser };
-        delete safeUser.senha;
-        res.json(safeUser);
+        res.json(toSafeUser(updatedUser));
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Erro no servidor' });

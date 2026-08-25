@@ -16,9 +16,12 @@ Este documento detalha o panorama de segurança atual da aplicação **Hidrape D
 *   **XSS Mitigation**: 
     *   A API sanitiza o backend (anti-NoSQL/HTML injection via `sanitize` e `express-mongo-sanitize`).
     *   A função `escapeHTML()` foi inserida na arquitetura do Vanilla SPA (`app.js`), impedindo a execução arbitrária via `innerHTML` nos locais onde dados do usuário eram renderizados dinamicamente nas views e alertas da IA.
-*   **CORS**: Restrito a `process.env.FRONTEND_URL` e hosts estritos de desenvolvimento local, desativando o reflexo perigoso padrão.
+*   **CORS**: Restrito estritamente aos domínios permitidos, removendo a cláusula curinga `.vercel.app` para evitar ataques de domínios bypass arbitrários.
 *   **Validação (Zod)**: Todas as requisições de Autenticação e Configuração passam por *Schemas Estritos*, impedindo completamente o *Mass Assignment* e garantindo tipos de dados esperados antes de atingir os controladores.
 *   **IDOR (Isolamento Inseguro de Objetos)**: Confirmado como seguro. Todo dado IoT injetado ou consultado faz bind explícito em nível de servidor com o `req.user.id` decodificado e garantido pelo JWT.
+*   **Trim de Resposta API (Over-fetching)**: Em rotas de usuário, o backend aplica um helper rigoroso `toSafeUser(DTO)` que remove todos os hashes de senha, tokens de reset e chaves de API (`blynkToken`, `callmebotApiKey`) do payload, repassando ao Frontend apenas metadados (flags) para informar sua presença.
+*   **Ocultação Visual**: O painel de Configuração no frontend não carrega as chaves criptográficas ativas. Ele exibe *placeholders* descritivos e as transmite estritamente de maneira unidirecional caso ocorram edições.
+*   **Gestão de Secrets e Dependências**: Retiramos as chaves hardcoded e atualizamos pacotes vitais para suprimir falhas apontadas via _npm audit_. Abstivemos de realizar upgrades nocivos (Prisma / Nodemailer legacy break).
 
 ## 🟡 Melhorias futuras
 

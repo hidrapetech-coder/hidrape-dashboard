@@ -44,8 +44,8 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Permitir requisições sem origem, domínios permitidos, ou se estiver na Vercel (onde a origem varia)
-        if (!origin || allowedOrigins.includes(origin) || origin.endsWith('.vercel.app') || origin.endsWith('.onrender.com')) {
+        // Permitir requisições sem origem (como ferramentas CLI/Postman) e domínios estritamente permitidos
+        if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
             callback(new Error('Bloqueado pelo CORS'));
@@ -154,6 +154,9 @@ app.get('/api/sensores/historico', apiLimiter, auth, sensorController.getHistori
 app.get('/api/agro/clima', apiLimiter, auth, agroController.getClimaEDashboard);
 app.get('/api/agro/media-semanal', apiLimiter, auth, agroController.getMediaSemanal);
 app.get('/api/agro/insights-ia', apiLimiter, auth, agroController.getInsightsIA);
+
+const reportController = require('./controllers/reportController');
+app.get('/api/reports/monthly', apiLimiter, auth, reportController.getMonthlyReport);
 
 app.get('*', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');

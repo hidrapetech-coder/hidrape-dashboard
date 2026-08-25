@@ -53,7 +53,9 @@
 /* ============================================
    RESET & BASE
    ============================================ */
-*, *::before, *::after {
+*,
+*::before,
+*::after {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -61,7 +63,7 @@
 
 body {
     background-color: var(--neutral-950);
-    background-image: 
+    background-image:
         radial-gradient(circle at 15% 50%, rgba(84, 119, 146, 0.15), transparent 45%),
         radial-gradient(circle at 85% 30%, rgba(148, 180, 193, 0.1), transparent 45%);
     background-attachment: fixed;
@@ -103,7 +105,7 @@ body::after {
     padding: 40px 52px;
     min-height: 100dvh;
     max-width: 100%;
-    
+
     /* Glass Panel Effect */
     background: rgba(28, 45, 63, 0.15);
     backdrop-filter: blur(40px);
@@ -146,7 +148,9 @@ body::after {
     display: none;
 }
 
-.sidebar-inner-glow { display: none; }
+.sidebar-inner-glow {
+    display: none;
+}
 
 .glow-lantern {
     display: block;
@@ -266,8 +270,8 @@ body::after {
     padding: 24px;
     box-shadow: var(--glass-highlight), 0 8px 32px -8px rgba(0, 0, 0, 0.4);
     transition: transform var(--duration) var(--ease-out),
-                box-shadow var(--duration) var(--ease-out),
-                background var(--duration) var(--ease-out);
+        box-shadow var(--duration) var(--ease-out),
+        background var(--duration) var(--ease-out);
     overflow: hidden;
     display: flex;
     flex-direction: column;
@@ -287,11 +291,9 @@ body::after {
     left: 0;
     width: 100%;
     height: 100%;
-    background: radial-gradient(
-        500px circle at var(--mouse-x, -500px) var(--mouse-y, -500px),
-        rgba(148, 180, 193, 0.06),
-        transparent 40%
-    );
+    background: radial-gradient(500px circle at var(--mouse-x, -500px) var(--mouse-y, -500px),
+            rgba(148, 180, 193, 0.06),
+            transparent 40%);
     pointer-events: none;
     z-index: 0;
     opacity: 0;
@@ -302,7 +304,7 @@ body::after {
     opacity: 1;
 }
 
-.card > * {
+.card>* {
     position: relative;
     z-index: 1;
 }
@@ -323,11 +325,9 @@ body::after {
 }
 
 .card.card-blue::before {
-    background: radial-gradient(
-        500px circle at var(--mouse-x, -500px) var(--mouse-y, -500px),
-        rgba(148, 180, 193, 0.08),
-        transparent 40%
-    );
+    background: radial-gradient(500px circle at var(--mouse-x, -500px) var(--mouse-y, -500px),
+            rgba(148, 180, 193, 0.08),
+            transparent 40%);
 }
 
 .card.card-light {
@@ -357,11 +357,9 @@ body::after {
 }
 
 .card-light::before {
-    background: radial-gradient(
-        500px circle at var(--mouse-x, -500px) var(--mouse-y, -500px),
-        rgba(28, 45, 63, 0.06),
-        transparent 40%
-    );
+    background: radial-gradient(500px circle at var(--mouse-x, -500px) var(--mouse-y, -500px),
+            rgba(28, 45, 63, 0.06),
+            transparent 40%);
 }
 
 .card-light .progress-bg {
@@ -425,8 +423,15 @@ body::after {
 }
 
 @keyframes signaturePulse {
-    0%, 100% { opacity: 0.6; }
-    50% { opacity: 1; }
+
+    0%,
+    100% {
+        opacity: 0.6;
+    }
+
+    50% {
+        opacity: 1;
+    }
 }
 
 /* Numeral update micro-animation */
@@ -435,14 +440,23 @@ body::after {
 }
 
 @keyframes kpiFlash {
-    0% { opacity: 0.6; transform: scale(1.03); }
-    100% { opacity: 1; transform: scale(1); }
+    0% {
+        opacity: 0.6;
+        transform: scale(1.03);
+    }
+
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
 }
 
 /* ============================================
    TYPOGRAPHY
    ============================================ */
-h1, h2, h3 {
+h1,
+h2,
+h3 {
     font-family: var(--font-display);
     letter-spacing: -0.03em;
 }
@@ -477,12 +491,22 @@ table {
 }
 
 /* Status text utilities */
-.text-good { color: var(--color-good) !important; }
-.text-mid { color: var(--color-mid) !important; }
-.text-dry { color: var(--color-dry) !important; }
+.text-good {
+    color: var(--color-good) !important;
+}
+
+.text-mid {
+    color: var(--color-mid) !important;
+}
+
+.text-dry {
+    color: var(--color-dry) !important;
+}
 
 /* Force white on blue card KPI */
-#predict-time { color: #fff !important; }
+#predict-time {
+    color: #fff !important;
+}
 
 /* ============================================
    FORMS & INPUTS
@@ -614,9 +638,17 @@ select.form-control option {
     gap: 20px;
 }
 
-.col-sidebar-alt { grid-column: span 4; }
-.col-main-alt { grid-column: span 4; }
-.col-aside-alt { grid-column: span 4; }
+.col-sidebar-alt {
+    grid-column: span 4;
+}
+
+.col-main-alt {
+    grid-column: span 4;
+}
+
+.col-aside-alt {
+    grid-column: span 4;
+}
 
 /* ============================================
    TOP BAR
@@ -741,7 +773,7 @@ select.form-control option {
     position: absolute;
     inset: 0;
     background: radial-gradient(circle at 65% 35%, rgba(12, 17, 23, 0.4) 0%, rgba(8, 11, 15, 0.85) 100%),
-                linear-gradient(180deg, rgba(8, 11, 15, 0.45) 0%, rgba(8, 11, 15, 0.88) 100%);
+        linear-gradient(180deg, rgba(8, 11, 15, 0.45) 0%, rgba(8, 11, 15, 0.88) 100%);
     pointer-events: none;
     z-index: 0;
 }
@@ -868,7 +900,7 @@ select.form-control option {
     box-shadow: 0 0 0 3px rgba(148, 180, 193, 0.18);
 }
 
-.auth-input:focus ~ .auth-input-icon,
+.auth-input:focus~.auth-input-icon,
 .auth-input-wrapper:focus-within .auth-input-icon {
     color: var(--sys-accent);
 }
@@ -1115,8 +1147,15 @@ select.form-control option {
 }
 
 @keyframes floatMonitor {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-8px); }
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-8px);
+    }
 }
 
 /* Retro Terminal Monitor */
@@ -1134,9 +1173,9 @@ select.form-control option {
     border: 2px solid rgba(148, 180, 193, 0.35);
     border-radius: 24px 24px 16px 16px;
     padding: 16px;
-    box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.15), 
-                inset 0 -4px 8px rgba(0, 0, 0, 0.5),
-                0 10px 25px rgba(0, 0, 0, 0.4);
+    box-shadow: inset 0 2px 4px rgba(255, 255, 255, 0.15),
+        inset 0 -4px 8px rgba(0, 0, 0, 0.5),
+        0 10px 25px rgba(0, 0, 0, 0.4);
     display: flex;
     flex-direction: column;
     position: relative;
@@ -1207,8 +1246,17 @@ select.form-control option {
 }
 
 @keyframes pulseLed {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.4; transform: scale(0.85); }
+
+    0%,
+    100% {
+        opacity: 1;
+        transform: scale(1);
+    }
+
+    50% {
+        opacity: 0.4;
+        transform: scale(0.85);
+    }
 }
 
 .auth-monitor-btn-slot {
@@ -1294,16 +1342,19 @@ select.form-control option {
     .auth-visual-area {
         display: none !important;
     }
+
     .auth-split-card {
         max-width: 460px;
         min-height: auto;
     }
+
     .auth-form-panel {
         flex: 1 1 100%;
         max-width: 100%;
         border-right: none;
         padding: 36px 28px;
     }
+
     .auth-showcase-panel {
         display: none;
     }
@@ -1323,7 +1374,9 @@ select.form-control option {
 }
 
 @keyframes rotate {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* ============================================
@@ -1334,6 +1387,7 @@ select.form-control option {
         opacity: 0;
         transform: translateY(16px);
     }
+
     to {
         opacity: 1;
         transform: translateY(0);
@@ -1345,6 +1399,7 @@ select.form-control option {
         opacity: 0;
         transform: translateX(-20px);
     }
+
     to {
         opacity: 1;
         transform: translateX(0);
@@ -1352,31 +1407,66 @@ select.form-control option {
 }
 
 /* View transition — single orchestrated moment */
-.animate-enter-stagger > * {
+.animate-enter-stagger>* {
     opacity: 0;
     animation: fadeInUp 0.5s var(--ease-out) forwards;
 }
 
-.animate-enter-stagger > *:nth-child(1) { animation-delay: 0.05s; }
-.animate-enter-stagger > *:nth-child(2) { animation-delay: 0.1s; }
-.animate-enter-stagger > *:nth-child(3) { animation-delay: 0.15s; }
-.animate-enter-stagger > *:nth-child(4) { animation-delay: 0.2s; }
-.animate-enter-stagger > *:nth-child(5) { animation-delay: 0.25s; }
+.animate-enter-stagger>*:nth-child(1) {
+    animation-delay: 0.05s;
+}
+
+.animate-enter-stagger>*:nth-child(2) {
+    animation-delay: 0.1s;
+}
+
+.animate-enter-stagger>*:nth-child(3) {
+    animation-delay: 0.15s;
+}
+
+.animate-enter-stagger>*:nth-child(4) {
+    animation-delay: 0.2s;
+}
+
+.animate-enter-stagger>*:nth-child(5) {
+    animation-delay: 0.25s;
+}
 
 /* Form stagger */
 .form-group {
     animation: fadeInUp 0.4s var(--ease-out) backwards;
 }
-.form-group:nth-child(1) { animation-delay: 0.05s; }
-.form-group:nth-child(2) { animation-delay: 0.1s; }
-.form-group:nth-child(3) { animation-delay: 0.15s; }
-.form-group:nth-child(4) { animation-delay: 0.2s; }
-.form-group:nth-child(5) { animation-delay: 0.25s; }
-.form-group:nth-child(6) { animation-delay: 0.3s; }
+
+.form-group:nth-child(1) {
+    animation-delay: 0.05s;
+}
+
+.form-group:nth-child(2) {
+    animation-delay: 0.1s;
+}
+
+.form-group:nth-child(3) {
+    animation-delay: 0.15s;
+}
+
+.form-group:nth-child(4) {
+    animation-delay: 0.2s;
+}
+
+.form-group:nth-child(5) {
+    animation-delay: 0.25s;
+}
+
+.form-group:nth-child(6) {
+    animation-delay: 0.3s;
+}
 
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
-    *, *::before, *::after {
+
+    *,
+    *::before,
+    *::after {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
@@ -1549,7 +1639,7 @@ select:focus-visible {
 .analysis-timeline-connector-line {
     width: 100%;
     height: 2px;
-    background: linear-gradient(90deg, rgba(148,180,193,0.3), rgba(148,180,193,0.1));
+    background: linear-gradient(90deg, rgba(148, 180, 193, 0.3), rgba(148, 180, 193, 0.1));
     border-radius: 1px;
 }
 
@@ -1636,7 +1726,7 @@ select:focus-visible {
 .analysis-flow-connector-line {
     width: 2px;
     height: 100%;
-    background: linear-gradient(180deg, rgba(148,180,193,0.25), rgba(148,180,193,0.08));
+    background: linear-gradient(180deg, rgba(148, 180, 193, 0.25), rgba(148, 180, 193, 0.08));
     border-radius: 1px;
 }
 
@@ -1667,15 +1757,20 @@ select:focus-visible {
 }
 
 .analysis-skeleton-bar {
-    background: linear-gradient(90deg, rgba(148,180,193,0.08) 25%, rgba(148,180,193,0.15) 50%, rgba(148,180,193,0.08) 75%);
+    background: linear-gradient(90deg, rgba(148, 180, 193, 0.08) 25%, rgba(148, 180, 193, 0.15) 50%, rgba(148, 180, 193, 0.08) 75%);
     background-size: 200% 100%;
     border-radius: 6px;
     animation: skeletonShimmer 1.5s ease-in-out infinite;
 }
 
 @keyframes skeletonShimmer {
-    0% { background-position: 200% 0; }
-    100% { background-position: -200% 0; }
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
 }
 
 /* ============================================
@@ -1716,7 +1811,7 @@ select:focus-visible {
     .analysis-timeline-connector-line {
         width: 2px;
         height: 100%;
-        background: linear-gradient(180deg, rgba(148,180,193,0.3), rgba(148,180,193,0.1));
+        background: linear-gradient(180deg, rgba(148, 180, 193, 0.3), rgba(148, 180, 193, 0.1));
     }
 }
 
@@ -1741,9 +1836,17 @@ select:focus-visible {
         grid-template-columns: repeat(6, 1fr);
     }
 
-    .col-sidebar-alt { grid-column: span 3; }
-    .col-main-alt { grid-column: span 6; }
-    .col-aside-alt { grid-column: span 3; }
+    .col-sidebar-alt {
+        grid-column: span 3;
+    }
+
+    .col-main-alt {
+        grid-column: span 6;
+    }
+
+    .col-aside-alt {
+        grid-column: span 3;
+    }
 }
 
 /* ============================================
@@ -1810,7 +1913,7 @@ select:focus-visible {
     }
 
     .nav-link.active {
-        background: rgba(255,255,255,0.05);
+        background: rgba(255, 255, 255, 0.05);
     }
 
     /* Bento grid stacks */
@@ -1819,8 +1922,8 @@ select:focus-visible {
         grid-auto-rows: auto;
     }
 
-    .bento-grid > .card,
-    .bento-grid > div {
+    .bento-grid>.card,
+    .bento-grid>div {
         grid-column: span 1 !important;
     }
 
@@ -1885,8 +1988,15 @@ select:focus-visible {
 }
 
 @keyframes demoPulse {
-    0% { box-shadow: 0 0 5px rgba(148, 180, 193, 0.1); border-color: rgba(148, 180, 193, 0.2); }
-    100% { box-shadow: 0 0 15px rgba(148, 180, 193, 0.4); border-color: rgba(148, 180, 193, 0.6); }
+    0% {
+        box-shadow: 0 0 5px rgba(148, 180, 193, 0.1);
+        border-color: rgba(148, 180, 193, 0.2);
+    }
+
+    100% {
+        box-shadow: 0 0 15px rgba(148, 180, 193, 0.4);
+        border-color: rgba(148, 180, 193, 0.6);
+    }
 }
 
 .demo-exit-btn {
@@ -1912,7 +2022,10 @@ select:focus-visible {
 
 .demo-upsell-modal {
     position: fixed;
-    top: 0; left: 0; right: 0; bottom: 0;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
     background: rgba(12, 17, 23, 0.6);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
@@ -2087,13 +2200,16 @@ select:focus-visible {
 .fade-transition {
     transition: opacity 0.4s ease, filter 0.4s ease;
 }
+
 .fade-out {
     opacity: 0;
     filter: blur(8px);
 }
 
 /* Logo Beige Color Filter */
-.brand-logo img, .auth-brand img, .mobile-header img {
+.brand-logo img,
+.auth-brand img,
+.mobile-header img {
     -webkit-filter: brightness(0) saturate(100%) invert(91%) sepia(3%) saturate(1508%) hue-rotate(347deg) brightness(105%) contrast(83%);
     filter: brightness(0) saturate(100%) invert(91%) sepia(3%) saturate(1508%) hue-rotate(347deg) brightness(105%) contrast(83%);
 }

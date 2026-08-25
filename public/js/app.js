@@ -510,9 +510,13 @@ window._latestStatus = 'IDEAL';
 window._latestClima = null;
 window._latestSemana = [];
 window._latestSat = null;
+window._sensorState = null;
 
 const renderInteligence = () => {
     if (!window._latestClima || !document.getElementById('analise-texto')) return;
+
+    // Se o sensor estiver offline ou os dados forem velhos, desativamos algumas coisas
+    const hasValidData = window._sensorState ? window._sensorState.hasValidData : true; // fallback to true se ainda nao tiver carregado
 
     // 1. Evapotranspiração
     const evapo = calcularEvapotranspiracao(window._latestClima);
@@ -528,16 +532,23 @@ const renderInteligence = () => {
         window._latestUmid,
         window._latestSemana,
         window._latestClima,
-        currentUser.tipoPlantacao
+        currentUser.tipoPlantacao,
+        window._sensorState
     );
+    
     document.getElementById('saude-valor').textContent = saude.score;
     document.getElementById('saude-status').textContent = saude.status;
     document.getElementById('saude-status').style.color = saude.cor;
     document.getElementById('saude-progress').style.stroke = saude.cor;
-    document.getElementById('saude-progress').style.strokeDasharray = `${saude.score}, 100`;
+    
+    if (saude.score === '--') {
+        document.getElementById('saude-progress').style.strokeDasharray = `0, 100`;
+    } else {
+        document.getElementById('saude-progress').style.strokeDasharray = `${saude.score}, 100`;
+    }
 
     // 3. Análise Avançada Global
-    let txt = analiseAvancada(window._latestUmid, window._latestStatus, window._latestClima, currentUser.tipoPlantacao, window._latestSat);
+    let txt = analiseAvancada(window._latestUmid, window._latestStatus, window._latestClima, currentUser.tipoPlantacao, window._latestSat, window._sensorState);
     document.getElementById('analise-texto').textContent = txt;
 };
 
@@ -575,7 +586,16 @@ const getCropLimits = (tipo) => {
  *   F3 (20%) - Estabilidade diária (variância entre dias)
  *   F4 (15%) - Estresse climático (temp + umid do ar)
  */
-const calcularSaudeSolo = (umidAtual, dadosSemana, clima, tipoPlantacao) => {
+const calcularSaudeSolo = (umidAtual, dadosSemana, clima, tipoPlantacao, sensorState) => {
+    if (sensorState && !sensorState.hasValidData) {
+        return {
+            score: '--',
+            status: 'Indisponível',
+            cor: 'var(--sys-light)',
+            mensagem: 'Aguardando dados do sensor.'
+        };
+    }
+
     const limits = getCropLimits(tipoPlantacao);
 
     // ===== F1: Proximidade à faixa ideal (40%) =====
@@ -652,7 +672,11 @@ const calcularSaudeSolo = (umidAtual, dadosSemana, clima, tipoPlantacao) => {
     return { score: clampedScore, status: 'Crítico', cor: 'var(--color-dry)' };
 };
 
-const analiseAvancada = (umidade, status, clima, tipoPlantacao, satData = null) => {
+const analiseAvancada = (umidade, status, clima, tipoPlantacao, satData = null, sensorState = null) => {
+    if (sensorState && !sensorState.hasValidData) {
+        return `As análises estão limitadas porque o sensor de solo está offline ou desatualizado. Verifique a conectividade.`;
+    }
+
     const temp = clima.current.temperature_2m;
     const umidAr = clima.current.relative_humidity_2m;
     const limits = getCropLimits(tipoPlantacao);
@@ -698,6 +722,7 @@ const initRouteScript = (route) => {
     if (route === 'history') initHistory();
     if (route === 'analysis') initAnalysis();
     if (route === 'settings') initSettings();
+    if (route === 'monthly-report') initMonthlyReport();
 };
 
 const setupAuthFetch = (url, options = {}) => {
@@ -1253,6 +1278,9 @@ const initDashboard = async () => {
                     sysStatus.nextElementSibling.textContent = 'Offline';
                     sysStatus.nextElementSibling.style.color = '#ff4444';
                 }
+
+                window._sensorState = { status: 'offline', hasValidData: false };
+                renderInteligence();
             };
 
             let res;
@@ -1324,6 +1352,7 @@ const initDashboard = async () => {
             // Store para Engine IA global e Roda Update
             window._latestUmid = data.umidade;
             window._latestStatus = data.status;
+            window._sensorState = { status: 'online', hasValidData: true };
             renderInteligence();
         } catch (e) { console.error('API IoT Error', e); }
         finally {
@@ -1403,7 +1432,13 @@ const initDashboard = async () => {
             const pIconWrap = document.getElementById('predict-icon-wrapper');
             const pIcon = document.getElementById('predict-icon');
 
-            if (agroData.previsao.status === 'critico') {
+            if (agroData.previsao.status === 'indisponivel') {
+                pCard.style.borderLeft = '4px solid var(--sys-light)';
+                pIconWrap.style.background = 'rgba(255, 255, 255, 0.1)';
+                pIcon.style.color = 'var(--sys-light)';
+                pIcon.textContent = 'wifi_off';
+                document.getElementById('predict-time').textContent = '--';
+            } else if (agroData.previsao.status === 'critico') {
                 pCard.style.borderLeft = '4px solid var(--color-dry)';
                 pIconWrap.style.background = 'var(--color-dry)';
                 pIcon.style.color = 'white';
@@ -1431,6 +1466,15 @@ const initDashboard = async () => {
             window._latestClima = agroData.clima;
             window._latestSemana = weekData;
             window._latestSat = agroData.satelite;
+            window._sensorState = agroData.sensorState || null;
+            
+            // Adicionar aviso de sensor stale se aplicavel
+            const soilInsight = document.getElementById('soil-insight');
+            if (agroData.sensorState && agroData.sensorState.status === 'stale' && soilInsight) {
+                soilInsight.innerHTML = `<span style="color:#f39c12">⚠️ Dados desatualizados (${agroData.sensorState.dataAgeMinutes}m atrás)</span>`;
+            } else if (agroData.sensorState && agroData.sensorState.status === 'offline' && soilInsight) {
+                soilInsight.innerHTML = `<span style="color:#ff4444">⚠️ Sensor offline</span>`;
+            }
 
             // Satelite Update UI
             if (agroData.satelite && document.getElementById('satelite-valor')) {
@@ -1947,7 +1991,7 @@ const initSettings = async () => {
             // Switch panels
             document.querySelectorAll('.settings-panel').forEach(p => p.style.display = 'none');
             const tabId = 'tab-' + target.dataset.tab;
-            const panel = document.getElementById(tabId);
+                    const panel = document.getElementById(tabId);
             if (panel) panel.style.display = 'block';
         });
     });
@@ -1962,20 +2006,19 @@ const initSettings = async () => {
     }
 
     // Fill
-    document.getElementById('set-nome').value = currentUser.nome || '';
-    document.getElementById('set-cultura').value = currentUser.tipoPlantacao;
+    if (currentUser.nome) document.getElementById('set-nome').value = currentUser.nome;
+    if (currentUser.tipoPlantacao) document.getElementById('set-plantacao').value = currentUser.tipoPlantacao;
     if (currentUser.cidade) document.getElementById('set-cidade').value = currentUser.cidade;
     if (currentUser.estado) document.getElementById('set-estado').value = currentUser.estado;
-    if (currentUser.endereco) document.getElementById('set-endereco').value = currentUser.endereco;
     if (currentUser.tamanhoFazenda) document.getElementById('set-tamanho').value = currentUser.tamanhoFazenda;
-    if (currentUser.blynkToken) document.getElementById('set-blynk').value = currentUser.blynkToken;
-    if (currentUser.whatsappPhone) document.getElementById('set-phone').value = currentUser.whatsappPhone;
+    if (currentUser.hasWhatsappPhone) document.getElementById('set-whatsapp').placeholder = 'Telefone configurado (digite para alterar)';
+    if (currentUser.hasBlynkToken) document.getElementById('set-blynk').placeholder = 'Token configurado (digite para alterar)';
+    if (currentUser.hasCallmebotApiKey) document.getElementById('set-apikey').placeholder = 'API Key salva (digite para alterar)';
 
     document.getElementById('settings-form').addEventListener('submit', async (e) => {
         e.preventDefault();
         const btn = e.target.querySelector('button[type="submit"]');
         const originalText = btn.textContent;
-        const stateInput = document.getElementById('set-estado').value;
 
         if (isDemoMode) {
             btn.disabled = false;
@@ -1987,16 +2030,25 @@ const initSettings = async () => {
             btn.textContent = 'Aguarde...';
             document.getElementById('set-success').style.display = 'none';
 
+            const requestBody = {
+                nome: document.getElementById('set-nome').value,
+                tipoPlantacao: document.getElementById('set-plantacao').value,
+                cidade: document.getElementById('set-cidade').value,
+                estado: document.getElementById('set-estado').value,
+                tamanhoFazenda: document.getElementById('set-tamanho').value
+            };
+
+            const blynkVal = document.getElementById('set-blynk').value;
+            const apiKeyVal = document.getElementById('set-apikey').value;
+            const whatsVal = document.getElementById('set-whatsapp').value;
+
+            if (blynkVal) requestBody.blynkToken = blynkVal;
+            if (apiKeyVal) requestBody.callmebotApiKey = apiKeyVal;
+            if (whatsVal) requestBody.whatsappPhone = whatsVal;
+
             const res = await setupAuthFetch('/api/auth/config', {
                 method: 'PUT',
-                body: JSON.stringify({
-                    nome: document.getElementById('set-nome').value,
-                    tipoPlantacao: document.getElementById('set-cultura').value,
-                    cidade: document.getElementById('set-cidade').value,
-                    estado: stateInput ? stateInput.toUpperCase() : '',
-                    endereco: document.getElementById('set-endereco').value,
-                    tamanhoFazenda: document.getElementById('set-tamanho').value
-                })
+                body: JSON.stringify(requestBody)
             });
             const updated = await res.json();
             if (!res.ok) throw new Error(updated.error || 'Erro ao salvar no BD');
@@ -2007,6 +2059,20 @@ const initSettings = async () => {
             currentUser.estado = updated.estado;
             if (updated.endereco !== undefined) currentUser.endereco = updated.endereco;
             if (updated.tamanhoFazenda) currentUser.tamanhoFazenda = updated.tamanhoFazenda;
+            
+            currentUser.hasWhatsappPhone = updated.hasWhatsappPhone;
+            currentUser.hasBlynkToken = updated.hasBlynkToken;
+            currentUser.hasCallmebotApiKey = updated.hasCallmebotApiKey;
+
+            // Limpa os campos visuais de chaves após o envio
+            document.getElementById('set-blynk').value = '';
+            document.getElementById('set-apikey').value = '';
+            document.getElementById('set-whatsapp').value = '';
+
+            // Re-render placeholders
+            if (updated.hasWhatsappPhone) document.getElementById('set-whatsapp').placeholder = 'Telefone configurado (digite para alterar)';
+            if (updated.hasBlynkToken) document.getElementById('set-blynk').placeholder = 'Token configurado (digite para alterar)';
+            if (updated.hasCallmebotApiKey) document.getElementById('set-apikey').placeholder = 'API Key salva (digite para alterar)';
 
             if (updated.lat && updated.lon) {
                 currentUser.lat = updated.lat;
@@ -2431,5 +2497,172 @@ document.addEventListener('click', (e) => {
         }
     }
 });
+
+// ==========================================
+// RELATÓRIO MENSAL
+// ==========================================
+let mrSoilChartInstance = null;
+let mrClimateChartInstance = null;
+
+const initMonthlyReport = async () => {
+    const selectMonth = document.getElementById('report-month-select');
+    if (!selectMonth) return;
+
+    // Popular select com últimos 3 meses
+    selectMonth.innerHTML = '';
+    const now = new Date();
+    for (let i = 0; i < 3; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const month = d.getMonth() + 1;
+        const year = d.getFullYear();
+        const label = d.toLocaleString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
+        
+        const option = document.createElement('option');
+        option.value = `${year}-${month}`;
+        option.textContent = label;
+        selectMonth.appendChild(option);
+    }
+
+    const loadReport = async (year, month) => {
+        try {
+            document.getElementById('mr-resumo').textContent = 'Carregando relatório...';
+            
+            const res = await setupAuthFetch(`/api/reports/monthly?year=${year}&month=${month}`);
+            const data = await res.json();
+            
+            if (!res.ok) throw new Error(data.error || 'Erro ao carregar relatório');
+            
+            // Preencher KPIs
+            document.getElementById('mr-faixa-ideal').textContent = data.kpis.totalLeituras > 0 ? `${data.kpis.pctIdeal}%` : '--%';
+            document.getElementById('mr-deficit').textContent = data.kpis.totalLeituras > 0 ? `${data.kpis.pctDeficit}%` : '--%';
+            document.getElementById('mr-chuva').textContent = data.kpis.chuvaAcumulada !== null ? `${data.kpis.chuvaAcumulada} mm` : '-- mm';
+            document.getElementById('mr-et0').textContent = data.kpis.et0Acumulada !== null ? `${data.kpis.et0Acumulada} mm` : '-- mm';
+            document.getElementById('mr-recomendacoes-count').textContent = data.kpis.recomendacoesCount !== undefined ? data.kpis.recomendacoesCount : '--';
+            document.getElementById('mr-volume-teorico').textContent = data.kpis.volumeTeorico !== null ? `${data.kpis.volumeTeorico} m³` : '-- m³';
+            document.getElementById('mr-total-leituras').textContent = data.kpis.totalLeituras;
+            
+            // Qualidade dos dados
+            const daysInMonth = new Date(year, month, 0).getDate();
+            const pctQualidade = data.kpis.totalLeituras > 0 ? Math.min(100, Math.round((data.kpis.totalLeituras / daysInMonth) * 100)) : 0;
+            const qPctEl = document.getElementById('mr-qualidade-pct');
+            qPctEl.textContent = `${pctQualidade}%`;
+            if (pctQualidade >= 90) qPctEl.style.color = '#4ade80';
+            else if (pctQualidade >= 70) qPctEl.style.color = 'var(--warning)';
+            else qPctEl.style.color = 'var(--danger)';
+
+            // IA Resumo
+            document.getElementById('mr-leitura-ia').textContent = data.ia.resumo;
+            
+            // Criar Resumo Sintético do Mês (Diferente da IA que foca em insights)
+            const resumoEl = document.getElementById('mr-resumo');
+            if (data.kpis.totalLeituras === 0) {
+                resumoEl.textContent = 'Não há dados de sensores suficientes para gerar um relatório abrangente neste período.';
+            } else {
+                resumoEl.textContent = `Neste período, o solo permaneceu dentro da faixa adequada em ${data.kpis.pctIdeal}% das leituras observadas. Foram identificados ${data.kpis.recomendacoesCount} eventos onde a umidade reduziu e alertas foram possivelmente gerados. A ocorrência de precipitação acumulou ${data.kpis.chuvaAcumulada !== null ? data.kpis.chuvaAcumulada : 0} mm, influenciando o balanço contra uma evapotranspiração teórica de ${data.kpis.et0Acumulada !== null ? data.kpis.et0Acumulada : 0} mm.`;
+            }
+
+            // Renderizar Gráfico de Solo
+            const ctxSoil = document.getElementById('mr-soil-chart');
+            if (mrSoilChartInstance) mrSoilChartInstance.destroy();
+            
+            if (data.graficos.solo && data.graficos.solo.length > 0) {
+                const labels = data.graficos.solo.map(d => new Date(d.data).toLocaleDateString('pt-BR'));
+                const values = data.graficos.solo.map(d => d.umidade);
+                
+                mrSoilChartInstance = new Chart(ctxSoil, {
+                    type: 'line',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Umidade do Solo (%)',
+                                data: values,
+                                borderColor: 'rgba(0, 163, 255, 1)',
+                                backgroundColor: 'rgba(0, 163, 255, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                pointRadius: 0
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { display: false },
+                            annotation: {
+                                annotations: {
+                                    box1: {
+                                        type: 'box',
+                                        yMin: data.kpis.limites.minIdeal,
+                                        yMax: data.kpis.limites.maxIdeal,
+                                        backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                                        borderWidth: 0
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y: { min: 0, max: 100, ticks: { color: 'rgba(255,255,255,0.5)' } },
+                            x: { ticks: { color: 'rgba(255,255,255,0.5)', maxTicksLimit: 10 } }
+                        }
+                    }
+                });
+            }
+
+            // Renderizar Gráfico de Clima
+            const ctxClimate = document.getElementById('mr-climate-chart');
+            if (mrClimateChartInstance) mrClimateChartInstance.destroy();
+
+            if (data.graficos.clima && data.graficos.clima.length > 0) {
+                const labels = data.graficos.clima.map(d => new Date(d.data).toLocaleDateString('pt-BR'));
+                const chuva = data.graficos.clima.map(d => d.chuva);
+                const et0 = data.graficos.clima.map(d => d.et0);
+
+                mrClimateChartInstance = new Chart(ctxClimate, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Chuva (mm)',
+                                data: chuva,
+                                backgroundColor: 'rgba(0, 163, 255, 0.6)',
+                                borderRadius: 4
+                            },
+                            {
+                                label: 'ET₀ (mm)',
+                                data: et0,
+                                backgroundColor: 'rgba(255, 153, 0, 0.6)',
+                                borderRadius: 4
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: { legend: { labels: { color: '#fff' } } },
+                        scales: {
+                            y: { ticks: { color: 'rgba(255,255,255,0.5)' } },
+                            x: { ticks: { color: 'rgba(255,255,255,0.5)', maxTicksLimit: 10 } }
+                        }
+                    }
+                });
+            }
+
+        } catch (e) {
+            document.getElementById('mr-resumo').textContent = 'Erro ao carregar dados: ' + e.message;
+        }
+    };
+
+    selectMonth.addEventListener('change', (e) => {
+        const [year, month] = e.target.value.split('-');
+        loadReport(year, month);
+    });
+
+    // Load initial
+    const [year, month] = selectMonth.value.split('-');
+    loadReport(year, month);
+};
 
 document.addEventListener('DOMContentLoaded', bootApplication);
