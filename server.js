@@ -45,7 +45,7 @@ const allowedOrigins = [
 app.use(cors({
     origin: function (origin, callback) {
         // Permitir requisições sem origem (como ferramentas CLI/Postman) e domínios estritamente permitidos
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (!origin || allowedOrigins.includes(origin) || (origin && origin.endsWith('.vercel.app'))) {
             callback(null, true);
         } else {
             callback(new Error('Bloqueado pelo CORS'));
