@@ -535,12 +535,12 @@ const renderInteligence = () => {
         currentUser.tipoPlantacao,
         window._sensorState
     );
-    
+
     document.getElementById('saude-valor').textContent = saude.score;
     document.getElementById('saude-status').textContent = saude.status;
     document.getElementById('saude-status').style.color = saude.cor;
     document.getElementById('saude-progress').style.stroke = saude.cor;
-    
+
     if (saude.score === '--') {
         document.getElementById('saude-progress').style.strokeDasharray = `0, 100`;
     } else {
@@ -1467,7 +1467,7 @@ const initDashboard = async () => {
             window._latestSemana = weekData;
             window._latestSat = agroData.satelite;
             window._sensorState = agroData.sensorState || null;
-            
+
             // Adicionar aviso de sensor stale se aplicavel
             const soilInsight = document.getElementById('soil-insight');
             if (agroData.sensorState && agroData.sensorState.status === 'stale' && soilInsight) {
@@ -1991,7 +1991,7 @@ const initSettings = async () => {
             // Switch panels
             document.querySelectorAll('.settings-panel').forEach(p => p.style.display = 'none');
             const tabId = 'tab-' + target.dataset.tab;
-                    const panel = document.getElementById(tabId);
+            const panel = document.getElementById(tabId);
             if (panel) panel.style.display = 'block';
         });
     });
@@ -2059,7 +2059,7 @@ const initSettings = async () => {
             currentUser.estado = updated.estado;
             if (updated.endereco !== undefined) currentUser.endereco = updated.endereco;
             if (updated.tamanhoFazenda) currentUser.tamanhoFazenda = updated.tamanhoFazenda;
-            
+
             currentUser.hasWhatsappPhone = updated.hasWhatsappPhone;
             currentUser.hasBlynkToken = updated.hasBlynkToken;
             currentUser.hasCallmebotApiKey = updated.hasCallmebotApiKey;
@@ -2516,7 +2516,7 @@ const initMonthlyReport = async () => {
         const month = d.getMonth() + 1;
         const year = d.getFullYear();
         const label = d.toLocaleString('pt-BR', { month: 'long', year: 'numeric' }).toUpperCase();
-        
+
         const option = document.createElement('option');
         option.value = `${year}-${month}`;
         option.textContent = label;
@@ -2526,12 +2526,12 @@ const initMonthlyReport = async () => {
     const loadReport = async (year, month) => {
         try {
             document.getElementById('mr-resumo').textContent = 'Carregando relatório...';
-            
+
             const res = await setupAuthFetch(`/api/reports/monthly?year=${year}&month=${month}`);
             const data = await res.json();
-            
+
             if (!res.ok) throw new Error(data.error || 'Erro ao carregar relatório');
-            
+
             // Preencher KPIs
             document.getElementById('mr-faixa-ideal').textContent = data.kpis.totalLeituras > 0 ? `${data.kpis.pctIdeal}%` : '--%';
             document.getElementById('mr-deficit').textContent = data.kpis.totalLeituras > 0 ? `${data.kpis.pctDeficit}%` : '--%';
@@ -2540,7 +2540,7 @@ const initMonthlyReport = async () => {
             document.getElementById('mr-recomendacoes-count').textContent = data.kpis.recomendacoesCount !== undefined ? data.kpis.recomendacoesCount : '--';
             document.getElementById('mr-volume-teorico').textContent = data.kpis.volumeTeorico !== null ? `${data.kpis.volumeTeorico} m³` : '-- m³';
             document.getElementById('mr-total-leituras').textContent = data.kpis.totalLeituras;
-            
+
             // Qualidade dos dados
             const daysInMonth = new Date(year, month, 0).getDate();
             const pctQualidade = data.kpis.totalLeituras > 0 ? Math.min(100, Math.round((data.kpis.totalLeituras / daysInMonth) * 100)) : 0;
@@ -2552,7 +2552,7 @@ const initMonthlyReport = async () => {
 
             // IA Resumo
             document.getElementById('mr-leitura-ia').textContent = data.ia.resumo;
-            
+
             // Criar Resumo Sintético do Mês (Diferente da IA que foca em insights)
             const resumoEl = document.getElementById('mr-resumo');
             if (data.kpis.totalLeituras === 0) {
@@ -2564,11 +2564,11 @@ const initMonthlyReport = async () => {
             // Renderizar Gráfico de Solo
             const ctxSoil = document.getElementById('mr-soil-chart');
             if (mrSoilChartInstance) mrSoilChartInstance.destroy();
-            
+
             if (data.graficos.solo && data.graficos.solo.length > 0) {
                 const labels = data.graficos.solo.map(d => new Date(d.data).toLocaleDateString('pt-BR'));
                 const values = data.graficos.solo.map(d => d.umidade);
-                
+
                 mrSoilChartInstance = new Chart(ctxSoil, {
                     type: 'line',
                     data: {
