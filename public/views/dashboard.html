@@ -1,8 +1,5 @@
 <div class="dash-top-bar" style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 32px;">
     <div style="display: flex; flex-direction: column; gap: 16px;">
-        <div class="brand-logo" style="display: flex; align-items: center; gap: 8px;">
-                <img src="/assets/logo.png" alt="Hidrape Logo" style="height: 36px; width: auto; object-fit: contain;">
-        </div>
         <div class="dash-greeting">
             <h1>Bem-vindo, <span id="dash-user">Usuário</span></h1>
             <p>Monitorando cultura de <span id="dash-culture" style="font-weight: 600; color: var(--sys-accent);">Milho</span></p>
@@ -45,7 +42,7 @@
     <!-- COLUNA 1: KPIs & Clima -->
     <div class="dash-col-3" style="display: flex;">
         <!-- ★ ELEMENTO-ASSINATURA: Umidade do Solo -->
-        <div class="card card-signature" data-glow="good" style="padding: 24px; flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        <div class="card card-signature" data-glow="good" style="padding: 20px; flex: 1; display: flex; flex-direction: column; justify-content: center;">
             <h2 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; margin-bottom: 4px;">Umidade do Solo</h2>
             <p id="soil-insight" style="font-size: 0.8rem; opacity: 0.55; margin-bottom: 16px;">Aguardando leitura do sensor...</p>
             <div style="display: flex; align-items: baseline; gap: 4px; margin-bottom: 16px;">
@@ -60,7 +57,7 @@
 
     <div class="dash-col-3" style="display: flex;">
         <!-- NASA Satélite -->
-        <div id="nasa-card" class="card" style="padding: 24px; cursor: pointer; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
+        <div id="nasa-card" class="card" style="padding: 20px; cursor: pointer; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                 <div>
                     <h2 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7;">Umidade Macro</h2>
@@ -83,7 +80,7 @@
 
     <div class="dash-col-3" style="display: flex;">
         <!-- Saúde do Solo -->
-        <div class="card" style="padding: 24px; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
+        <div class="card" style="padding: 20px; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
             <h2 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; margin-bottom: 14px;">Saúde do Solo</h2>
             <div style="display: flex; align-items: center; gap: 16px;">
                 <div style="position: relative; width: 64px; height: 64px; flex-shrink: 0;">
@@ -103,7 +100,7 @@
 
     <div class="dash-col-3" style="display: flex;">
         <!-- Evapotranspiração -->
-        <div class="card" style="padding: 24px; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
+        <div class="card" style="padding: 20px; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
             <h2 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; margin-bottom: 14px;">Evapotranspiração</h2>
             <div class="inner-glass-pane" style="display: flex; align-items: center; gap: 12px;">
                 <div id="evapo-icon-wrap" style="width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(84,119,146,0.12); flex-shrink: 0;">
@@ -120,7 +117,7 @@
     <!-- COLUNA 2: Analytics Central -->
     <div class="dash-col-8" style="display: flex;">
         <!-- Uso Semanal -->
-        <div class="card" style="flex: 1; display: flex; flex-direction: column; min-height: 340px; padding: 24px;">
+        <div class="card" style="flex: 1; display: flex; flex-direction: column; min-height: 280px; padding: 20px;">
             <div style="margin-bottom: 20px;">
                 <h2 style="font-size: 1.1rem; font-weight: 600;">Uso de Água na Semana</h2>
                 <p style="font-size: 0.8rem; opacity: 0.5; margin-top: 4px;">Consolidado de segunda a sexta — média por dia</p>
@@ -133,7 +130,7 @@
 
     <!-- Gráfico Tempo Real -->
     <div class="dash-col-4" style="display: flex;">
-        <div class="card" data-route="history" style="flex: 1; display: flex; flex-direction: column; min-height: 340px; padding: 24px; cursor: pointer;">
+        <div class="card" data-route="history" style="flex: 1; display: flex; flex-direction: column; min-height: 280px; padding: 20px; cursor: pointer;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <div>
                     <h2 style="font-size: 0.95rem; font-weight: 600;">Como a terra tá bebendo</h2>
@@ -149,7 +146,7 @@
 
     <!-- Diagnóstico IA -->
     <div class="dash-col-8" style="display: flex;">
-        <div id="predict-card" class="card" style="padding: 24px; flex: 1; display: flex; flex-direction: column; justify-content: center;">
+        <div id="predict-card" class="card" style="padding: 20px; flex: 1; display: flex; flex-direction: column; justify-content: center;">
             <div style="display: flex; align-items: center; gap: 16px;">
                 <div id="predict-icon-wrapper" style="width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; background: var(--sys-secondary); color: #fff; flex-shrink: 0;">
                     <span id="predict-icon" class="material-symbols-rounded" style="font-size: 1.6rem;">psychiatry</span>
@@ -175,7 +172,7 @@
 
     <!-- Análise IA -->
     <div class="dash-col-4" style="display: flex;">
-        <div class="card" data-route="analysis" style="padding: 24px; flex: 1; display: flex; flex-direction: column; cursor: pointer;">
+        <div class="card" data-route="analysis" style="padding: 20px; flex: 1; display: flex; flex-direction: column; cursor: pointer;">
             <h2 style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5; margin-bottom: 12px;">Análise Inteligente</h2>
             <div style="display: flex; align-items: flex-start; gap: 8px;">
                 <span class="material-symbols-rounded" style="color: var(--sys-accent); font-size: 1.2rem; flex-shrink: 0; margin-top: 2px;">auto_awesome</span>

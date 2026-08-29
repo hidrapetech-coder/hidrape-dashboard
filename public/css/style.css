@@ -102,7 +102,7 @@ body::after {
     margin-top: 0;
     margin-bottom: 0;
     margin-right: 0;
-    padding: 40px 52px;
+    padding: 24px 40px;
     min-height: 100dvh;
     max-width: 100%;
 
@@ -649,7 +649,7 @@ select.form-control option {
 .dash-grid {
     display: grid;
     grid-template-columns: repeat(12, 1fr);
-    gap: 20px;
+    gap: 16px;
     align-items: start;
 }
 
@@ -666,7 +666,7 @@ select.form-control option {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 28px;
+    margin-bottom: 16px;
     position: relative;
     z-index: 10;
     width: 100%;
@@ -2233,6 +2233,7 @@ select:focus-visible {
 
 /* Logo Beige Color Filter */
 .brand-logo img,
+.sidebar-logo img,
 .auth-brand img,
 .mobile-header img {
     -webkit-filter: brightness(0) saturate(100%) invert(91%) sepia(3%) saturate(1508%) hue-rotate(347deg) brightness(105%) contrast(83%);
