@@ -649,8 +649,10 @@ select.form-control option {
 .dash-grid {
     display: grid;
     grid-template-columns: repeat(12, 1fr);
+    grid-template-rows: min-content minmax(150px, 1fr) min-content;
+    height: calc(100vh - 110px);
     gap: 12px;
-    align-items: start;
+    align-items: stretch;
 }
 
 .dash-col-12 { grid-column: span 12; }
@@ -1859,6 +1861,8 @@ select:focus-visible {
 
     .dash-grid {
         grid-template-columns: repeat(6, 1fr);
+        grid-template-rows: auto;
+        height: auto;
     }
 
     .dash-col-12, .dash-col-8, .dash-col-6, .dash-col-4, .dash-col-3 {
