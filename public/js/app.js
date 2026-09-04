@@ -954,6 +954,7 @@ const initRegister = () => {
             currentToken = data.token;
             currentUser = data.user;
             localStorage.setItem('jwt', currentToken);
+            isDemoMode = true;
             navigate('dashboard');
         } catch (e) {
             btn.disabled = false;
