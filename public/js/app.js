@@ -218,7 +218,15 @@ const startGuidedTour = () => {
         document.querySelectorAll('.tour-highlight').forEach(el => el.classList.remove('tour-highlight'));
         popover.classList.remove('active');
         backdrop.style.opacity = '0';
-        setTimeout(() => logout(), 300);
+        setTimeout(() => {
+            if (currentToken === "demo_token") {
+                logout();
+            } else {
+                isDemoMode = false;
+                if (demoIntervalId) { clearInterval(demoIntervalId); demoIntervalId = null; }
+                navigate('dashboard');
+            }
+        }, 300);
     };
 
     const highlightEl = async (stepIdx) => {
