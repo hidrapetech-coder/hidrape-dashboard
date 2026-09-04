@@ -1090,6 +1090,7 @@ const initDashboard = async () => {
                 y: {
                     max: 100,
                     min: 0,
+                    beginAtZero: true,
                     ticks: { color: 'rgba(255, 255, 255, 0.4)' },
                     grid: { color: 'rgba(255, 255, 255, 0.03)' }
                 }
@@ -1116,6 +1117,7 @@ const initDashboard = async () => {
                 y: {
                     max: 100,
                     min: 0,
+                    beginAtZero: true,
                     ticks: { color: 'rgba(255, 255, 255, 0.4)' },
                     grid: { color: 'rgba(255, 255, 255, 0.03)' }
                 }
@@ -1220,7 +1222,7 @@ const initDashboard = async () => {
                     plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(20, 28, 38, 0.9)', titleColor: '#fff', bodyColor: '#f39c12', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 12, padding: 12 } },
                     scales: {
                         x: { ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { display: false } },
-                        y: { max: 100, min: 0, ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { color: 'rgba(255, 255, 255, 0.03)' } }
+                        y: { max: 100, min: 0, beginAtZero: true, ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { color: 'rgba(255, 255, 255, 0.03)' } }
                     }
                 }
             });
@@ -2340,7 +2342,7 @@ const initAnalysis = async () => {
                                 plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(20, 28, 38, 0.9)', titleColor: '#fff', bodyColor: '#f39c12', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 12, padding: 12 } },
                                 scales: {
                                     x: { ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { display: false } },
-                                    y: { max: 100, min: 0, ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { color: 'rgba(255, 255, 255, 0.03)' } }
+                                    y: { max: 100, min: 0, beginAtZero: true, ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { color: 'rgba(255, 255, 255, 0.03)' } }
                                 }
                             }
                         });
@@ -2398,7 +2400,7 @@ const initAnalysis = async () => {
                     plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(20, 28, 38, 0.9)', titleColor: '#fff', bodyColor: '#94B4C1', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 12, padding: 12 } },
                     scales: {
                         x: { ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { display: false } },
-                        y: { max: 100, min: 0, ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { color: 'rgba(255, 255, 255, 0.03)' } }
+                        y: { max: 100, min: 0, beginAtZero: true, ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { color: 'rgba(255, 255, 255, 0.03)' } }
                     }
                 }
             });
@@ -2603,7 +2605,7 @@ const initMonthlyReport = async () => {
                             }
                         },
                         scales: {
-                            y: { min: 0, max: 100, ticks: { color: 'rgba(255,255,255,0.5)' } },
+                            y: { min: 0, max: 100, beginAtZero: true, ticks: { color: 'rgba(255,255,255,0.5)' } },
                             x: { ticks: { color: 'rgba(255,255,255,0.5)', maxTicksLimit: 10 } }
                         }
                     }
