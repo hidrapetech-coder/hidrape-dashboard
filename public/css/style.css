@@ -771,22 +771,12 @@ select.form-control option {
     height: 100dvh;
     padding: 0;
     background-color: var(--neutral-950);
-    background-image: url('/assets/login-bg.jpg');
+    background-image: url('/assets/login-bg-new.png');
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
     position: relative;
     overflow: hidden;
-}
-
-.auth-container::before {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: radial-gradient(circle at 65% 35%, rgba(12, 17, 23, 0.4) 0%, rgba(8, 11, 15, 0.85) 100%),
-        linear-gradient(180deg, rgba(8, 11, 15, 0.45) 0%, rgba(8, 11, 15, 0.88) 100%);
-    pointer-events: none;
-    z-index: 0;
 }
 
 /* Standard Single Auth Card (Register, Forgot Password) */

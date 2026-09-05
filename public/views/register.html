@@ -20,13 +20,17 @@
             </div>
             
             <div style="display: flex; gap: 16px;">
-                <div class="form-group" style="flex: 2;">
-                    <label for="reg-cidade">Cidade</label>
-                    <input type="text" id="reg-cidade" name="city" autocomplete="address-level2" class="form-control" required placeholder="Ex: Piracicaba">
-                </div>
                 <div class="form-group" style="flex: 1;">
                     <label for="reg-estado">UF</label>
-                    <input type="text" id="reg-estado" name="state" autocomplete="address-level1" class="form-control" required placeholder="SP" maxlength="2" style="text-transform: uppercase;">
+                    <select id="reg-estado" name="state" class="form-control" required>
+                        <option value="" disabled selected>UF</option>
+                    </select>
+                </div>
+                <div class="form-group" style="flex: 2;">
+                    <label for="reg-cidade">Cidade</label>
+                    <select id="reg-cidade" name="city" class="form-control" required disabled>
+                        <option value="" disabled selected>Selecione a UF primeiro</option>
+                    </select>
                 </div>
             </div>
 

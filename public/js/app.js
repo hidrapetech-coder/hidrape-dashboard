@@ -62,7 +62,7 @@ window.fetch = async function (resource, config) {
         const urlStr = typeof resource === 'string' ? resource : resource.url;
 
         // Allowed bypasses: views, chartjs, local assets
-        if (urlStr.startsWith('/views/') || urlStr.startsWith('http') && !urlStr.includes('/api/')) {
+        if (urlStr.startsWith('/views/') || urlStr.startsWith('http') && !urlStr.includes('/api/') || urlStr.includes('ibge.gov.br')) {
             if (urlStr.includes('api.rainviewer.com')) {
                 return Promise.resolve(new Response(JSON.stringify({ radar: { past: [], nowcast: [] } }), { status: 200 }));
             }
@@ -924,6 +924,50 @@ const initResetPassword = () => {
 const initRegister = () => {
     const form = document.getElementById('register-form');
     const errObj = document.getElementById('reg-error');
+    
+    const ufSelect = document.getElementById('reg-estado');
+    const cidadeSelect = document.getElementById('reg-cidade');
+
+    if (ufSelect && cidadeSelect) {
+        // Buscar Estados do IBGE
+        fetch('https://servicodados.ibge.gov.br/api/v1/localidades/estados?orderBy=nome')
+            .then(res => res.json())
+            .then(estados => {
+                estados.forEach(estado => {
+                    const option = document.createElement('option');
+                    option.value = estado.sigla;
+                    option.textContent = estado.sigla;
+                    ufSelect.appendChild(option);
+                });
+            })
+            .catch(err => console.error('Erro ao buscar estados:', err));
+
+        // Buscar Cidades ao mudar o Estado
+        ufSelect.addEventListener('change', (e) => {
+            const uf = e.target.value;
+            if (!uf) return;
+            
+            cidadeSelect.innerHTML = '<option value="" disabled selected>Carregando...</option>';
+            cidadeSelect.disabled = true;
+
+            fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios?orderBy=nome`)
+                .then(res => res.json())
+                .then(cidades => {
+                    cidadeSelect.innerHTML = '<option value="" disabled selected>Selecione a Cidade</option>';
+                    cidades.forEach(cidade => {
+                        const option = document.createElement('option');
+                        option.value = cidade.nome;
+                        option.textContent = cidade.nome;
+                        cidadeSelect.appendChild(option);
+                    });
+                    cidadeSelect.disabled = false;
+                })
+                .catch(err => {
+                    console.error('Erro ao buscar cidades:', err);
+                    cidadeSelect.innerHTML = '<option value="" disabled selected>Erro ao carregar</option>';
+                });
+        });
+    }
 
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
