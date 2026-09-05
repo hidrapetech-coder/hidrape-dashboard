@@ -21,7 +21,7 @@ app.use(helmet({
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com"],
             imgSrc: ["'self'", "data:", "blob:", "https://a.tile.openstreetmap.org", "https://b.tile.openstreetmap.org", "https://c.tile.openstreetmap.org", "https://tile.openstreetmap.org", "https://unpkg.com", "https://cdnjs.cloudflare.com", "https://server.arcgisonline.com", "https://tilecache.rainviewer.com"],
-            connectSrc: ["'self'", "https://api.open-meteo.com", "https://blynk.cloud", "https://nominatim.openstreetmap.org", "https://api.rainviewer.com"],
+            connectSrc: ["'self'", "https://api.open-meteo.com", "https://blynk.cloud", "https://nominatim.openstreetmap.org", "https://api.rainviewer.com", "https://servicodados.ibge.gov.br"],
             frameSrc: ["'none'"],
             objectSrc: ["'none'"],
             baseUri: ["'self'"],
