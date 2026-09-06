@@ -1,61 +1,67 @@
 # 🌱 Hidrape Dashboard IoT — Plataforma SaaS Agrícola
 
-Dashboard inteligente para monitoramento agrícola em tempo real, com integração IoT via Blynk, análise climática, motor de IA agronômica e notificações automatizadas.
+Dashboard inteligente para monitoramento agrícola em tempo real, com integração IoT via Blynk, análise climática (Open-Meteo), dados de satélite (NASA POWER), motor de IA agronômica (Google Gemini) e arquitetura robusta no backend.
 
 ![Status](https://img.shields.io/badge/status-em%20desenvolvimento-brightgreen)
 ![Node](https://img.shields.io/badge/node-%3E%3D18-blue)
+![Database](https://img.shields.io/badge/database-Supabase%20%2F%20PostgreSQL-336791)
+![ORM](https://img.shields.io/badge/ORM-Prisma-2D3748)
 ![License](https://img.shields.io/badge/license-Propriet%C3%A1rio-red)
 
 ---
 
 ## 🚀 Funcionalidades
 
-- **📊 Dashboard em Tempo Real** — Monitoramento de umidade do solo com gráficos interativos
-- **🌤️ Integração Climática** — Previsão do tempo e dados meteorológicos via Open-Meteo
-- **🤖 Motor Agro IA** — Diagnóstico inteligente baseado em tipo de cultura, umidade e clima
-- **🔐 Autenticação JWT** — Sistema de login/registro seguro com bcrypt
-- **📱 Design Responsivo** — Interface adaptável para desktop e mobile com menu hamburger
-- **📈 Histórico de Dados** — Análise temporal com médias semanais
-- **⚙️ Configuração por Usuário** — Personalização de tipo de cultura, limites e alertas
+- **📊 Dashboard em Tempo Real** — Monitoramento de umidade do solo com gráficos interativos (Live & Histórico).
+- **🌤️ Inteligência Climática** — Previsão do tempo, evapotranspiração (ET₀) e dados meteorológicos integrados via Open-Meteo.
+- **🛰️ Satélite NASA POWER** — Monitoramento da tendência regional de umidade superficial direto do satélite.
+- **🤖 Motor Agro (v2.0)** — Processamento avançado que cruza dados de IoT, Clima e Satélite com módulos de:
+  - **Data Quality:** Avaliação da integridade dos dados dos sensores.
+  - **Anomaly Detection:** Filtro inteligente de ruídos e falhas nos sensores.
+  - **ML Predictor:** Previsão da taxa de secagem e estimativa do momento ideal para irrigação.
+  - **Risk & Confidence:** Cálculo do nível de risco e confiabilidade para evitar falsos alertas.
+- **🧠 Laudos por IA Generativa** — Diagnóstico agronômico traduzido para linguagem natural (via Gemini AI).
+- **🔐 Autenticação JWT** — Sistema de login seguro com bcrypt e sessões criptografadas.
+- **⚙️ Configuração por Usuário** — Personalização de tipo de cultura (faixas ideais), limites e configurações de cidade/UF.
 
 ---
 
 ## 📁 Estrutura do Projeto
 
-```
+```text
 dashboard-hidrape/
 ├── server.js              # Servidor Express principal
+├── prisma/
+│   └── schema.prisma      # Modelagem do Banco de Dados (Supabase/PostgreSQL)
 ├── package.json           # Dependências e scripts
-├── .env.example           # Template de variáveis de ambiente
-├── .gitignore
+├── .env                   # Variáveis de ambiente
 │
 ├── controllers/           # Lógica de negócio (API)
 │   ├── authController.js  # Autenticação e registro
 │   ├── sensorController.js# Dados dos sensores IoT
-│   └── agroController.js  # Motor de IA Agronômico
+│   └── agroController.js  # Orquestração do Motor de IA Agronômico
 │
-├── models/                # Schemas MongoDB
-│   ├── User.js            # Modelo de usuário
-│   └── Sensor.js          # Modelo de dados do sensor
+├── services/              # Serviços externos e core da aplicação
+│   ├── agroEngine/        # Módulos independentes do Motor Agro (ML, Anomalias, Qualidade, etc.)
+│   ├── iaService.js       # Integração com Google Gemini
+│   ├── emailService.js    # Serviço de e-mail (Nodemailer)
+│   └── (outros serviços)
 │
-├── middleware/             # Middlewares Express
-│   └── auth.js            # Middleware de autenticação JWT
+├── middleware/            # Middlewares Express (Auth)
 │
-├── services/              # Serviços externos
-│   └── emailService.js    # Serviço de e-mail (Nodemailer)
-│
-└── public/                # Frontend SPA
+└── public/                # Frontend SPA (Vanilla JS + CSS)
     ├── index.html         # Página principal (entry point)
     ├── css/
-    │   └── style.css      # Estilos (glassmorphism, animações)
+    │   └── style.css      # Estilos (glassmorphism, design responsivo premium)
     ├── js/
-    │   └── app.js         # Lógica do frontend (SPA Router)
+    │   └── app.js         # Lógica do frontend (SPA Router, chamadas API, gráficos)
     └── views/
-        ├── dashboard.html # Painel principal
-        ├── history.html   # Histórico de dados
+        ├── dashboard.html # Painel principal de operação
+        ├── analysis.html  # Painel de Análise Inteligente e cruzamento de dados (IA)
+        ├── history.html   # Histórico de dados semanais
         ├── login.html     # Tela de login
         ├── register.html  # Tela de registro
-        └── settings.html  # Configurações do usuário
+        └── settings.html  # Configurações de perfil e fazenda
 ```
 
 ---
@@ -64,7 +70,8 @@ dashboard-hidrape/
 
 ### Pré-requisitos
 - Node.js >= 18
-- npm
+- Conta no Supabase (PostgreSQL)
+- Chave API do Gemini (Google AI Studio)
 
 ### 1. Clone o repositório
 ```bash
@@ -78,47 +85,45 @@ npm install
 ```
 
 ### 3. Configure as variáveis de ambiente
-```bash
-cp .env.example .env
-# Edite o .env com suas credenciais
+Crie um arquivo `.env` na raiz baseado nas configurações abaixo:
+```env
+PORT=3002
+JWT_SECRET=sua_chave_secreta_aqui
+BLYNK_TOKEN=seu_token_blynk
+BLYNK_URL=https://blynk.cloud/external/api/get
+
+# Supabase / Prisma DB
+DATABASE_URL="postgres://user:pass@host:5432/db?pgbouncer=true"
+DIRECT_URL="postgres://user:pass@host:5432/db"
+
+# IA
+GEMINI_API_KEY=sua_chave_do_google_gemini
 ```
 
-### 4. Execute o servidor
+### 4. Sincronize o Banco de Dados (Prisma)
 ```bash
+npx prisma db push
+npx prisma generate
+```
+
+### 5. Execute o servidor
+```bash
+# Desenvolvimento (com auto-restart)
+npm run dev
+
 # Produção
 npm start
-
-# Desenvolvimento (com hot-reload)
-npm run dev
 ```
-
-### 5. Acesse
-```
-http://localhost:3002
-```
+Acesse: `http://localhost:3002`
 
 ---
 
-## 🔧 Variáveis de Ambiente
+## 🛡️ Segurança e Confiabilidade
 
-| Variável     | Descrição                          | Exemplo                                    |
-| ------------ | ---------------------------------- | ------------------------------------------ |
-| `PORT`       | Porta do servidor                  | `3002`                                     |
-| `JWT_SECRET` | Chave secreta para tokens JWT      | `sua_chave_secreta_aqui`                   |
-| `MONGO_URI`  | URI do MongoDB                     | `mongodb://127.0.0.1:27017/iot-saas`       |
-| `BLYNK_TOKEN`| Token do dispositivo Blynk         | `seu_token_blynk`                          |
-| `BLYNK_URL`  | URL base da API Blynk              | `https://blynk.cloud/external/api/get`     |
-
-> **Nota:** Se `MONGO_URI` aponta para localhost, o sistema usa MongoDB em memória automaticamente (ideal para desenvolvimento).
-
----
-
-## 🛡️ Segurança
-
-- Senhas hash com **bcrypt**
-- Autenticação via **JWT** (JSON Web Tokens)
-- Variáveis sensíveis isoladas em `.env` (não versionado)
-- Middleware de autenticação em todas as rotas protegidas
+- **Sensores Blindados:** O novo módulo `anomalyDetection.js` protege o sistema contra dados congelados ou variações absurdas (ruído elétrico), evitando acionamentos indevidos.
+- **Confiança (Confidence Score):** Se um sensor falha, a IA relata baixa confiança em vez de gerar um laudo falso/perigoso.
+- **Banco de Dados Seguro:** Migração para PostgreSQL via Supabase garante integridade relacional, com Prisma como ORM.
+- **Auth:** Senhas com hash (bcrypt) e rotas protegidas por JWT.
 
 ---
 
@@ -126,13 +131,13 @@ http://localhost:3002
 
 | Categoria   | Tecnologia                     |
 | ----------- | ------------------------------ |
-| Backend     | Node.js, Express               |
-| Banco       | MongoDB, Mongoose, MongoMemory |
-| Auth        | JWT, bcryptjs                  |
-| Frontend    | HTML5, CSS3, JavaScript (SPA)  |
-| IoT         | Blynk Cloud API                |
-| E-mail      | Nodemailer                     |
-| HTTP Client | Axios                          |
+| **Backend** | Node.js, Express               |
+| **Banco**   | PostgreSQL (Supabase), Prisma ORM |
+| **Auth**    | JWT, bcryptjs                  |
+| **Frontend**| HTML5, CSS3, JS Vanilla (SPA), Chart.js |
+| **IoT**     | Blynk Cloud API                |
+| **Clima**   | Open-Meteo, NASA POWER (Satélite) |
+| **IA**      | Google Gemini                  |
 
 ---
 
