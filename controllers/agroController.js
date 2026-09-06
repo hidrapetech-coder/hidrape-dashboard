@@ -78,130 +78,73 @@ const getSensorStatus = async (userId) => {
 // ======================================
 // IA PREDITIVA DE IRRIGAÇÃO (Análise Baseada e Tendências Históricas Módulo-Linear)
 // ======================================
+const { evaluateDataQuality } = require('../services/agroEngine/dataQuality');
+const { detectAnomalies } = require('../services/agroEngine/anomalyDetection');
+const { analyzeClimate } = require('../services/agroEngine/climateAnalyzer');
+const { predictMoisture } = require('../services/agroEngine/mlPredictor');
+const { calculateRiskAndConfidence } = require('../services/agroEngine/riskAndConfidence');
+const { makeDecision } = require('../services/agroEngine/decisionMaker');
+const { logAgroDecision } = require('../services/agroEngine/observability');
+
 const preverIrrigacao = async (user, clima, satData, sensorState) => {
-    if (!sensorState || !sensorState.hasValidData) {
-        return {
-            tempoHoras: null,
-            recomendacao: "Não foi possível estimar a próxima irrigação porque o sensor de umidade do solo está offline ou desatualizado.",
-            status: 'indisponivel',
-            _meta: { 
-                dropRealTime: 0, 
-                limiteCultura: null,
-                rainProb: 0,
-                sensorState
-            }
-        };
-    }
-
-
-    // 1. Definição de Limites por Cultura (Umidade Crítica)
-    const CROP_CONFIG = {
-        'cana-de-açúcar': { min: 35, retention: 'high' },
-        'hortaliças': { min: 50, retention: 'low' },
-        'milho': { min: 40, retention: 'medium' },
-        'default': { min: 40, retention: 'medium' }
-    };
-
-    const config = CROP_CONFIG[(user.tipoPlantacao || '').toLowerCase()] || CROP_CONFIG['default'];
-    const limiteMinimo = config.min;
-
-    // 2. Cálculo da Taxa Real de Secagem (Droprate)
+    // Busca um histórico maior para alimentar o novo motor (últimas 20 leituras)
     const historico = await prisma.sensor.findMany({ 
         where: { userId: user.id },
         orderBy: { data: 'desc' },
-        take: 10
+        take: 20
     });
-    
-    let currentMoisture = 50; 
-    let dropRatePerHour = 0.8; // Padrão base recalibrado
-    
-    if(historico.length >= 2) {
-        currentMoisture = historico[0].umidade;
-        const oldest = historico[historico.length - 1];
-        const hourDiff = (new Date(historico[0].data) - new Date(oldest.data)) / (1000 * 60 * 60);
-        
-        if (hourDiff > 0.1) { // Evita divisão por zero ou tempo muito curto
-            const drop = oldest.umidade - currentMoisture;
-            // Apenas considera se houve queda real (secagem)
-            if (drop > 0) {
-                dropRatePerHour = drop / hourDiff;
-            }
-        }
-    }
-    
-    // 3. Ajustes Climáticos Dinâmicos na Taxa
-    const current = clima?.current || {};
-    const temp = current.temperature_2m || 25;
-    const airHumid = current.relative_humidity_2m || 50;
-    const windSpeed = current.wind_speed_10m || 0;
-    
-    // Fatores de ajuste (Heurística Agronômica)
-    let climateMultiplier = 1.0;
-    if (temp > 30) climateMultiplier += 0.3; // Calor aumenta evaporação
-    if (temp > 35) climateMultiplier += 0.2; // Calor extremo
-    if (airHumid < 40) climateMultiplier += 0.2; // Ar seco
-    if (airHumid > 80) climateMultiplier -= 0.3; // Ar úmido retém água
 
-    // Novo fator: Vento
-    if (windSpeed > 15) climateMultiplier += 0.1;
-    if (windSpeed > 30) climateMultiplier += 0.2; // Vento forte seca rápido
+    // Fase 1: Qualidade dos Dados
+    const dataQuality = evaluateDataQuality(historico);
 
-    // Fator FAO Evapotranspiração (se houver)
-    const dailyEt0 = clima?.daily?.et0_fao_evapotranspiration?.[0] || 0;
-    if (dailyEt0 > 5) climateMultiplier += 0.15;
-    
-    // Novo fator: Macro umidade via Satélite
-    if (satData && satData.umidadeMacro < 30) {
-        climateMultiplier += 0.15; // Região seca = mais evaporação
-    }
-    
-    dropRatePerHour *= climateMultiplier;
-    
-    // Piso de segurança para evitar divisão por zero e garantir predict mínimo
-    if(dropRatePerHour < 0.2) dropRatePerHour = 0.2;
+    // Fase 2: Anomalias
+    const anomalies = detectAnomalies(historico, clima, dataQuality);
 
-    // 4. Previsão de Chuva (Próximas 12 horas para maior segurança)
-    let maxRainProb = 0;
-    const precipArray = clima?.hourly?.precipitation_probability;
-    if (Array.isArray(precipArray) && precipArray.length > 0) {
-        maxRainProb = Math.max(...precipArray.slice(0, 12));
-    }
+    // Fase 3: Análise Climática
+    const climateAnalysis = analyzeClimate(clima, satData);
 
-    // 5. Cálculo do Tempo Restante (Fórmula Solicitada)
-    let horasRestantes = (currentMoisture - limiteMinimo) / dropRatePerHour;
-    
-    // Clamping: 1h a 48h
-    horasRestantes = Math.max(1, Math.min(48, horasRestantes));
+    // Fase 4: Predição de Umidade
+    const predictor = predictMoisture(historico, climateAnalysis, user.tipoPlantacao);
 
-    // 6. Árvore de Decisão e Diagnóstico
-    let recomendacao = '';
-    let status = 'normal';
+    // Fase 5: Risco e Confiança
+    const riskAndConfidence = calculateRiskAndConfidence(dataQuality, anomalies, predictor, historico);
 
-    if (maxRainProb > 60) {
-        recomendacao = "Previsão de chuva detectada. Irrigação não recomendada no momento";
-        status = 'alerta';
-        horasRestantes = 0; // Sinaliza que não deve irrigar
-    } else if (currentMoisture <= limiteMinimo) {
-        recomendacao = `Solo abaixo do limite mínimo para ${user.tipoPlantacao.toLowerCase()}. Irrigue imediatamente`;
-        status = 'critico';
-        horasRestantes = 0;
-    } else if (horasRestantes <= 6) {
-        recomendacao = `Irrigação será necessária em aproximadamente ${Math.round(horasRestantes)} horas`;
-        status = 'alerta';
-    } else {
-        recomendacao = `Condições estáveis. A cultura de ${user.tipoPlantacao.toLowerCase()} não necessita de irrigação no momento`;
-        status = 'ideal';
-    }
+    // Fase 6: Tomada de Decisão Estruturada
+    const recommendation = makeDecision(dataQuality, anomalies, climateAnalysis, predictor, riskAndConfidence, historico.length > 0 ? historico[0].umidade : 50);
+
+    const engineData = {
+        dataQuality,
+        anomalies,
+        climateAnalysis,
+        predictions: predictor.predictions,
+        risk: riskAndConfidence.risk,
+        confidence: riskAndConfidence.confidence,
+        recommendation
+    };
+
+    // Fase 7: Observabilidade (Feedback Loop Assíncrono)
+    logAgroDecision(user.id, engineData).catch(() => {}); // Não bloqueia o fluxo
+
+    // =========================================
+    // RETORNO DE COMPATIBILIDADE (LEGADO)
+    // O sistema antigo esperava "tempoHoras", "recomendacao" como string, "status", e "_meta"
+    // =========================================
+    let statusAntigo = 'normal';
+    if (recommendation.action === 'IRRIGAR') statusAntigo = 'critico';
+    else if (recommendation.action === 'ATENÇÃO') statusAntigo = 'alerta';
+    else if (recommendation.action === 'AGUARDAR') statusAntigo = 'alerta';
 
     return { 
-        tempoHoras: horasRestantes, 
-        recomendacao, 
-        status, 
+        tempoHoras: predictor.hoursUntilStress, 
+        recomendacao: recommendation.explanation.join(" "), // Concatena a explicação para o frontend legado
+        status: statusAntigo, 
         _meta: { 
-            dropRealTime: dropRatePerHour.toFixed(2), 
-            limiteCultura: limiteMinimo,
-            rainProb: maxRainProb 
-        } 
+            dropRealTime: predictor.dynamicDropRate, 
+            limiteCultura: predictor.criticalLimit,
+            rainProb: climateAnalysis.maxRainProb12h,
+            sensorState: sensorState
+        },
+        engineData // <--- Objeto da Nova Arquitetura acoplado aqui
     };
 };
 

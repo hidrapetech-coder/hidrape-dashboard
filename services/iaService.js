@@ -24,16 +24,19 @@ const traduzirDiagnostico = async (dadosMatematicos, cultura) => {
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     // Payload injetado (Apenas números REAIS, zero invenção)
+    const engineData = dadosMatematicos.engineData || {};
+    
     const payloadContexto = JSON.stringify({
         cultura: cultura || 'Mista',
-        leituraSensorSoloAtual: dadosMatematicos._meta.umidadeAtual,
-        statusSensor: dadosMatematicos._meta.sensorState ? dadosMatematicos._meta.sensorState.status : 'desconhecido',
-        dadosValidos: dadosMatematicos._meta.sensorState ? dadosMatematicos._meta.sensorState.hasValidData : false,
-        idadeDadosMinutos: dadosMatematicos._meta.sensorState ? dadosMatematicos._meta.sensorState.dataAgeMinutes : null,
-        taxaDeSecagemRealPorHora: dadosMatematicos._meta.dropRealTime,
-        probabilidadeDeChuva: dadosMatematicos._meta.rainProb,
-        horasRestantesAteSecarCalculado: dadosMatematicos.tempoHoras,
-        sateliteNasaUmidadeMacro: dadosMatematicos._meta.satUmidadeMacro
+        leituraSensorSoloAtual: dadosMatematicos._meta?.sensorState?.umidadeAtual || 'Indisponível',
+        statusSensor: engineData.dataQuality?.sensorStatus || 'desconhecido',
+        nivelQualidadeDados: engineData.dataQuality?.level || 'LOW',
+        confiancaDaAnalise: engineData.confidence?.level || 'LOW',
+        riscoDeEstresse: engineData.risk?.score || 0,
+        previsoesFuturas: engineData.predictions || null,
+        anomalias: engineData.anomalies || [],
+        recomendacaoMotorAgro: engineData.recommendation?.action || 'Desconhecida',
+        motivosDaRecomendacao: engineData.recommendation?.explanation || []
     });
 
     // Auditoria contra alucinações (Log Rastreável)
@@ -44,23 +47,22 @@ const traduzirDiagnostico = async (dadosMatematicos, cultura) => {
 
     const prompt = `
 Você é um engenheiro agrônomo sênior focado em IoT prestando consultoria rápida num dashboard.
-Abaixo estão os dados ESTRITAMENTE numéricos calculados pela nossa engine matemática.
+Abaixo estão os dados ESTRITAMENTE estruturados calculados pelo nosso Motor Agro.
 
 DADOS BRUTOS (FATO):
 ${payloadContexto}
 
 SUAS REGRAS INEGOCIÁVEIS:
-1. NUNCA invente números, temperaturas ou porcentagens que não estejam no bloco DADOS BRUTOS acima.
-2. Se o statusSensor for "offline" ou "stale", ou se dadosValidos for false:
-   - VOCÊ NÃO PODE afirmar que a condição atual do solo está saudável, boa, ideal ou normal.
-   - VOCÊ NÃO PODE afirmar umidade atual.
-   - Sua única conclusão deve ser avisar que "O sensor está offline (ou desatualizado) e não há dados atuais suficientes para avaliar a condição da lavoura neste momento."
-   - Você pode mencionar os dados do satélite ou probabilidade de chuva, mas deixe claro que a leitura local não é confiável no momento.
+1. NUNCA invente números, previsões, temperaturas ou porcentagens que não estejam no bloco DADOS BRUTOS acima.
+2. Se o nivelQualidadeDados for "INVALID" ou "LOW", ou a confiancaDaAnalise for "LOW":
+   - SUA PRIMEIRA FRASE DEVE SER UM AVISO informando que os dados são limitados ou de baixa confiança.
+   - VOCÊ NÃO PODE afirmar com certeza a condição atual do solo ou recomendar irrigação com segurança.
+   - Sua única conclusão deve ser avisar o agricultor para verificar o sensor físico e usar a experiência em campo.
 3. Não use a palavra "eu". Fale diretamente sobre o status da terra e da cultura.
-4. Explique o cenário para o agricultor de forma clara, técnica porém acessível, em no máximo 3 parágrafos curtos.
+4. Explique o cenário (motivosDaRecomendacao) de forma clara, técnica porém acessível, em no máximo 3 parágrafos curtos.
 5. Diferencie sempre dado observado, estimativa e dado indisponível.
 
-Traduza os dados para um laudo conciso e utilitário agora:
+Traduza esses resultados analíticos e preditivos para um laudo agronômico prático agora:
 `;
 
     try {

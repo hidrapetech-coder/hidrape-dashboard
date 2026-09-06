@@ -32,16 +32,34 @@ model User {
 
   sensors             Sensor[]
   logs                Log[]
+  talhoes             Talhao[]
+  agroLogs            AgroLog[]
+}
+
+model Talhao {
+  id              String   @id @default(uuid())
+  userId          String
+  nome            String   @default("Talhão Principal")
+  cultura         String   @default("Personalizado")
+  tamanhoHectares Float    @default(1)
+  criadoEm        DateTime @default(now())
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sensores        Sensor[]
+  logsAgro        AgroLog[]
+  calibracoes     ModelCalibration[]
 }
 
 model Sensor {
-  id      String   @id @default(uuid())
-  userId  String
-  umidade Float
-  status  String
-  data    DateTime @default(now())
+  id       String   @id @default(uuid())
+  userId   String
+  talhaoId String?
+  umidade  Float
+  status   String
+  data     DateTime @default(now())
 
-  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  talhao   Talhao?  @relation(fields: [talhaoId], references: [id], onDelete: SetNull)
 }
 
 model Log {
@@ -56,4 +74,40 @@ model Log {
   timestamp  DateTime @default(now())
 
   user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+}
+
+model AgroLog {
+  id               String   @id @default(uuid())
+  userId           String
+  talhaoId         String?
+  timestamp        DateTime @default(now())
+  
+  dadosUtilizados  String   @db.Text
+  dataQualityScore Int      @default(0)
+  anomalies        String?  @db.Text
+  
+  previsao12h      Float?
+  previsao24h      Float?
+  riscoEstresse    Float?
+  nivelConfianca   String   @default("LOW")
+  recomendacao     String   @default("MONITORAR")
+  fatoresDecisao   String   @db.Text
+  
+  acaoProdutor     String?
+  resultadoReal    Float?
+  erroPrevisao     Float?
+  
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  talhao           Talhao?  @relation(fields: [talhaoId], references: [id], onDelete: SetNull)
+}
+
+model ModelCalibration {
+  id              String   @id @default(uuid())
+  talhaoId        String   @unique
+  dropRateBase    Float    @default(0.8)
+  climateWeights  String   @db.Text
+  metricas        String   @db.Text
+  atualizadoEm    DateTime @default(now())
+
+  talhao          Talhao   @relation(fields: [talhaoId], references: [id], onDelete: Cascade)
 }
