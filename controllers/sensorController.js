@@ -1,6 +1,7 @@
 const axios = require('axios');
 const prisma = require('../lib/prisma');
 const { decrypt } = require('../lib/encryption');
+const redis = require('../lib/redis');
 
 // --- IA DE DIAGNÓSTICO (SISTEMA BASEADO EM REGRAS) ---
 const gerarDiagnostico = (umidade, tipoPlantacao) => {
@@ -32,15 +33,14 @@ const gerarDiagnostico = (umidade, tipoPlantacao) => {
 };
 
 // --- CONTROLE DE ALERTA WHATSAPP (MEMÓRIA / TEMP) ---
-// Em produção massiva seria Redis ou BD. Aqui manteremos em memória por Id
-const alertasPorUser = {}; // user_id: { lastStatus: 'IDEAL', timer: 0 }
-
 const testarEEnviarWhatsApp = async (user, umidade, statusIA, recomendacaoIA) => {
     // 1. O usuário tem whatsapp configurado?
     if(!user.whatsappPhone || !user.callmebotApiKey) return;
 
-    // 2. Transição de status
-    const historicoAlerta = alertasPorUser[user.id] || { lastStatus: null, timer: 0 };
+    // 2. Transição de status via Redis
+    const redisKey = `wpp_alert:${user.id}`;
+    const rawHistorico = await redis.get(redisKey);
+    const historicoAlerta = rawHistorico ? JSON.parse(rawHistorico) : { lastStatus: null, timer: 0 };
     
     // Se mudou de estado OU se já faz muito tempo que enviou aviso (evitar spam 30min)
     const mudouEstado = historicoAlerta.lastStatus !== statusIA;
@@ -57,16 +57,14 @@ const testarEEnviarWhatsApp = async (user, umidade, statusIA, recomendacaoIA) =>
             await axios.get(url);
             console.log(`[WhatsApp] Alerta Inteligente enviado p/ ${user.nome} - Status: ${statusIA}`);
             
-            // Atualizar status
-            alertasPorUser[user.id] = { lastStatus: statusIA, timer: Date.now() };
+            // Atualizar status e segurar no Redis por 2h
+            await redis.setex(redisKey, 2 * 60 * 60, JSON.stringify({ lastStatus: statusIA, timer: Date.now() }));
 
         } catch (error) {
             console.error(`[WhatsApp Error] - User ${user.nome}:`, error.message);
         }
     } else if (statusIA === 'IDEAL' && mudouEstado && historicoAlerta.lastStatus !== null) {
-        // Enviar aviso de que normalizou? Pode ser muito spam.
-        // Vamos setar o status e timer para não mandar msg atoa
-        alertasPorUser[user.id] = { lastStatus: 'IDEAL', timer: Date.now() };
+        await redis.setex(redisKey, 2 * 60 * 60, JSON.stringify({ lastStatus: 'IDEAL', timer: Date.now() }));
     }
 };
 
@@ -129,8 +127,8 @@ exports.getLiveSystem = async (req, res) => {
             timestampLeitura = novaLeitura.data;
         }
 
-        // Verificar / Disparar Whatsapp Inteligente
-        testarEEnviarWhatsApp(user, valor, statusIA, recomendacaoIA).catch(e => console.error(e));
+        // Verificar / Disparar Whatsapp Inteligente (Await obrigatório em Serverless)
+        await testarEEnviarWhatsApp(user, valor, statusIA, recomendacaoIA).catch(e => console.error(e));
 
         // Retornar ao App
         return res.json({

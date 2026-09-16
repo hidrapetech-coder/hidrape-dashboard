@@ -2,14 +2,16 @@ const https = require('https');
 const prisma = require('../lib/prisma');
 const satelliteService = require('../services/satelliteService');
 const iaService = require('../services/iaService');
-const weatherCache = {};
-const weeklyCache = {}; // Cache para as Agregações DB
-const CACHE_DURATION_MS = 10 * 60 * 1000; // 10 Minutos (Clima)
-const WEEKLY_CACHE_MS = 60 * 60 * 1000; // 1 Hora (Painel Analítico)
+const redis = require('../lib/redis');
+const CACHE_DURATIONS = {
+    WEATHER: 10 * 60, // 10 Minutos (Clima)
+    WEEKLY: 60 * 60,  // 1 Hora (Painel Analítico)
+    IA: 3 * 60 * 60   // 3 Horas (IA)
+};
 
 exports.clearWeatherCache = (userId) => {
-    delete weatherCache[userId.toString()];
-    console.log(`[Cache] Cache climático de ${userId} invalidado com sucesso.`);
+    redis.del(`weather:${userId}`).catch(console.error);
+    console.log(`[Cache] Cache climático de ${userId} invalidação iniciada.`);
 };
 
 // Thresholds IA (Magic Numbers)
@@ -165,16 +167,16 @@ exports.getClimaEDashboard = async (req, res) => {
             console.error('Erro na API de satélite:', e.message);
         }
 
-        // Recuperar Cache Node Server para proteção de rede (Rate Limits)
-        if (weatherCache[u.id] && weatherCache[u.id].expiration > Date.now()) {
+        // Recuperar Cache Redis para proteção de rede (Rate Limits)
+        let climaData = await redis.get(`weather:${u.id}`);
+        
+        if (climaData) {
+            climaData = JSON.parse(climaData);
             const sensorState = await getSensorStatus(u.id);
-            
-            // Note que embora o CLIMA seja Cacheado (ele não muda todo segundo), o SENSOR muda. 
-            // Logo, recalculamos a Previsão de Rega AO VIVO a partir da Memória RAM. Tremenda abstração arquitetural.
-            const previsao = await preverIrrigacao(u, weatherCache[u.id].data, satData, sensorState);
+            const previsao = await preverIrrigacao(u, climaData, satData, sensorState);
             
             return res.json({ 
-                clima: weatherCache[u.id].data, 
+                clima: climaData, 
                 cidade: cidade,
                 previsao,
                 satelite: satData,
@@ -182,13 +184,10 @@ exports.getClimaEDashboard = async (req, res) => {
             });
         }
 
-        // Bater no Satélite caso o Cache Morra (10 mins)
-        const climaData = await fetchOpenMeteo(lat, lon);
+        // Bater na API caso o Cache Morra (10 mins)
+        climaData = await fetchOpenMeteo(lat, lon);
         
-        weatherCache[u.id] = {
-            expiration: Date.now() + CACHE_DURATION_MS,
-            data: climaData
-        };
+        await redis.setex(`weather:${u.id}`, CACHE_DURATIONS.WEATHER, JSON.stringify(climaData));
 
         const sensorState = await getSensorStatus(u.id);
         const previsao = await preverIrrigacao(u, climaData, satData, sensorState);
@@ -205,9 +204,10 @@ exports.getMediaSemanal = async (req, res) => {
     try {
         const uId = req.user.id;
         
-        // Cache L2 (Descarrega o Banco)
-        if (weeklyCache[uId] && weeklyCache[uId].expiration > Date.now()) {
-            return res.json(weeklyCache[uId].data);
+        // Cache L2 Redis (Descarrega o Banco)
+        let cachedWeekly = await redis.get(`weekly:${uId}`);
+        if (cachedWeekly) {
+            return res.json(JSON.parse(cachedWeekly));
         }
 
         const pastWeek = new Date();
@@ -245,10 +245,7 @@ exports.getMediaSemanal = async (req, res) => {
             };
         });
 
-        weeklyCache[uId] = {
-            expiration: Date.now() + WEEKLY_CACHE_MS,
-            data: formatado
-        };
+        await redis.setex(`weekly:${uId}`, CACHE_DURATIONS.WEEKLY, JSON.stringify(formatado));
 
         res.json(formatado);
 
@@ -258,8 +255,7 @@ exports.getMediaSemanal = async (req, res) => {
     }
 };
 
-const iaCache = {};
-const IA_CACHE_MS = 3 * 60 * 60 * 1000; // 3 Horas
+
 
 exports.getInsightsIA = async (req, res) => {
     try {
@@ -268,16 +264,18 @@ exports.getInsightsIA = async (req, res) => {
         
         const { lat, lon } = u;
 
-        // Verifica Cache
-        if (iaCache[u.id] && iaCache[u.id].expiration > Date.now()) {
-            return res.json({ diagnostico: iaCache[u.id].diagnostico, cached: true });
+        // Verifica Cache Redis
+        let cachedIa = await redis.get(`ia:${u.id}`);
+        if (cachedIa) {
+            return res.json({ diagnostico: JSON.parse(cachedIa), cached: true });
         }
 
         // Puxar insumos (dados brutos reais)
         let satData = null;
         try { satData = await satelliteService.fetchSateliteData(lat, lon); } catch(e) {}
         
-        let climaData = weatherCache[u.id] ? weatherCache[u.id].data : null;
+        let climaDataString = await redis.get(`weather:${u.id}`);
+        let climaData = climaDataString ? JSON.parse(climaDataString) : null;
         if (!climaData) {
             climaData = await fetchOpenMeteo(lat, lon); 
         }
@@ -302,10 +300,7 @@ exports.getInsightsIA = async (req, res) => {
         
         const laudo = await iaService.traduzirDiagnostico(dadosMatematicos, u.tipoPlantacao);
 
-        iaCache[u.id] = {
-            expiration: Date.now() + IA_CACHE_MS,
-            diagnostico: laudo
-        };
+        await redis.setex(`ia:${u.id}`, CACHE_DURATIONS.IA, JSON.stringify(laudo));
 
         res.json({ diagnostico: laudo, cached: false });
     } catch (error) {

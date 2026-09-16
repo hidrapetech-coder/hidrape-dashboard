@@ -6,6 +6,16 @@ const path = require('path');
 
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const RedisStore = require('rate-limit-redis').default || require('rate-limit-redis');
+const redisClient = require('./lib/redis');
+
+// Função helper para criar o RedisStore
+const createRedisStore = (prefix) => {
+    return new RedisStore({
+        sendCommand: (...args) => redisClient.call(...args),
+        prefix: prefix
+    });
+};
 
 const app = express();
 
@@ -51,40 +61,49 @@ app.use(cors({
     maxAge: 86400 // Cache preflight 24h
 }));
 
-// 3. Rate Limiting — Proteção contra Brute Force
+// 3. Rate Limiting — Proteção contra Brute Force (Shared Redis)
 const loginLimiter = rateLimit({
+    store: createRedisStore('rl:login:'),
     windowMs: 15 * 60 * 1000, // 15 minutos
     max: 10, // máx 10 tentativas de login por IP
     message: { error: 'Muitas tentativas de login. Aguarde 15 minutos.' },
     standardHeaders: true,
-    legacyHeaders: false
+    legacyHeaders: false,
+    keyGenerator: (req) => {
+        // Bloqueia pelo email tentado ou pelo IP
+        return req.body.email ? `${req.ip}:${req.body.email}` : req.ip;
+    }
 });
 
 const registerLimiter = rateLimit({
+    store: createRedisStore('rl:register:'),
     windowMs: 60 * 60 * 1000, // 1 hora
-    max: 5, // máx 5 cadastros por hora por IP
+    max: 5, 
     message: { error: 'Muitos cadastros a partir deste IP. Tente novamente mais tarde.' },
     standardHeaders: true,
     legacyHeaders: false
 });
 
 const forgotPasswordLimiter = rateLimit({
+    store: createRedisStore('rl:forgot:'),
     windowMs: 60 * 60 * 1000, // 1 hora
-    max: 3, // máx 3 recuperações por hora por IP
+    max: 3,
     message: { error: 'Muitas requisições de recuperação de senha. Tente mais tarde.' },
     standardHeaders: true,
     legacyHeaders: false
 });
 
 const resetPasswordLimiter = rateLimit({
+    store: createRedisStore('rl:reset:'),
     windowMs: 15 * 60 * 1000, // 15 min
-    max: 5, // máx 5 tentativas de reset (caso digite senha fraca várias vezes)
+    max: 5,
     message: { error: 'Muitas tentativas de alteração de senha. Tente mais tarde.' },
     standardHeaders: true,
     legacyHeaders: false
 });
 
 const apiLimiter = rateLimit({
+    store: createRedisStore('rl:api:'),
     windowMs: 1 * 60 * 1000, // 1 minuto
     max: 120, // 120 req/min para APIs em geral
     standardHeaders: true,
@@ -98,8 +117,7 @@ app.set('trust proxy', 1); // Confia em proxies (ex: Nginx, Heroku) para captura
 app.disable('x-powered-by'); // Oculta Express
 
 // 5. Injetar Auditoria (Globamente na API)
-const audit = require('./middleware/audit');
-app.use('/api', audit);
+
 
 // Força No-Cache para arquivos HTML e JS em SPA
 app.use(express.static(path.join(__dirname, 'public'), {

@@ -1,33 +1,25 @@
 const prisma = require('../lib/prisma');
 
 /**
- * Middleware para Auditoria de Acessos
+ * Função utilitária para Auditoria de Acessos Críticos
  * Registra atividade do usuário de forma estruturada para segurança e depuração.
+ * Deve ser invocada com await antes da resposta.
  */
-module.exports = async function (req, res, next) {
-    // Intercepta a finalização da resposta para capturar o StatusCode decorrente
-    res.on('finish', async () => {
-        try {
-            const logData = {
-                userId: req.user ? req.user.id : null,
-                email: req.user ? req.user.email : (req.body ? req.body.email : null),
-                rota: req.originalUrl,
-                metodo: req.method,
-                ip: req.ip || req.connection.remoteAddress,
-                userAgent: req.headers['user-agent'],
-                statusCode: res.statusCode,
-                timestamp: new Date()
-            };
+exports.logAudit = async (req, statusCode) => {
+    try {
+        const logData = {
+            userId: req.user ? req.user.id : null,
+            email: req.user ? req.user.email : (req.body ? req.body.email : null),
+            rota: req.originalUrl,
+            metodo: req.method,
+            ip: req.ip || req.connection?.remoteAddress || '127.0.0.1',
+            userAgent: req.headers['user-agent'] || 'Unknown',
+            statusCode: statusCode,
+            timestamp: new Date()
+        };
 
-            // Somente registrar logs de mutação ou acessos críticos (POST, PUT, DELETE) e falhas (4xx, 5xx)
-            // Para não sobrecarregar o banco com GETs de rotina em produção massiva.
-            if (req.method !== 'GET' || res.statusCode >= 400 || req.originalUrl.includes('/auth/me')) {
-                await prisma.log.create({ data: logData });
-            }
-        } catch (err) {
-            console.error('[Audit Log Error]:', err.message);
-        }
-    });
-
-    next();
+        await prisma.log.create({ data: logData });
+    } catch (err) {
+        console.error('[Audit Log Error]:', err.message);
+    }
 };

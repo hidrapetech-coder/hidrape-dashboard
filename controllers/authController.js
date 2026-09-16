@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const prisma = require('../lib/prisma');
 const emailService = require('../services/emailService');
 const { encrypt } = require('../lib/encryption');
+const audit = require('../middleware/audit');
 
 const env = require('../lib/env');
 
@@ -160,9 +161,13 @@ exports.login = async (req, res) => {
         const genericError = { error: 'Credenciais inválidas' };
 
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) return res.status(400).json(genericError);
+        if (!user) {
+            await audit.logAudit(req, 401);
+            return res.status(400).json(genericError);
+        }
 
         if (user.lockedUntil && user.lockedUntil > new Date()) {
+            await audit.logAudit(req, 403);
             return res.status(400).json({ error: 'Muitas tentativas falhas. Conta bloqueada temporariamente (15 min).' });
         }
 
@@ -177,6 +182,7 @@ exports.login = async (req, res) => {
                 where: { id: user.id },
                 data: { failedLoginAttempts: failedAttempts, lockedUntil }
             });
+            await audit.logAudit(req, 401);
             return res.status(400).json(genericError);
         }
 
@@ -194,6 +200,10 @@ exports.login = async (req, res) => {
             sameSite: 'strict',
             maxAge: 24 * 60 * 60 * 1000 // 1 dia
         });
+        
+        req.user = user; // para o log capturar o userId
+        await audit.logAudit(req, 200);
+        
         res.json({ user: toSafeUser(user) });
 
     } catch (err) {
