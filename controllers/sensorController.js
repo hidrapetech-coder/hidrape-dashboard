@@ -106,24 +106,38 @@ exports.getLiveSystem = async (req, res) => {
         // Lógica de Diagnóstico IA
         const { statusIA, recomendacaoIA } = gerarDiagnostico(valor, user.tipoPlantacao);
 
-        // Salvar Leitura no DB
-        const novaLeitura = await prisma.sensor.create({
-            data: {
-                userId: user.id,
-                umidade: valor,
-                status: statusIA
-            }
+        // Desacoplamento Leitura/Escrita
+        const ultimaLeitura = await prisma.sensor.findFirst({
+            where: { userId: user.id },
+            orderBy: { data: 'desc' }
         });
 
+        let deveSalvar = true;
+        if (ultimaLeitura) {
+            const minPassados = (Date.now() - ultimaLeitura.data.getTime()) / (1000 * 60);
+            const varUmidade = Math.abs(ultimaLeitura.umidade - valor);
+            if (minPassados < 15 && varUmidade < 2) {
+                deveSalvar = false;
+            }
+        }
+
+        let timestampLeitura = ultimaLeitura ? ultimaLeitura.data : new Date();
+        if (deveSalvar) {
+            const novaLeitura = await prisma.sensor.create({
+                data: { userId: user.id, umidade: valor, status: statusIA }
+            });
+            timestampLeitura = novaLeitura.data;
+        }
+
         // Verificar / Disparar Whatsapp Inteligente
-        testarEEnviarWhatsApp(user, valor, statusIA, recomendacaoIA);
+        testarEEnviarWhatsApp(user, valor, statusIA, recomendacaoIA).catch(e => console.error(e));
 
         // Retornar ao App
         return res.json({
             umidade: valor,
             status: statusIA,
             diagnostico: recomendacaoIA,
-            timestamp: novaLeitura.data
+            timestamp: timestampLeitura
         });
 
     } catch (error) {

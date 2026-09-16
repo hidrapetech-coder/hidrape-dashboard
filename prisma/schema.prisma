@@ -19,13 +19,14 @@ model User {
   tipoPlantacao       String    @default("Personalizado")
   cidade              String    @default("São Paulo")
   estado              String    @default("SP")
-  lat                 String    @default("-23.5505")
-  lon                 String    @default("-46.6333")
+  lat                 Float     @default(-23.5505)
+  lon                 Float     @default(-46.6333)
   tamanhoFazenda      Float     @default(10)
   blynkToken          String    @default("")
   whatsappPhone       String    @default("")
   callmebotApiKey     String    @default("")
   criadoEm            DateTime  @default(now())
+  atualizadoEm        DateTime  @updatedAt
   resetPasswordToken  String?
   resetPasswordExpire DateTime?
   passwordChangedAt   DateTime?
@@ -33,10 +34,12 @@ model User {
   lockedUntil         DateTime?
   role                String    @default("user")
 
-  sensors             Sensor[]
-  logs                Log[]
-  talhoes             Talhao[]
-  agroLogs            AgroLog[]
+  sensors  Sensor[]
+  logs     Log[]
+  talhoes  Talhao[]
+  agroLogs AgroLog[]
+
+  @@index([resetPasswordToken])
 }
 
 model Talhao {
@@ -47,10 +50,10 @@ model Talhao {
   tamanhoHectares Float    @default(1)
   criadoEm        DateTime @default(now())
 
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  sensores        Sensor[]
-  logsAgro        AgroLog[]
-  calibracoes     ModelCalibration[]
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sensores    Sensor[]
+  logsAgro    AgroLog[]
+  calibracoes ModelCalibration[]
 }
 
 model Sensor {
@@ -61,8 +64,10 @@ model Sensor {
   status   String
   data     DateTime @default(now())
 
-  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  talhao   Talhao?  @relation(fields: [talhaoId], references: [id], onDelete: SetNull)
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  talhao Talhao? @relation(fields: [talhaoId], references: [id], onDelete: SetNull)
+
+  @@index([userId, data])
 }
 
 model Log {
@@ -76,41 +81,45 @@ model Log {
   statusCode Int?
   timestamp  DateTime @default(now())
 
-  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, timestamp])
 }
 
 model AgroLog {
-  id               String   @id @default(uuid())
-  userId           String
-  talhaoId         String?
-  timestamp        DateTime @default(now())
-  
-  dadosUtilizados  String   @db.Text
-  dataQualityScore Int      @default(0)
-  anomalies        String?  @db.Text
-  
-  previsao12h      Float?
-  previsao24h      Float?
-  riscoEstresse    Float?
-  nivelConfianca   String   @default("LOW")
-  recomendacao     String   @default("MONITORAR")
-  fatoresDecisao   String   @db.Text
-  
-  acaoProdutor     String?
-  resultadoReal    Float?
-  erroPrevisao     Float?
-  
-  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  talhao           Talhao?  @relation(fields: [talhaoId], references: [id], onDelete: SetNull)
+  id        String   @id @default(uuid())
+  userId    String
+  talhaoId  String?
+  timestamp DateTime @default(now())
+
+  dadosUtilizados  String  @db.Text
+  dataQualityScore Int     @default(0)
+  anomalies        String? @db.Text
+
+  previsao12h    Float?
+  previsao24h    Float?
+  riscoEstresse  Float?
+  nivelConfianca String @default("LOW")
+  recomendacao   String @default("MONITORAR")
+  fatoresDecisao String @db.Text
+
+  acaoProdutor  String?
+  resultadoReal Float?
+  erroPrevisao  Float?
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  talhao Talhao? @relation(fields: [talhaoId], references: [id], onDelete: SetNull)
+
+  @@index([userId, timestamp])
 }
 
 model ModelCalibration {
-  id              String   @id @default(uuid())
-  talhaoId        String   @unique
-  dropRateBase    Float    @default(0.8)
-  climateWeights  String   @db.Text
-  metricas        String   @db.Text
-  atualizadoEm    DateTime @default(now())
+  id             String   @id @default(uuid())
+  talhaoId       String   @unique
+  dropRateBase   Float    @default(0.8)
+  climateWeights String   @db.Text
+  metricas       String   @db.Text
+  atualizadoEm   DateTime @default(now())
 
-  talhao          Talhao   @relation(fields: [talhaoId], references: [id], onDelete: Cascade)
+  talhao Talhao @relation(fields: [talhaoId], references: [id], onDelete: Cascade)
 }

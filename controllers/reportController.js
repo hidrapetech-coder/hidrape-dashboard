@@ -28,17 +28,24 @@ const fetchOpenMeteoHistorical = async (lat, lon, pastDays = 92) => {
     }
 };
 
+const { z } = require('zod');
+
+const querySchema = z.object({
+    year: z.string().regex(/^\d{4}$/, 'Ano inválido').transform(Number),
+    month: z.string().regex(/^(0?[1-9]|1[0-2])$/, 'Mês inválido').transform(Number)
+});
+
 exports.getMonthlyReport = async (req, res) => {
     try {
         const userId = req.user.id;
-        const { year, month } = req.query;
-
-        if (!year || !month) {
-            return res.status(400).json({ error: 'Ano e mês são obrigatórios' });
+        
+        // Zod validation
+        const parseResult = querySchema.safeParse(req.query);
+        if (!parseResult.success) {
+            return res.status(400).json({ error: parseResult.error.errors[0].message });
         }
-
-        const targetYear = parseInt(year);
-        const targetMonth = parseInt(month); // 1 a 12
+        
+        const { year: targetYear, month: targetMonth } = parseResult.data;
 
         const user = await prisma.user.findUnique({ where: { id: userId } });
         if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -47,52 +54,49 @@ exports.getMonthlyReport = async (req, res) => {
         const startDate = new Date(targetYear, targetMonth - 1, 1);
         const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59, 999);
         
-        // Evita buscar meses futuros ou atuais incompletos sem aviso? (Deixaremos livre, mas com dados parciais)
-        
         const limites = getLimites(user.tipoPlantacao);
 
-        // 1. Dados do Banco de Dados (Sensores)
-        const leituras = await prisma.sensor.findMany({
-            where: {
-                userId: userId,
-                data: {
-                    gte: startDate,
-                    lte: endDate
-                }
-            },
-            orderBy: { data: 'asc' }
-        });
+        // 1. Dados do Banco de Dados (Sensores) agregados por dia via SQL
+        const agregation = await prisma.$queryRaw`
+            SELECT 
+                DATE_TRUNC('day', "data") as dia, 
+                AVG("umidade") as avg_umidade,
+                COUNT(*) as total_dia,
+                SUM(CASE WHEN "status" = 'SECO' THEN 1 ELSE 0 END) as qtd_seco,
+                SUM(CASE WHEN "status" = 'ENCHARCADO' THEN 1 ELSE 0 END) as qtd_encharcado,
+                SUM(CASE WHEN "status" = 'IDEAL' THEN 1 ELSE 0 END) as qtd_ideal
+            FROM "Sensor"
+            WHERE "userId" = ${userId} AND "data" >= ${startDate} AND "data" <= ${endDate}
+            GROUP BY DATE_TRUNC('day', "data")
+            ORDER BY dia ASC
+        `;
 
-        const totalLeituras = leituras.length;
-        
-        let umidadeMedia = 0, pctIdeal = 0, pctDeficit = 0, pctExcesso = 0;
-        let recomendacoesCount = 0;
+        let totalLeituras = 0;
+        let sumUmidadeTotal = 0;
+        let countIdeal = 0, countDeficit = 0, countExcesso = 0;
+        let recomendacoesCount = 0; // Aproximação baseada em dias secos
         let sensorChartData = [];
 
-        if (totalLeituras > 0) {
-            let sumUmidade = 0;
-            let countIdeal = 0, countDeficit = 0, countExcesso = 0;
+        agregation.forEach(row => {
+            const n = Number(row.total_dia);
+            totalLeituras += n;
+            sumUmidadeTotal += (Number(row.avg_umidade) * n);
+            countIdeal += Number(row.qtd_ideal);
+            countDeficit += Number(row.qtd_seco);
+            countExcesso += Number(row.qtd_encharcado);
             
-            let lastStatus = null;
+            // Para recomendacoesCount aproximado, contamos os dias com predominância de SECO
+            if (Number(row.qtd_seco) > Number(row.qtd_ideal)) {
+                recomendacoesCount++;
+            }
 
-            leituras.forEach(l => {
-                sumUmidade += l.umidade;
-                sensorChartData.push({ data: l.data, umidade: l.umidade });
+            sensorChartData.push({ data: row.dia, umidade: Number(row.avg_umidade) });
+        });
 
-                if (l.umidade < limites.minIdeal) countDeficit++;
-                else if (l.umidade > limites.maxIdeal) countExcesso++;
-                else countIdeal++;
+        let umidadeMedia = 0, pctIdeal = 0, pctDeficit = 0, pctExcesso = 0;
 
-                // Lógica retroativa de "Recomendações Emitidas": 
-                // Cada vez que o status passa de (IDEAL ou ENCHARCADO) para SECO, contabilizamos 1 alerta/recomendação
-                let currentVirtualStatus = (l.umidade < limites.minIdeal) ? 'SECO' : ((l.umidade > limites.maxIdeal) ? 'ENCHARCADO' : 'IDEAL');
-                if (currentVirtualStatus === 'SECO' && lastStatus !== 'SECO') {
-                    recomendacoesCount++;
-                }
-                lastStatus = currentVirtualStatus;
-            });
-
-            umidadeMedia = sumUmidade / totalLeituras;
+        if (totalLeituras > 0) {
+            umidadeMedia = sumUmidadeTotal / totalLeituras;
             pctIdeal = (countIdeal / totalLeituras) * 100;
             pctDeficit = (countDeficit / totalLeituras) * 100;
             pctExcesso = (countExcesso / totalLeituras) * 100;

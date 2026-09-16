@@ -1393,23 +1393,35 @@ const initDashboard = async () => {
                 setOfflineState();
                 return;
             }
+        if (document.hidden) {
+            if (document.getElementById('umidade-valor')) {
+                liveInterval = setTimeout(updateIoT, 30000); 
+            }
+            return;
+        }
+        try {
+            const res = await setupAuthFetch('/api/sensores/umidade');
+            if (res.status === 503) throw new Error('Sensor Offline');
+            if (!res.ok) throw new Error('Erro API');
 
             const data = await res.json();
+            
+            const valText = document.getElementById('umidade-valor');
+            const iaCard = document.getElementById('ia-diagnostico-card') || document.getElementById('predict-card');
+            const iaText = document.getElementById('predict-text');
+            const varBar = document.getElementById('variance-bar') || document.getElementById('umidade-progress');
+            const iaIcon = document.getElementById('ia-status-icon') || document.getElementById('ia-icon');
 
-            // UI
-            valText.textContent = data.umidade.toFixed(1);
-            varBar.style.width = `${data.umidade}%`;
+            if(!valText) return;
 
-            // Micro-animation on value change
-            valText.classList.remove('kpi-update');
-            void valText.offsetWidth; // force reflow
-            valText.classList.add('kpi-update');
-
-            let color = 'var(--color-good)';
-            let glowKey = 'good';
-            if (data.status === 'SECO') { color = 'var(--color-dry)'; glowKey = 'dry'; iaIcon.textContent = 'water_drop'; }
-            if (data.status === 'ENCHARCADO') { color = 'var(--color-dry)'; glowKey = 'dry'; iaIcon.textContent = 'flood'; }
-            if (data.status === 'IDEAL') { color = 'var(--color-good)'; glowKey = 'good'; iaIcon.textContent = 'eco'; }
+            valText.textContent = data.umidade.toFixed(1) + '%';
+            
+            let color = 'var(--sys-text)';
+            let glowKey = '';
+            
+            if (data.status === 'SECO') { color = 'var(--color-dry)'; glowKey = 'dry'; if(iaIcon) iaIcon.textContent = 'water_drop'; }
+            if (data.status === 'ENCHARCADO') { color = 'var(--color-dry)'; glowKey = 'dry'; if(iaIcon) iaIcon.textContent = 'flood'; }
+            if (data.status === 'IDEAL') { color = 'var(--color-good)'; glowKey = 'good'; if(iaIcon) iaIcon.textContent = 'eco'; }
 
             // Signature card glow
             const sigCard = document.querySelector('.card-signature');
@@ -1425,7 +1437,10 @@ const initDashboard = async () => {
             }
 
             valText.style.color = color;
-            varBar.style.backgroundColor = color;
+            if (varBar) {
+                varBar.style.backgroundColor = color;
+                varBar.style.width = `${data.umidade}%`;
+            }
             if (iaCard) iaCard.style.boxShadow = `0 4px 20px 0 ${color}15`;
             if (iaText) iaText.textContent = data.diagnostico;
 
@@ -1437,14 +1452,16 @@ const initDashboard = async () => {
             }
 
             // Live Chart Append
-            const tLabel = new Date(data.timestamp).toLocaleTimeString('pt-BR');
-            liveChartObj.data.labels.push(tLabel);
-            liveChartObj.data.datasets[0].data.push(data.umidade);
-            if (liveChartObj.data.labels.length > 20) {
-                liveChartObj.data.labels.shift();
-                liveChartObj.data.datasets[0].data.shift();
+            if (typeof liveChartObj !== 'undefined' && liveChartObj) {
+                const tLabel = new Date(data.timestamp).toLocaleTimeString('pt-BR');
+                liveChartObj.data.labels.push(tLabel);
+                liveChartObj.data.datasets[0].data.push(data.umidade);
+                if (liveChartObj.data.labels.length > 20) {
+                    liveChartObj.data.labels.shift();
+                    liveChartObj.data.datasets[0].data.shift();
+                }
+                liveChartObj.update();
             }
-            liveChartObj.update();
 
             // Store para Engine IA global e Roda Update
             window._latestUmid = data.umidade;
@@ -1454,7 +1471,7 @@ const initDashboard = async () => {
         } catch (e) { console.error('API IoT Error', e); }
         finally {
             if (document.getElementById('umidade-valor')) {
-                liveInterval = setTimeout(updateIoT, 5000); // Polling Seguro em Fila
+                liveInterval = setTimeout(updateIoT, 30000); // Polling Mais Lento 30s
             }
         }
     };
