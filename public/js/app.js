@@ -1592,10 +1592,11 @@ const initDashboard = async () => {
 
             // Satelite Update UI
             if (agroData.satelite && document.getElementById('satelite-valor')) {
-                document.getElementById('satelite-valor').textContent = agroData.satelite.umidadeMacro;
+                document.getElementById('satelite-valor').textContent = agroData.satelite.umidadeMacro + '%';
                 document.getElementById('satelite-data').textContent = 'Ref: ' + agroData.satelite.dataReferencia;
             } else if (document.getElementById('satelite-valor')) {
-                document.getElementById('satelite-data').textContent = 'Dados indisponíveis';
+                document.getElementById('satelite-valor').innerHTML = '<span style="font-size: 1.5rem">Indisponível</span>';
+                document.getElementById('satelite-data').textContent = 'Satélite Offline';
             }
 
             renderInteligence();

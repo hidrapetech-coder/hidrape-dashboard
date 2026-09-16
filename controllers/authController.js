@@ -6,6 +6,7 @@ const prisma = require('../lib/prisma');
 const emailService = require('../services/emailService');
 const { encrypt } = require('../lib/encryption');
 const audit = require('../middleware/audit');
+const redis = require('../lib/redis');
 
 const env = require('../lib/env');
 
@@ -373,5 +374,52 @@ exports.resetPassword = async (req, res) => {
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Erro no servidor' });
+    }
+};
+
+// @route   DELETE /api/auth/me
+// @desc    Deletar conta do usuário permanentemente (LGPD)
+exports.deleteUser = async (req, res) => {
+    try {
+        const userId = req.user.id;
+        const user = await prisma.user.findUnique({ where: { id: userId } });
+        if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+        // Expurgo LGPD
+        // 1. Apagar logs que guardam IP ou email (evitar orfandade retentora de PII).
+        await prisma.log.deleteMany({
+            where: {
+                OR: [
+                    { userId: userId },
+                    { email: user.email }
+                ]
+            }
+        });
+
+        // 2. Apagar conta e dados em cascata (Sensores)
+        await prisma.user.delete({ where: { id: userId } });
+
+        // 3. Limpar Caches Redis atrelados
+        await redis.del(`weather:${userId}`);
+        await redis.del(`weekly:${userId}`);
+        await redis.del(`ia:${userId}`);
+        await redis.del(`sat:${userId}`);
+        await redis.del(`wpp_alert:${userId}`);
+
+        // 4. Invalidação da Sessão (quebra o cookie)
+        res.clearCookie('token', {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict'
+        });
+
+        // Cria log anonimizado
+        req.user = { id: 'DELETED', email: 'deleted@hidrape.lgpd' };
+        await audit.logAudit(req, 200); 
+
+        res.json({ message: 'Conta e todos os dados foram apagados permanentemente.' });
+    } catch (err) {
+        console.error('Erro na deleção de conta (LGPD):', err.message);
+        res.status(500).json({ error: 'Erro no servidor ao apagar conta' });
     }
 };

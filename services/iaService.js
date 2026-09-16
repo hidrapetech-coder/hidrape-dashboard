@@ -1,4 +1,11 @@
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { z } = require('zod');
+
+const culturaSchema = z.string()
+    .trim()
+    .max(50, "Cultura muito longa, possível injeção")
+    .regex(/^[a-zA-ZáéíóúÁÉÍÓÚãõÃÕçÇ\s-]+$/, "Cultura contém caracteres inválidos")
+    .catch("Mista");
 
 // Verifica chave na inicialização
 const apiKey = process.env.GEMINI_API_KEY;
@@ -25,9 +32,10 @@ const traduzirDiagnostico = async (dadosMatematicos, cultura) => {
 
     // Payload injetado (Apenas números REAIS, zero invenção)
     const engineData = dadosMatematicos.engineData || {};
+    const culturaSanitizada = culturaSchema.parse(cultura || 'Mista');
     
     const payloadContexto = JSON.stringify({
-        cultura: cultura || 'Mista',
+        cultura: culturaSanitizada,
         leituraSensorSoloAtual: dadosMatematicos._meta?.sensorState?.umidadeAtual || 'Indisponível',
         statusSensor: engineData.dataQuality?.sensorStatus || 'desconhecido',
         nivelQualidadeDados: engineData.dataQuality?.level || 'LOW',
@@ -81,6 +89,7 @@ const gerarResumoMensal = async (contexto) => {
     }
 
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const culturaSanitizada = culturaSchema.parse(contexto.cultura || 'Mista');
 
     const prompt = `
 Você é um engenheiro agrônomo especialista em irrigação e análise de dados gerenciais.
@@ -88,7 +97,7 @@ Seu objetivo é escrever a "Leitura do Mês" para o relatório do produtor.
 
 DADOS OBSERVADOS/ESTIMADOS (NÃO INVENTE NADA FORA DISSO):
 - Mês: ${contexto.mes}
-- Cultura: ${contexto.cultura}
+- Cultura: ${culturaSanitizada}
 - Leituras na Faixa Ideal: ${contexto.pctIdeal}%
 - Leituras em Déficit (Seco): ${contexto.pctDeficit}%
 - Chuva acumulada: ${contexto.chuvaAcumulada} mm

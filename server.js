@@ -157,6 +157,7 @@ app.post('/api/auth/forgot-password', forgotPasswordLimiter, validate(forgotPass
 app.post('/api/auth/reset-password', resetPasswordLimiter, validate(resetPasswordSchema), authController.resetPassword);
 app.get('/api/auth/me', auth, authController.getMe);
 app.put('/api/auth/config', auth, validate(updateSchema), authController.updateConfig);
+app.delete('/api/auth/me', auth, authController.deleteUser);
 
 app.get('/api/admin/stats', auth, checkRole('admin'), (req, res) => {
     res.json({ message: 'Acesso Administrativo Autorizado', data: 'Dados Sensíveis de Plataforma' });
