@@ -5,14 +5,13 @@ const publicDir = path.join(__dirname, '..', 'public');
 
 function minifyJS(code) {
     return code
-        .replace(/\/\*[\s\S]*?\*\//g, '') // Remove comentários em bloco
-        .replace(/(?<!:)\/\/.*/g, '') // Remove comentários em linha (ignora http://)
-        .replace(/ {2,}/g, ' ') // Substitui múltiplos espaços (não quebras de linha) por um
-        .replace(/{\s+/g, '{\n')
-        .replace(/}\s+/g, '}\n')
-        .replace(/;\s+/g, ';\n')
-        .replace(/,\s+/g, ', ')
-        .trim();
+        .replace(/\/\*[\s\S]*?\*\//g, '') // Remove block comments
+        .split('\n')
+        .map(line => line.trim()) // Remove indentation and trailing spaces
+        .filter(line => line.length > 0) // Remove empty lines
+        .map(line => line.startsWith('//') ? '' : line) // Remove full-line comments safely
+        .filter(line => line.length > 0)
+        .join('\n');
 }
 
 function minifyCSS(code) {
