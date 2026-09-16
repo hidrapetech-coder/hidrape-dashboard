@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const env = require('../lib/env');
 
 /**
  * Cria um transporter baseado no ambiente.
@@ -18,6 +19,10 @@ const getTransporter = async () => {
                 pass: process.env.SMTP_PASS
             }
         });
+    }
+
+    if (process.env.NODE_ENV === 'production') {
+        throw new Error("SMTP não configurado em ambiente de produção.");
     }
 
     // Fallback: Ambiente de Teste (Mock Ethereal gratuito, ideal para Startups MVP)
@@ -62,7 +67,7 @@ exports.enviarBoasVindas = async (emailDestino, nomeUsuario) => {
                 </div>
 
                 <p style="font-size: 16px; line-height: 1.5;">
-                    Sua conta está ativa e pronta. Vá até o seu <a href="http://localhost:3002" style="color: #547792; text-decoration: none; font-weight: bold;">Dashboard</a> para configurar os protocolos da Inteligência Artificial.
+                    Sua conta está ativa e pronta. Vá até o seu <a href="${env.FRONTEND_URL}" style="color: #547792; text-decoration: none; font-weight: bold;">Dashboard</a> para configurar os protocolos da Inteligência Artificial.
                 </p>
                 
                 <p style="font-size: 16px; line-height: 1.5; margin-top: 32px;">
@@ -88,9 +93,9 @@ exports.enviarBoasVindas = async (emailDestino, nomeUsuario) => {
             console.log('👀 [AÇÃO REQUERIDA] Veja como o seu E-mail ficou (Clique no link):');
             console.log('\x1b[36m%s\x1b[0m', nodemailer.getTestMessageUrl(info)); 
         }
-
     } catch (error) {
         console.error('❌ Falha ao tentar disparar o E-mail de Boas-Vindas:', error);
+        throw error;
     }
 };
 
@@ -101,7 +106,7 @@ exports.enviarRecuperacaoSenha = async (emailDestino, nomeUsuario, resetToken) =
     try {
         const transporter = await getTransporter();
         const primeiroNome = nomeUsuario.split(' ')[0];
-        const resetUrl = `http://localhost:3002/reset-password.html?token=${resetToken}`;
+        const resetUrl = `${env.FRONTEND_URL}/reset-password.html?token=${resetToken}`;
 
         const htmlBody = `
         <div style="font-family: 'Inter', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f7f9fa; color: #213448; border-radius: 12px; border: 1px solid #e0e5e9;">
@@ -126,7 +131,7 @@ exports.enviarRecuperacaoSenha = async (emailDestino, nomeUsuario, resetToken) =
                 </p>
                 
                 <p style="font-size: 14px; line-height: 1.5; color: #666; margin-top: 24px;">
-                    * Este link é válido por 1 hora. Se você não solicitou essa alteração, pode ignorar este e-mail em segurança.
+                    * Este link é válido por 15 minutos. Se você não solicitou essa alteração, pode ignorar este e-mail em segurança.
                 </p>
 
                 <p style="font-size: 16px; line-height: 1.5; margin-top: 32px;">
@@ -151,8 +156,8 @@ exports.enviarRecuperacaoSenha = async (emailDestino, nomeUsuario, resetToken) =
             console.log('👀 [AÇÃO REQUERIDA] Veja o E-mail de Recuperação (Clique no link):');
             console.log('\x1b[36m%s\x1b[0m', nodemailer.getTestMessageUrl(info)); 
         }
-
     } catch (error) {
         console.error('❌ Falha ao tentar disparar o E-mail de Recuperação:', error);
+        throw error;
     }
 };
