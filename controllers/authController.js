@@ -4,6 +4,7 @@ const https = require('https');
 const crypto = require('crypto');
 const prisma = require('../lib/prisma');
 const emailService = require('../services/emailService');
+const { encrypt } = require('../lib/encryption');
 
 const env = require('../lib/env');
 
@@ -132,7 +133,13 @@ exports.register = async (req, res) => {
         emailService.enviarBoasVindas(user.email, user.nome).catch(e => console.error('Email Async Erro:', e.message));
 
         const token = await signToken(user.id, user.role);
-        res.json({ token, user: toSafeUser(user) });
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 24 * 60 * 60 * 1000 // 1 dia
+        });
+        res.json({ user: toSafeUser(user) });
 
     } catch (err) {
         console.error(err.message);
@@ -155,16 +162,52 @@ exports.login = async (req, res) => {
         const user = await prisma.user.findUnique({ where: { email } });
         if (!user) return res.status(400).json(genericError);
 
+        if (user.lockedUntil && user.lockedUntil > new Date()) {
+            return res.status(400).json({ error: 'Muitas tentativas falhas. Conta bloqueada temporariamente (15 min).' });
+        }
+
         const isMatch = await bcrypt.compare(senha, user.senha);
-        if (!isMatch) return res.status(400).json(genericError);
+        if (!isMatch) {
+            const failedAttempts = user.failedLoginAttempts + 1;
+            let lockedUntil = null;
+            if (failedAttempts >= 5) {
+                lockedUntil = new Date(Date.now() + 15 * 60 * 1000);
+            }
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { failedLoginAttempts: failedAttempts, lockedUntil }
+            });
+            return res.status(400).json(genericError);
+        }
+
+        if (user.failedLoginAttempts > 0) {
+            await prisma.user.update({
+                where: { id: user.id },
+                data: { failedLoginAttempts: 0, lockedUntil: null }
+            });
+        }
 
         const token = await signToken(user.id, user.role);
-        res.json({ token, user: toSafeUser(user) });
+        res.cookie('token', token, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === 'production',
+            sameSite: 'strict',
+            maxAge: 24 * 60 * 60 * 1000 // 1 dia
+        });
+        res.json({ user: toSafeUser(user) });
 
     } catch (err) {
         console.error(err.message);
         res.status(500).json({ error: 'Erro no servidor' });
     }
+};
+
+// @route   POST /api/auth/logout
+// @desc    Fazer logout (limpar cookie)
+// @access  Public
+exports.logout = (req, res) => {
+    res.clearCookie('token');
+    res.json({ message: 'Logout realizado com sucesso' });
 };
 
 // @route   GET /api/auth/me
@@ -220,9 +263,9 @@ exports.updateConfig = async (req, res) => {
             }
         }
 
-        if(req.body.blynkToken !== undefined) updatedData.blynkToken = sanitize(req.body.blynkToken);
+        if(req.body.blynkToken !== undefined) updatedData.blynkToken = req.body.blynkToken ? encrypt(sanitize(req.body.blynkToken)) : null;
         if(req.body.whatsappPhone !== undefined) updatedData.whatsappPhone = sanitize(req.body.whatsappPhone);
-        if(req.body.callmebotApiKey !== undefined) updatedData.callmebotApiKey = sanitize(req.body.callmebotApiKey);
+        if(req.body.callmebotApiKey !== undefined) updatedData.callmebotApiKey = req.body.callmebotApiKey ? encrypt(sanitize(req.body.callmebotApiKey)) : null;
 
         const updatedUser = await prisma.user.update({
             where: { id: user.id },
@@ -311,7 +354,8 @@ exports.resetPassword = async (req, res) => {
             data: {
                 senha: hashedSenha,
                 resetPasswordToken: null,
-                resetPasswordExpire: null
+                resetPasswordExpire: null,
+                passwordChangedAt: new Date()
             }
         });
 

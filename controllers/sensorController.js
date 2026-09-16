@@ -1,5 +1,6 @@
 const axios = require('axios');
 const prisma = require('../lib/prisma');
+const { decrypt } = require('../lib/encryption');
 
 // --- IA DE DIAGNÓSTICO (SISTEMA BASEADO EM REGRAS) ---
 const gerarDiagnostico = (umidade, tipoPlantacao) => {
@@ -49,8 +50,9 @@ const testarEEnviarWhatsApp = async (user, umidade, statusIA, recomendacaoIA) =>
     if(statusIA !== 'IDEAL' && (mudouEstado || cooldownPassou)) {
         
         try {
+            const apiKey = decrypt(user.callmebotApiKey);
             const mensagem = encodeURIComponent(`🚨 ALERTA HIDRAPE [${user.tipoPlantacao}]: ${recomendacaoIA} (Umidade atual: ${umidade}%)`);
-            const url = `https://api.callmebot.com/whatsapp.php?phone=${user.whatsappPhone}&text=${mensagem}&apikey=${user.callmebotApiKey}`;
+            const url = `https://api.callmebot.com/whatsapp.php?phone=${user.whatsappPhone}&text=${mensagem}&apikey=${apiKey}`;
             
             await axios.get(url);
             console.log(`[WhatsApp] Alerta Inteligente enviado p/ ${user.nome} - Status: ${statusIA}`);
@@ -76,8 +78,8 @@ exports.getLiveSystem = async (req, res) => {
         const user = await prisma.user.findUnique({ where: { id: req.user.id } });
         if(!user) return res.status(404).json({error: 'Usuário não encontrado'});
 
-        // Determinar chave Blynk (Usar a do usuário ou fallback global)
-        const token = user.blynkToken || process.env.BLYNK_TOKEN;
+        if (!user.blynkToken) return res.status(403).json({ error: 'Configure seu Token do Blynk no dashboard para visualizar seus sensores ao vivo.' });
+        const token = decrypt(user.blynkToken);
         const blynkUrl = process.env.BLYNK_URL || 'https://blynk.cloud/external/api/get';
 
         let valor = 0;
