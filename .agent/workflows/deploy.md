@@ -12,7 +12,7 @@ Este workflow envia todas as mudanças feitas no projeto para o repositório Git
 
 // turbo
 ```bash
-git -C "f:\HIDRAPE TECNOLOGIA\Código\Software\dashboard-hidrape" status --short
+git status --short
 ```
 
 Se não houver alterações, informar ao usuário que está tudo atualizado e encerrar.
@@ -20,13 +20,13 @@ Se não houver alterações, informar ao usuário que está tudo atualizado e en
 2. Adicionar todos os arquivos alterados ao staging:
 
 ```bash
-git -C "f:\HIDRAPE TECNOLOGIA\Código\Software\dashboard-hidrape" add .
+git add .
 ```
 
 3. Criar o commit com uma mensagem descritiva. A mensagem deve resumir as alterações feitas na sessão atual. Use o formato:
 
 ```bash
-git -C "f:\HIDRAPE TECNOLOGIA\Código\Software\dashboard-hidrape" commit -m "tipo: descrição curta das mudanças"
+git commit -m "tipo: descrição curta das mudanças"
 ```
 
 Tipos válidos para a mensagem:
@@ -41,7 +41,7 @@ Tipos válidos para a mensagem:
 
 // turbo
 ```bash
-git -C "f:\HIDRAPE TECNOLOGIA\Código\Software\dashboard-hidrape" push
+git push
 ```
 
 5. Confirmar o sucesso ao usuário, mostrando:
