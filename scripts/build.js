@@ -6,19 +6,19 @@ const publicDir = path.join(__dirname, '..', 'public');
 function minifyJS(code) {
     return code
         .replace(/\/\*[\s\S]*?\*\//g, '') // Remove comentários em bloco
-        .replace(/\/\/.*/g, '') // Remove comentários em linha
-        .replace(/\s+/g, ' ') // Substitui múltiplos espaços por um
-        .replace(/{\s+/g, '{')
-        .replace(/}\s+/g, '}')
-        .replace(/;\s+/g, ';')
-        .replace(/,\s+/g, ',')
+        .replace(/(?<!:)\/\/.*/g, '') // Remove comentários em linha (ignora http://)
+        .replace(/ {2,}/g, ' ') // Substitui múltiplos espaços (não quebras de linha) por um
+        .replace(/{\s+/g, '{\n')
+        .replace(/}\s+/g, '}\n')
+        .replace(/;\s+/g, ';\n')
+        .replace(/,\s+/g, ', ')
         .trim();
 }
 
 function minifyCSS(code) {
     return code
         .replace(/\/\*[\s\S]*?\*\//g, '')
-        .replace(/\s+/g, ' ')
+        .replace(/ {2,}/g, ' ')
         .replace(/{\s+/g, '{')
         .replace(/}\s+/g, '}')
         .replace(/;\s+/g, ';')
