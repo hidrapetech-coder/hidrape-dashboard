@@ -2,7 +2,7 @@
 // CORE: ESTADO, AUTENTICAÇÃO E ROTEAMENTO
 // ==========================================
 let currentUser = null;
-let currentToken = localStorage.getItem('jwt') || null;
+let currentToken = null; // mantido temporariamente por legibilidade de código legado
 
 // ==========================================
 // DEMO MODE ENGINE
@@ -320,16 +320,15 @@ let weeklyChartObj = null;
 
 // Verifica se está logado e carrega usuário
 const initAuth = async () => {
-    if (!currentToken) return false;
-
     try {
         const res = await fetch('/api/auth/me', {
-            headers: { 'x-auth-token': currentToken }
+            credentials: 'include'
         });
 
-        if (!res.ok) throw new Error('Token Expirou');
+        if (!res.ok) throw new Error('Token Expirou/Inexistente');
 
         currentUser = await res.json();
+        currentToken = "cookie"; // mock for legacy logic
         return true;
     } catch (e) {
         logout(false);
@@ -337,8 +336,10 @@ const initAuth = async () => {
     }
 };
 
-const logout = (redirect = true) => {
-    localStorage.removeItem('jwt');
+const logout = async (redirect = true) => {
+    try {
+        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+    } catch(e) {}
     currentToken = null;
     currentUser = null;
     if (liveInterval) clearTimeout(liveInterval);
@@ -736,9 +737,9 @@ const initRouteScript = (route) => {
 const setupAuthFetch = (url, options = {}) => {
     options.headers = {
         ...options.headers,
-        'Content-Type': 'application/json',
-        'x-auth-token': currentToken
+        'Content-Type': 'application/json'
     };
+    options.credentials = 'include';
     return fetch(url, options);
 };
 

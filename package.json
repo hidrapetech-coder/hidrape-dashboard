@@ -11,14 +11,16 @@
     "@google/generative-ai": "^0.24.1",
     "axios": "^1.6.8",
     "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "express-rate-limit": "^8.3.1",
     "helmet": "^8.1.0",
     "jsonwebtoken": "^9.0.3",
-    "nodemailer": "^8.0.4",
+    "nodemailer": "^10.0.10",
     "pg": "^8.23.0",
+    "qs": "^6.16.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {

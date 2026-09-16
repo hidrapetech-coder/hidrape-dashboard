@@ -1,5 +1,6 @@
 const env = require('./lib/env');
 const express = require('express');
+const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const path = require('path');
 
@@ -17,7 +18,7 @@ app.use(helmet({
     contentSecurityPolicy: {
         directives: {
             defaultSrc: ["'self'"],
-            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
+            scriptSrc: ["'self'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
             styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://cdnjs.cloudflare.com", "https://unpkg.com"],
             fontSrc: ["'self'", "https://fonts.gstatic.com", "https://fonts.googleapis.com"],
             imgSrc: ["'self'", "data:", "blob:", "https://a.tile.openstreetmap.org", "https://b.tile.openstreetmap.org", "https://c.tile.openstreetmap.org", "https://tile.openstreetmap.org", "https://unpkg.com", "https://cdnjs.cloudflare.com", "https://server.arcgisonline.com", "https://tilecache.rainviewer.com"],
@@ -92,6 +93,7 @@ const apiLimiter = rateLimit({
 
 // 4. Middlewares Core
 app.use(express.json({ limit: '1mb' })); // Limita payload JSON (anti-DoS)
+app.use(cookieParser());
 app.set('trust proxy', 1); // Confia em proxies (ex: Nginx, Heroku) para capturar IPs reais de Rate Limit
 app.disable('x-powered-by'); // Oculta Express
 
@@ -132,6 +134,7 @@ const checkRole = require('./middleware/checkRole');
 
 app.post('/api/auth/register', registerLimiter, validate(registerSchema), authController.register);
 app.post('/api/auth/login', loginLimiter, validate(loginSchema), authController.login);
+app.post('/api/auth/logout', authController.logout);
 app.post('/api/auth/forgot-password', forgotPasswordLimiter, validate(forgotPasswordSchema), authController.forgotPassword);
 app.post('/api/auth/reset-password', resetPasswordLimiter, validate(resetPasswordSchema), authController.resetPassword);
 app.get('/api/auth/me', auth, authController.getMe);
