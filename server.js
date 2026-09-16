@@ -1,4 +1,4 @@
-require('dotenv').config();
+const env = require('./lib/env');
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
@@ -34,18 +34,11 @@ app.use(helmet({
 }));
 
 // 2. CORS Restritivo
-const allowedOrigins = [
-    process.env.FRONTEND_URL,
-    'http://localhost:3000',
-    'http://localhost:3002',
-    'http://127.0.0.1:3000',
-    'http://127.0.0.1:3002'
-].filter(Boolean);
+const allowedOrigins = env.ALLOWED_ORIGINS.split(',').map(url => url.trim());
 
 app.use(cors({
     origin: function (origin, callback) {
-        // Permitir requisições sem origem (como ferramentas CLI/Postman) e domínios estritamente permitidos
-        if (!origin || allowedOrigins.includes(origin) || (origin && origin.endsWith('.vercel.app'))) {
+        if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
             callback(new Error('Bloqueado pelo CORS'));

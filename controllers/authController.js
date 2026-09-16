@@ -5,12 +5,9 @@ const crypto = require('crypto');
 const prisma = require('../lib/prisma');
 const emailService = require('../services/emailService');
 
-// Segurança: JWT Secret obrigatório (sem fallback inseguro)
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET || JWT_SECRET === 'super_secret_jwt_key_here') {
-    console.warn('⚠️  AVISO: Configure uma JWT_SECRET forte no .env para produção!');
-}
-const getJwtSecret = () => JWT_SECRET || 'dev_only_secret_change_in_production';
+const env = require('../lib/env');
+
+const getJwtSecret = () => env.JWT_SECRET;
 
 // Helper: Assinar JWT com expiração
 const signToken = (userId, role) => {

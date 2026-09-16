@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
 
-const getJwtSecret = () => process.env.JWT_SECRET || 'dev_only_secret_change_in_production';
+const env = require('../lib/env');
+
+const getJwtSecret = () => env.JWT_SECRET;
 
 module.exports = function(req, res, next) {
     // Obter token do cabeçalho
