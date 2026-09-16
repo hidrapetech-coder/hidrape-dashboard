@@ -1,38 +1,22 @@
-# 🛡️ SECURITY REVIEW — HIDRAPE
+# Política de Segurança (Security Policy)
 
-Este documento detalha o panorama de segurança atual da aplicação **Hidrape Dashboard SaaS**, bem como as mitigações implementadas e os riscos residuais aceitos.
+Este documento detalha as políticas de segurança aplicadas no repositório `hidrape-dashboard`. Levamos a segurança e a proteção de dados (LGPD) de nossos usuários a sério.
 
-## 🟢 Corrigido
+## 1. Tratamento de Credenciais
+- **Senhas:** Nunca são armazenadas em texto puro. Utilizamos `bcrypt` com custo (cost factor) 12 para garantir que ataques de força bruta ou rainbow tables sejam computacionalmente inviáveis.
+- **Tokens e Chaves de Terceiros (Blynk, CallMeBot, APIs):** Todas as integrações sensíveis salvas no banco de dados utilizam criptografia forte em repouso (AES-256-CBC). O frontend não tem acesso a essas chaves, sendo mascaradas nas requisições (ex: `hasBlynkToken: true`).
 
-*   **Rate Limiting**: Separados em fluxos isolados (`loginLimiter`, `registerLimiter`, `forgotPasswordLimiter`, `resetPasswordLimiter`). Isso mitiga ataques de força bruta, spam de emails e *User Enumeration* no fluxo de recuperação.
-*   **Recuperação de Senha (Forgot / Reset)**: Implementado fluxo seguro com:
-    *   Token criptograficamente forte de 32 bytes via `crypto.randomBytes()`.
-    *   Tokens expiram em 15 minutos e são invalidados automaticamente no banco.
-    *   O banco armazena apenas o `hash sha256` do token, evitando roubo do banco para reset de senhas.
-    *   Mensagens genéricas de erro anti *User Enumeration* no formulário de forgot.
-*   **JWT Security**: 
-    *   Assinatura algorítmica `algorithms: ['HS256']` forçada na verificação do `jsonwebtoken` (Mitigação de *Algorithm Confusion Attack*).
-    *   Redução da validade do token de 5 dias para `1d` (24 horas) para reduzir exposição.
-*   **XSS Mitigation**: 
-    *   A API sanitiza o backend (anti-NoSQL/HTML injection via `sanitize` e `express-mongo-sanitize`).
-    *   A função `escapeHTML()` foi inserida na arquitetura do Vanilla SPA (`app.js`), impedindo a execução arbitrária via `innerHTML` nos locais onde dados do usuário eram renderizados dinamicamente nas views e alertas da IA.
-*   **CORS**: Restrito estritamente aos domínios permitidos, removendo a cláusula curinga `.vercel.app` para evitar ataques de domínios bypass arbitrários.
-*   **Validação (Zod)**: Todas as requisições de Autenticação e Configuração passam por *Schemas Estritos*, impedindo completamente o *Mass Assignment* e garantindo tipos de dados esperados antes de atingir os controladores.
-*   **IDOR (Isolamento Inseguro de Objetos)**: Confirmado como seguro. Todo dado IoT injetado ou consultado faz bind explícito em nível de servidor com o `req.user.id` decodificado e garantido pelo JWT.
-*   **Trim de Resposta API (Over-fetching)**: Em rotas de usuário, o backend aplica um helper rigoroso `toSafeUser(DTO)` que remove todos os hashes de senha, tokens de reset e chaves de API (`blynkToken`, `callmebotApiKey`) do payload, repassando ao Frontend apenas metadados (flags) para informar sua presença.
-*   **Ocultação Visual**: O painel de Configuração no frontend não carrega as chaves criptográficas ativas. Ele exibe *placeholders* descritivos e as transmite estritamente de maneira unidirecional caso ocorram edições.
-*   **Gestão de Secrets e Dependências**: Retiramos as chaves hardcoded e atualizamos pacotes vitais para suprimir falhas apontadas via _npm audit_. Abstivemos de realizar upgrades nocivos (Prisma / Nodemailer legacy break).
+## 2. Autenticação e Autorização (JWT & Cookies)
+- O sistema utiliza JSON Web Tokens (JWT) para gestão de sessão.
+- **Cookies httpOnly:** Os tokens JWT são trafegados **exclusivamente via cookies httpOnly** e `SameSite=Strict`.
+- **Sem LocalStorage:** Nenhum token de acesso é armazenado no `localStorage`, mitigando vetores de ataque XSS (Cross-Site Scripting).
+- **Proteção de Força Bruta:** Contas são bloqueadas temporariamente por 15 minutos após 5 tentativas falhas de login contínuas.
+- **Revogação por Troca de Senha:** Alterações de senha revogam imediatamente todas as sessões anteriores geradas antes da troca.
 
-## 🟡 Melhorias futuras
+## 3. Segurança do Frontend (CSP)
+- A Política de Segurança de Conteúdo (CSP) restringe o carregamento e a execução de recursos (como scripts e imagens) apenas a origens explicitamente permitidas.
+- **Bloqueio de Execução Inline:** O uso de scripts embutidos no HTML (diretiva `'unsafe-inline'`) está expressamente proibido para garantir mitigação contra ataques de injeção de código (XSS).
+- **Aviso de Compatibilidade (Drop do IE11):** Devido à adoção estrita da CSP moderna (nível 2/3), não suportamos navegadores defasados como o Internet Explorer 11.
 
-*   **Implementação de Refresh Tokens**: A estratégia atual mantem os JWTs no `localStorage` por necessidade do SPA atual, sem bundlers ou workers dedicados. Como não temos um mecanismo de `Refresh Token` silencioso pronto (exigiria arquitetura de persistência e expiração síncrona), os usuários precisarão relogar a cada 24 horas. Uma futura implementação de `HttpOnly Cookies` somado a rotas estritas de `Refresh` aumentaria ainda mais a defesa.
-*   **Políticas de Conteúdo Fortificadas (CSP)**: O projeto usa a tag `'unsafe-inline'` no CSP para script e estilo devido ao design da SPA baseada em Vanilla JS carregado sob demanda. Em versões futuras, recomenda-se adotar `nonces` ou migrar a injeção do UI para componentes React/Vite puros.
-*   **Blacklist de Senhas Fracas**: As senhas usam *bcrypt cost 12*, mas a aplicação aceita `123456`. Integrar `zxcvbn` para forçar complexidade no frontend/backend.
-
-## 🔴 Problemas restantes
-
-*   **Invalidação Imediata de Sessões Múltiplas**: Em fluxos *stateless* (sem blacklist Redis ou *JTI revogable*), quando o usuário reseta a senha, a sessão JWT ativa antiga em outro aparelho permanece válida até expirar (máx. 24h). Isso é um risco residual aceito pela arquitetura atual baseada 100% em Payload JWT.
-
----
-**Auditoria Concluída e Registrada:**
-*As chaves de teste local são expostas na camada `nodemailer/Ethereal`, mas as chaves secretas de produção estão devidamente isoladas via `.env` não versionado.*
+## 4. Reporte de Vulnerabilidades
+Se você descobrir alguma falha ou vulnerabilidade neste sistema, por favor, envie um e-mail para **security@hidrape.com.br**. Não crie Issues públicas sobre falhas críticas não corrigidas.

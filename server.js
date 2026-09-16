@@ -154,11 +154,25 @@ app.get('/api/agro/insights-ia', apiLimiter, auth, agroController.getInsightsIA)
 const reportController = require('./controllers/reportController');
 app.get('/api/reports/monthly', apiLimiter, auth, reportController.getMonthlyReport);
 
+// 404 para API
+app.use('/api/*', (req, res) => {
+    res.status(404).json({ error: 'Endpoint não encontrado' });
+});
+
 app.get('*', (req, res) => {
     res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
     res.setHeader('Expires', '0');
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// Global Error Handler
+app.use((err, req, res, next) => {
+    if (process.env.NODE_ENV !== 'test') console.error(err.stack);
+    res.status(500).json({
+        error: 'Erro Interno do Servidor',
+        message: process.env.NODE_ENV === 'development' ? err.message : undefined
+    });
 });
 
 // Exporta o app para ambientes Serverless (ex: Vercel)
