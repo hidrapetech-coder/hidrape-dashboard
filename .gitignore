@@ -22,3 +22,9 @@ npm-debug.log*
 
 # Temporary files
 files/
+
+# Lixo de debug e arquivos vazados
+test-*.js
+scratch.js
+response.json
+*.local.js
