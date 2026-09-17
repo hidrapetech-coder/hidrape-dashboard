@@ -50,7 +50,7 @@ const allowedOrigins = env.ALLOWED_ORIGINS.split(',').map(url => url.trim());
 
 app.use(cors({
     origin: function (origin, callback) {
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
             callback(new Error('Bloqueado pelo CORS'));
