@@ -1339,10 +1339,10 @@ const initDashboard = async () => {
     const updateIoT = async () => {
         try {
             const valText = document.getElementById('umidade-valor');
-            const varBar = document.getElementById('umidade-progress');
-            const iaCard = document.getElementById('predict-card');
-            const iaText = document.getElementById('ia-text');
-            const iaIcon = document.getElementById('ia-icon');
+            const varBar = document.getElementById('variance-bar') || document.getElementById('umidade-progress');
+            const iaCard = document.getElementById('ia-diagnostico-card') || document.getElementById('predict-card');
+            const iaText = document.getElementById('predict-text') || document.getElementById('ia-text');
+            const iaIcon = document.getElementById('ia-status-icon') || document.getElementById('ia-icon');
 
             // Proteção Assíncrona
             if (!valText) return;
@@ -1353,7 +1353,7 @@ const initDashboard = async () => {
                     valText.style.color = '#ff4444';
                 }
                 if (varBar) {
-                    varBar.style.width = `100%`; // Para a barra ficar toda vermelha (opcional, ou 0% vermelha? Melhor 100% vermelha indicando erro total)
+                    varBar.style.width = `100%`; // Para a barra ficar toda vermelha
                     varBar.style.backgroundColor = 'rgba(255, 68, 68, 0.2)';
                 }
                 if (iaText) iaText.textContent = "Aviso Crítico: Sem comunicação com o sensor. Verifique se o equipamento tem internet/Wi-Fi. Se não voltar, contate o técnico.";
@@ -1380,38 +1380,26 @@ const initDashboard = async () => {
                 renderInteligence();
             };
 
+            if (document.hidden) {
+                if (document.getElementById('umidade-valor')) {
+                    liveInterval = setTimeout(updateIoT, 30000); 
+                }
+                return;
+            }
+
             let res;
             try {
                 res = await setupAuthFetch('/api/sensores/umidade');
+                if (res.status === 503) throw new Error('Sensor Offline');
+                if (!res.ok) throw new Error('Erro API');
             } catch (err) {
                 console.error('Fetch IoT Error', err);
                 setOfflineState();
                 return;
             }
 
-            if (!res.ok) {
-                setOfflineState();
-                return;
-            }
-        if (document.hidden) {
-            if (document.getElementById('umidade-valor')) {
-                liveInterval = setTimeout(updateIoT, 30000); 
-            }
-            return;
-        }
-        try {
-            const res = await setupAuthFetch('/api/sensores/umidade');
-            if (res.status === 503) throw new Error('Sensor Offline');
-            if (!res.ok) throw new Error('Erro API');
-
             const data = await res.json();
             
-            const valText = document.getElementById('umidade-valor');
-            const iaCard = document.getElementById('ia-diagnostico-card') || document.getElementById('predict-card');
-            const iaText = document.getElementById('predict-text');
-            const varBar = document.getElementById('variance-bar') || document.getElementById('umidade-progress');
-            const iaIcon = document.getElementById('ia-status-icon') || document.getElementById('ia-icon');
-
             if(!valText) return;
 
             valText.textContent = data.umidade.toFixed(1) + '%';
