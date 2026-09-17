@@ -118,7 +118,8 @@ exports.register = async (req, res) => {
             return res.status(400).json({ error: 'Endereço inválido ou não encontrado. Por favor, detalhe melhor a localização da propriedade.' });
         }
         
-        const { lat, lon } = geodata;
+        const lat = parseFloat(geodata.lat);
+        const lon = parseFloat(geodata.lon);
 
         // Hash com salt forte (cost factor 12)
         const salt = await bcrypt.genSalt(12);
