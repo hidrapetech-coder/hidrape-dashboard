@@ -26,7 +26,7 @@ model User {
   whatsappPhone       String    @default("")
   callmebotApiKey     String    @default("")
   criadoEm            DateTime  @default(now())
-  atualizadoEm        DateTime  @updatedAt
+  atualizadoEm        DateTime  @updatedAt @default(now())
   resetPasswordToken  String?
   resetPasswordExpire DateTime?
   passwordChangedAt   DateTime?
