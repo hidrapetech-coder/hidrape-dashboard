@@ -11,6 +11,7 @@ const redisClient = require('./lib/redis');
 
 // Função helper para criar o RedisStore
 const createRedisStore = (prefix) => {
+    if (!env.REDIS_URL) return undefined; // Fallback automático para MemoryStore
     return new RedisStore({
         sendCommand: (...args) => redisClient.call(...args),
         prefix: prefix
