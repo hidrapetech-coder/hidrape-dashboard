@@ -16,7 +16,7 @@ module.exports = async function(req, res, next) {
     // Validar token
     try {
         const decoded = jwt.verify(token, getJwtSecret(), { algorithms: ['HS256'] });
-        req.user = decoded;
+        req.user = decoded.user;
 
         const prisma = require('../lib/prisma');
         const dbUser = await prisma.user.findUnique({ where: { id: req.user.id } });

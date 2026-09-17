@@ -142,7 +142,7 @@ exports.register = async (req, res) => {
             sameSite: 'strict',
             maxAge: 24 * 60 * 60 * 1000 // 1 dia
         });
-        res.json({ user: toSafeUser(user) });
+        res.status(201).json({ user: toSafeUser(user), token });
 
     } catch (err) {
         console.error(err.message);
@@ -206,7 +206,7 @@ exports.login = async (req, res) => {
         req.user = user; // para o log capturar o userId
         await audit.logAudit(req, 200);
         
-        res.json({ user: toSafeUser(user) });
+        res.json({ user: toSafeUser(user), token });
 
     } catch (err) {
         console.error(err.message);
