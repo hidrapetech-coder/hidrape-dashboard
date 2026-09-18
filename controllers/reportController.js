@@ -1,19 +1,11 @@
 const prisma = require('../lib/prisma');
 const axios = require('axios');
 const iaService = require('../services/iaService');
+const { getCropConfig } = require('../config/cultures');
 
 // Limites (Thresholds) extraídos da lógica já existente
 const getLimites = (tipoPlantacao) => {
-    let limites = { minIdeal: 40, maxIdeal: 60 };
-    if (!tipoPlantacao) return limites;
-    
-    switch(tipoPlantacao.toLowerCase()) {
-        case 'milho': limites = { minIdeal: 40, maxIdeal: 70 }; break;
-        case 'feijão': limites = { minIdeal: 40, maxIdeal: 60 }; break;
-        case 'hortaliças': limites = { minIdeal: 50, maxIdeal: 80 }; break;
-        case 'cana-de-açúcar': limites = { minIdeal: 35, maxIdeal: 60 }; break;
-    }
-    return limites;
+    return getCropConfig(tipoPlantacao);
 };
 
 // Integração Histórica com Open-Meteo (past_days)

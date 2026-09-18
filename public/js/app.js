@@ -1515,10 +1515,12 @@ const initDashboard = async () => {
                 if (!iaRes.ok) throw new Error("IA Fallback");
                 const iaData = await iaRes.json();
 
-                document.getElementById('predict-text').innerHTML = `
+                const predictTextEl = document.getElementById('predict-text');
+                predictTextEl.innerHTML = `
                     <span style="font-size: 0.75rem; background: var(--color-good); padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-bottom: 6px; display: inline-block; color: white;">✦ IA GENERATIVA</span><br/>
-                    ${iaData.diagnostico}
                 `;
+                const textNode = document.createTextNode(iaData.diagnostico);
+                predictTextEl.appendChild(textNode);
             } catch (err) {
                 // Fallback para a recomendação puramente matemática se a IA falhar
                 document.getElementById('predict-text').textContent = agroData.previsao.recomendacao;
@@ -1526,7 +1528,6 @@ const initDashboard = async () => {
 
             let timeText = Math.round(agroData.previsao.tempoHoras) + 'H';
             if (agroData.previsao.tempoHoras <= 0) timeText = 'AGORA';
-            if (agroData.previsao.tempoHoras === 99) timeText = 'LOCK'; // Trava de Segurança Hídrica (Chuva)
 
             document.getElementById('predict-time').textContent = timeText;
 
@@ -2353,7 +2354,6 @@ const initAnalysis = async () => {
 
                 let timeText = Math.round(previsao.tempoHoras) + ' horas';
                 if (previsao.tempoHoras <= 0) timeText = 'AGORA';
-                if (previsao.tempoHoras === 99) timeText = 'SUSPENSA (chuva)';
                 if (heroTime) heroTime.textContent = timeText;
 
                 // Timeline

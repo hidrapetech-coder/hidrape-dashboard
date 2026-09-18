@@ -9,7 +9,7 @@
     "build": "node scripts/build.js"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
+    "@google/genai": "^2.23.0",
     "axios": "^1.6.8",
     "bcryptjs": "^3.0.3",
     "cookie-parser": "^1.4.7",
@@ -30,6 +30,7 @@
   "devDependencies": {
     "@prisma/client": "^6.19.3",
     "nodemon": "^3.1.0",
-    "prisma": "^6.19.3"
+    "prisma": "^6.19.3",
+    "vitest": "^5.0.1"
   }
 }

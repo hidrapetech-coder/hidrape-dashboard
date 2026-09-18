@@ -46,9 +46,22 @@ const detectAnomalies = (historico, clima, dataQuality) => {
 
     // Regra 2: Comportamento Incompatível com o Clima
     // Se a umidade caiu vertiginosamente (>15%) num período em que choveu muito.
+    const timeArray = clima?.hourly?.time;
     const precipArray = clima?.hourly?.precipitation_probability;
-    if (precipArray && precipArray.length > 0) {
-        const recentRain = precipArray.slice(0, 3).some(prob => prob > 80);
+    if (precipArray && precipArray.length > 0 && timeArray) {
+        const now = Date.now();
+        let startIndex = 0;
+        for (let i = 0; i < timeArray.length; i++) {
+            if (new Date(timeArray[i]).getTime() >= now) {
+                startIndex = i;
+                break;
+            }
+        }
+        
+        // As 3 horas anteriores à hora atual
+        const pastStart = Math.max(0, startIndex - 3);
+        const recentRain = precipArray.slice(pastStart, startIndex).some(prob => prob > 80);
+        
         if (recentRain && past24h.length >= 2) {
             const drop = past24h[past24h.length - 1].umidade - latest.umidade;
             if (drop > 15) {

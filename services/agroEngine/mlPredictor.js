@@ -1,72 +1,106 @@
+const { getCropConfig } = require('../../config/cultures');
+
 /**
- * Módulo Preditor (Machine Learning Preparado)
- * 
- * Calcula previsões de umidade futura. 
- * Se houver dados históricos suficientes (ex: milhares de logs + calibrações),
- * poderia carregar um modelo XGBoost ou LSTM. Atualmente, usa heurística determinística
- * robusta (Fallback Seguro), como estipulado nos requisitos de arquitetura confiável.
+ * Calcula a inclinação (taxa de queda) usando regressão linear simples 
+ * (Mínimos Quadrados) sobre uma série de leituras de umidade.
  */
+const calculateLinearRegressionDropRate = (historicoValido) => {
+    const n = historicoValido.length;
+    if (n < 2) return null;
+
+    let sumX = 0, sumY = 0, sumXY = 0, sumX2 = 0;
+    
+    const t0 = new Date(historicoValido[0].data).getTime();
+
+    for (let i = 0; i < n; i++) {
+        const h = historicoValido[i];
+        const x = (new Date(h.data).getTime() - t0) / (1000 * 60 * 60);
+        const y = h.umidade;
+
+        sumX += x;
+        sumY += y;
+        sumXY += x * y;
+        sumX2 += x * x;
+    }
+
+    const denominator = (n * sumX2 - sumX * sumX);
+    if (denominator === 0) return null;
+
+    const slope = (n * sumXY - sumX * sumY) / denominator;
+    return -slope; // Retorna positivo para "queda"
+};
 
 const predictMoisture = (historico, climateAnalysis, cropType) => {
-    const CROP_CONFIG = {
-        'cana-de-açúcar': { min: 35, retention: 'high' },
-        'hortaliças': { min: 50, retention: 'low' },
-        'milho': { min: 40, retention: 'medium' },
-        'default': { min: 40, retention: 'medium' }
-    };
-
-    const config = CROP_CONFIG[(cropType || '').toLowerCase()] || CROP_CONFIG['default'];
-    const limiteMinimo = config.min;
+    const config = getCropConfig(cropType);
+    const limiteMinimo = config.minIdeal;
 
     let currentMoisture = 50; 
-    let baseDropRate = 0.8; // Taxa de queda base (Umidade % / hora)
+    let baseDropRate = 0.8; 
 
+    let historicoRecente = [];
     if (historico && historico.length > 0) {
         currentMoisture = historico[0].umidade;
-        
-        if (historico.length >= 2) {
-            const oldest = historico[historico.length - 1];
-            const hourDiff = (new Date(historico[0].data) - new Date(oldest.data)) / (1000 * 60 * 60);
+        historicoRecente.push(historico[0]);
+
+        for (let i = 1; i < historico.length; i++) {
+            const hAtual = historico[i-1];
+            const hAnterior = historico[i];
+            const drop = hAnterior.umidade - hAtual.umidade; 
             
-            if (hourDiff > 0.1) {
-                const drop = oldest.umidade - currentMoisture;
-                if (drop > 0) {
-                    baseDropRate = drop / hourDiff;
-                }
+            if (drop < -3) {
+                break; // Reposição hídrica detectada
             }
+            historicoRecente.push(hAnterior);
         }
     }
 
-    // Aplica o multiplicador do modelo climático sobre a base do terreno
-    const dynamicDropRate = Math.max(0.2, baseDropRate * climateAnalysis.climateMultiplier);
+    const regressionDropRate = calculateLinearRegressionDropRate(historicoRecente);
+    const etoHourlyDrop = (climateAnalysis.eto * config.kc) / 24;
+    
+    if (regressionDropRate !== null && regressionDropRate > 0) {
+        baseDropRate = regressionDropRate;
+    } else {
+        baseDropRate = etoHourlyDrop > 0 ? etoHourlyDrop * 1.5 : 0.8; 
+    }
 
-    // Previsões lineares simuladas para os próximos cenários (6h, 12h, 24h)
-    // Impede que a previsão fique negativa
+    let dynamicDropRate = baseDropRate * climateAnalysis.climateMultiplier;
+    dynamicDropRate = Math.max(0.1, dynamicDropRate);
+
+    const uncertainty = 0.15;
+    const dropMax = dynamicDropRate * (1 + uncertainty);
+    const dropMin = Math.max(0.05, dynamicDropRate * (1 - uncertainty));
+
     const forecast = {
         in6h: Math.max(0, currentMoisture - (dynamicDropRate * 6)),
+        in6h_min: Math.max(0, currentMoisture - (dropMax * 6)),
+        in6h_max: Math.max(0, currentMoisture - (dropMin * 6)),
+        
         in12h: Math.max(0, currentMoisture - (dynamicDropRate * 12)),
-        in24h: Math.max(0, currentMoisture - (dynamicDropRate * 24))
+        in12h_min: Math.max(0, currentMoisture - (dropMax * 12)),
+        in12h_max: Math.max(0, currentMoisture - (dropMin * 12)),
+        
+        in24h: Math.max(0, currentMoisture - (dynamicDropRate * 24)),
+        in24h_min: Math.max(0, currentMoisture - (dropMax * 24)),
+        in24h_max: Math.max(0, currentMoisture - (dropMin * 24))
     };
 
-    // Tempo estimado para atingir o limite crítico da cultura
-    let horasAteEstresse = (currentMoisture - limiteMinimo) / dynamicDropRate;
-    horasAteEstresse = Math.max(1, Math.min(48, horasAteEstresse)); // Clamping
-
-    // Simulação do impacto de uma chuva (Se houver >60% de prob de chuva, ela deve estagnar ou subir a umidade)
-    if (climateAnalysis.maxRainProb12h > 60) {
-        // Se chover, a umidade tende a subir ou estabilizar, e não cair linearmente.
-        // O modelo ajusta a previsão
-        forecast.in6h = Math.min(100, forecast.in6h + 10);
-        forecast.in12h = Math.min(100, forecast.in12h + 20);
-        forecast.in24h = Math.min(100, forecast.in24h + 25);
+    const deficitAtual = Math.max(0, limiteMinimo - currentMoisture);
+    
+    let horasAteEstresse = 0;
+    if (deficitAtual > 0) {
+        horasAteEstresse = 0;
+    } else {
+        horasAteEstresse = (currentMoisture - limiteMinimo) / dynamicDropRate;
+        horasAteEstresse = Math.max(0, Math.min(48, horasAteEstresse)); // Permite 0
     }
 
     return {
         predictions: forecast,
-        dynamicDropRate: dynamicDropRate.toFixed(2),
+        dynamicDropRate: Number(dynamicDropRate.toFixed(2)),
         hoursUntilStress: horasAteEstresse,
         criticalLimit: limiteMinimo,
-        modelType: "DETERMINISTIC_FALLBACK" // Pode ser 'LSTM', 'XGBOOST' no futuro
+        deficitAtual: deficitAtual,
+        modelType: "DETERMINISTIC_FALLBACK"
     };
 };
 

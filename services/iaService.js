@@ -1,5 +1,6 @@
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const { GoogleGenAI, Type } = require('@google/genai');
 const { z } = require('zod');
+const redis = require('../lib/redis');
 
 const culturaSchema = z.string()
     .trim()
@@ -7,117 +8,194 @@ const culturaSchema = z.string()
     .regex(/^[a-zA-ZáéíóúÁÉÍÓÚãõÃÕçÇ\s-]+$/, "Cultura contém caracteres inválidos")
     .catch("Mista");
 
-// Verifica chave na inicialização
+// Configurações
 const apiKey = process.env.GEMINI_API_KEY;
-let genAI = null;
+const isEnabled = process.env.GEMINI_ENABLED === 'true';
+const modelName = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
+const TIMEOUT_MS = parseInt(process.env.GEMINI_TIMEOUT_MS) || 15000;
+const MAX_CALLS = parseInt(process.env.GEMINI_MAX_CALLS_PER_USER_DAY) || 20;
 
-if (apiKey) {
-    genAI = new GoogleGenerativeAI(apiKey);
+let ai = null;
+if (apiKey && isEnabled) {
+    ai = new GoogleGenAI({ apiKey: apiKey });
 } else {
-    console.warn("⚠️ [IA] GEMINI_API_KEY não configurada no .env. A IA Híbrida não funcionará.");
+    console.warn("⚠️ [IA] GEMINI_API_KEY ou GEMINI_ENABLED falso. IA Híbrida não funcionará.");
 }
 
+// Circuit Breaker State
+let circuitBreaker = {
+    failures: 0,
+    lastFailure: null,
+    isOpen: false
+};
+
+const checkCircuitBreaker = () => {
+    if (!circuitBreaker.isOpen) return true;
+    const now = Date.now();
+    // Tenta fechar o circuito após 5 minutos
+    if (now - circuitBreaker.lastFailure > 5 * 60 * 1000) {
+        circuitBreaker.isOpen = false;
+        circuitBreaker.failures = 0;
+        console.log("[IA Circuit Breaker] Circuito fechado (restaurado). Tentando novamente.");
+        return true;
+    }
+    return false;
+};
+
+const registerFailure = () => {
+    circuitBreaker.failures += 1;
+    circuitBreaker.lastFailure = Date.now();
+    if (circuitBreaker.failures >= 3) {
+        circuitBreaker.isOpen = true;
+        console.error("[IA Circuit Breaker] Circuito ABERTO devido a múltiplas falhas. IA bloqueada temporariamente.");
+    }
+};
+
+const checkRateLimit = async (userId) => {
+    if (!userId) return true;
+    const key = `rate_limit_ia:${userId}`;
+    const calls = await redis.incr(key);
+    if (calls === 1) {
+        await redis.expire(key, 24 * 60 * 60); // 24h
+    }
+    return calls <= MAX_CALLS;
+};
+
+const runWithTimeout = (promise, ms) => {
+    let timeoutId;
+    const timeoutPromise = new Promise((_, reject) => {
+        timeoutId = setTimeout(() => {
+            reject(new Error(`Timeout de ${ms}ms atingido.`));
+        }, ms);
+    });
+    return Promise.race([
+        promise,
+        timeoutPromise
+    ]).finally(() => clearTimeout(timeoutId));
+};
+
 /**
- * Traduz os dados matemáticos do Motor Agro para um laudo agronômico humano.
- * @param {Object} dadosMatematicos - O objeto de previsão e leitura real dos sensores e clima.
- * @param {String} cultura - O tipo de plantação do usuário.
- * @returns {String} Laudo descritivo gerado pela IA.
+ * Traduz os dados matemáticos do Motor Agro para um laudo agronômico estruturado.
  */
-const traduzirDiagnostico = async (dadosMatematicos, cultura) => {
-    if (!genAI) {
-        throw new Error('API Key do Gemini ausente.');
+const traduzirDiagnostico = async (payloadIA, userId) => {
+    if (!ai) throw new Error('Serviço de IA Desativado ou Sem Chave.');
+    if (!checkCircuitBreaker()) throw new Error("Circuit Breaker aberto (IA indisponível)");
+
+    const isAllowed = await checkRateLimit(userId);
+    if (!isAllowed) {
+        console.warn(`[IA] Limite diário atingido para usuário ${userId}`);
+        throw new Error("Limite diário de IA atingido.");
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-
-    // Payload injetado (Apenas números REAIS, zero invenção)
-    const engineData = dadosMatematicos.engineData || {};
+    const { engineData, cultura, umidadeAtual, satUmidadeMacro } = payloadIA;
     const culturaSanitizada = culturaSchema.parse(cultura || 'Mista');
     
-    const payloadContexto = JSON.stringify({
+    const contextData = JSON.stringify({
         cultura: culturaSanitizada,
-        leituraSensorSoloAtual: dadosMatematicos._meta?.sensorState?.umidadeAtual || 'Indisponível',
-        statusSensor: engineData.dataQuality?.sensorStatus || 'desconhecido',
-        nivelQualidadeDados: engineData.dataQuality?.level || 'LOW',
-        confiancaDaAnalise: engineData.confidence?.level || 'LOW',
-        riscoDeEstresse: engineData.risk?.score || 0,
-        previsoesFuturas: engineData.predictions || null,
-        anomalias: engineData.anomalies || [],
-        recomendacaoMotorAgro: engineData.recommendation?.action || 'Desconhecida',
-        motivosDaRecomendacao: engineData.recommendation?.explanation || []
+        umidadeSoloAtual: umidadeAtual,
+        umidadeSatelite: satUmidadeMacro,
+        qualidadeSensores: engineData?.dataQuality?.score,
+        anomalias: engineData?.anomalies || [],
+        clima: engineData?.climateAnalysis,
+        previsoesFuturas: engineData?.predictions,
+        decisaoMotor: engineData?.recommendation?.action,
+        motivosMotor: engineData?.recommendation?.explanation
     });
 
-    // Auditoria contra alucinações (Log Rastreável)
-    console.log(`\n[AUDIT IA] ======================================`);
-    console.log(`[AUDIT IA] Dados INJETADOS no LLM (Verdade Absoluta):`);
-    console.log(`[AUDIT IA] Payload: ${payloadContexto}`);
-    console.log(`[AUDIT IA] ======================================\n`);
-
-    const prompt = `
-Você é um engenheiro agrônomo sênior focado em IoT prestando consultoria rápida num dashboard.
-Abaixo estão os dados ESTRITAMENTE estruturados calculados pelo nosso Motor Agro.
-
-DADOS BRUTOS (FATO):
-${payloadContexto}
-
+    const systemInstruction = `Você é um engenheiro agrônomo sênior focado em IoT prestando consultoria rápida num dashboard.
 SUAS REGRAS INEGOCIÁVEIS:
-1. NUNCA invente números, previsões, temperaturas ou porcentagens que não estejam no bloco DADOS BRUTOS acima.
-2. Se o nivelQualidadeDados for "INVALID" ou "LOW", ou a confiancaDaAnalise for "LOW":
-   - SUA PRIMEIRA FRASE DEVE SER UM AVISO informando que os dados são limitados ou de baixa confiança.
-   - VOCÊ NÃO PODE afirmar com certeza a condição atual do solo ou recomendar irrigação com segurança.
-   - Sua única conclusão deve ser avisar o agricultor para verificar o sensor físico e usar a experiência em campo.
+1. NUNCA invente números, previsões, temperaturas ou porcentagens que não estejam no payload fornecido.
+2. Se a qualidade do sensor for baixa ou as anomalias forem severas, SUA PRIMEIRA FRASE DEVE SER UM AVISO sobre confiabilidade.
 3. Não use a palavra "eu". Fale diretamente sobre o status da terra e da cultura.
-4. Explique o cenário (motivosDaRecomendacao) de forma clara, técnica porém acessível, em no máximo 3 parágrafos curtos.
-5. Diferencie sempre dado observado, estimativa e dado indisponível.
+4. Diferencie sempre dado observado, estimativa e dado indisponível.
+5. Seu objetivo é estruturar o pensamento do Motor de Regras e traduzir para o agricultor num laudo textual coeso.`;
 
-Traduza esses resultados analíticos e preditivos para um laudo agronômico prático agora:
-`;
+    const prompt = `Gere o laudo baseado nestes DADOS BRUTOS (FATO):\n${contextData}`;
 
     try {
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        return response.text();
+        const promise = ai.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: {
+                systemInstruction: systemInstruction,
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        laudo_textual: {
+                            type: Type.STRING,
+                            description: "O texto final do laudo agronômico, formatado em Markdown, com até 3 parágrafos."
+                        },
+                        risco_identificado: {
+                            type: Type.STRING,
+                            description: "Breve resumo do principal risco (se houver) ou 'Nenhum'."
+                        }
+                    },
+                    required: ["laudo_textual", "risco_identificado"]
+                }
+            }
+        });
+
+        const response = await runWithTimeout(promise, TIMEOUT_MS);
+        
+        // Log metadata (Tokens)
+        if (response.usageMetadata) {
+            console.log(`[IA Token Usage] in: ${response.usageMetadata.promptTokenCount}, out: ${response.usageMetadata.candidatesTokenCount}`);
+        }
+
+        const jsonResult = JSON.parse(response.text);
+        
+        // Retornamos o laudo de forma transparente p/ o antigo (se for string, adaptamos)
+        // O código frontend antigo quer uma string ou ele injeta a string inteira.
+        // O app.js na linha 1520 faz: ${iaData.diagnostico}
+        return jsonResult.laudo_textual;
+
     } catch (error) {
-        console.error("Erro na API do Gemini:", error.message);
-        throw new Error("Serviço de IA Generativa temporariamente indisponível.");
+        registerFailure();
+        console.error("Erro na chamada ao Gemini GenAI:", error.message);
+        throw error; // Repassa pro controller usar fallback
     }
 };
 
 const gerarResumoMensal = async (contexto) => {
-    if (!genAI) {
-        throw new Error('API Key do Gemini ausente.');
-    }
+    if (!ai) throw new Error('Serviço de IA Desativado.');
+    if (!checkCircuitBreaker()) throw new Error("Circuit Breaker aberto");
 
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const culturaSanitizada = culturaSchema.parse(contexto.cultura || 'Mista');
 
-    const prompt = `
-Você é um engenheiro agrônomo especialista em irrigação e análise de dados gerenciais.
-Seu objetivo é escrever a "Leitura do Mês" para o relatório do produtor. 
-
-DADOS OBSERVADOS/ESTIMADOS (NÃO INVENTE NADA FORA DISSO):
+    const prompt = `DADOS OBSERVADOS/ESTIMADOS (NÃO INVENTE NADA FORA DISSO):
 - Mês: ${contexto.mes}
 - Cultura: ${culturaSanitizada}
 - Leituras na Faixa Ideal: ${contexto.pctIdeal}%
 - Leituras em Déficit (Seco): ${contexto.pctDeficit}%
 - Chuva acumulada: ${contexto.chuvaAcumulada} mm
 - Evapotranspiração (ET0) potencial: ${contexto.et0Acumulada} mm
-- Recomendações emitidas (períodos de alerta): ${contexto.recomendacoesEmitidas}
+- Recomendações emitidas: ${contexto.recomendacoesEmitidas}`;
 
+    const systemInstruction = `Você é um engenheiro agrônomo especialista em irrigação.
+Seu objetivo é escrever a "Leitura do Mês" para o relatório do produtor.
 REGRAS:
-1. Resuma como foi o mês focado em MANEJO HÍDRICO (O que aconteceu, o que influenciou).
-2. Forneça 1 ou 2 pontos de atenção baseados nesses números.
-3. NÃO afirme que X litros ou Y Reais foram economizados, nem cite m³ consumidos, pois não medimos isso.
-4. Mantenha o tom profissional, direto e em no máximo 2 parágrafos.
-`;
+1. Resuma focado em MANEJO HÍDRICO.
+2. Forneça 1 ou 2 pontos de atenção reais baseados nos números.
+3. NÃO afirme que X litros ou Y Reais foram economizados.
+4. Máximo de 2 parágrafos.`;
 
     try {
-        const result = await model.generateContent(prompt);
-        const response = await result.response;
-        return response.text();
+        const promise = ai.models.generateContent({
+            model: modelName,
+            contents: prompt,
+            config: {
+                systemInstruction: systemInstruction,
+                responseMimeType: "text/plain"
+            }
+        });
+
+        const response = await runWithTimeout(promise, TIMEOUT_MS);
+        return response.text;
     } catch (error) {
+        registerFailure();
         console.error("Erro na API do Gemini (Resumo Mensal):", error.message);
-        throw new Error("Serviço de IA Generativa indisponível.");
+        throw new Error("Serviço de IA indisponível.");
     }
 };
 

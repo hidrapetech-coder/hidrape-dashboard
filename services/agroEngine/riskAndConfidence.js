@@ -41,12 +41,7 @@ const calculateRiskAndConfidence = (dataQuality, anomalies, predictor, historico
         }
     }
 
-    // Impacto do modelo utilizado
-    if (predictor.modelType === 'DETERMINISTIC_FALLBACK') {
-        confidenceScore -= 10;
-        confidenceFactors.push("Utilizando modelo determinístico de fallback (ML requer mais dados).");
-    }
-
+    // Impacto do modelo utilizado removido (apenas ML será usado no futuro)
     confidenceScore = Math.max(0, Math.min(100, Math.round(confidenceScore)));
 
     let confidenceLevel = 'HIGH';

@@ -3,17 +3,12 @@ const prisma = require('../lib/prisma');
 const { decrypt } = require('../lib/encryption');
 const redis = require('../lib/redis');
 
+const { getCropConfig } = require('../config/cultures');
+
 // --- IA DE DIAGNÓSTICO (SISTEMA BASEADO EM REGRAS) ---
 const gerarDiagnostico = (umidade, tipoPlantacao) => {
     // Definir os thresholds baseados no tipo
-    let limites = { minIdeal: 40, maxIdeal: 60 }; // Default
-
-    switch(tipoPlantacao.toLowerCase()) {
-        case 'milho': limites = { minIdeal: 40, maxIdeal: 70 }; break;
-        case 'feijão': limites = { minIdeal: 40, maxIdeal: 60 }; break;
-        case 'hortaliças': limites = { minIdeal: 50, maxIdeal: 80 }; break;
-        case 'cana-de-açúcar': limites = { minIdeal: 35, maxIdeal: 60 }; break;
-    }
+    const limites = getCropConfig(tipoPlantacao);
 
     let statusIA = '';
     let recomendacaoIA = '';

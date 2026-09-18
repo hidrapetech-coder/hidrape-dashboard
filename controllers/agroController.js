@@ -27,7 +27,7 @@ const IA_RULES = {
 // Utilitário de API (Open-Meteo - Gratuita via Satélite)
 const fetchOpenMeteo = (lat, lon) => {
     return new Promise((resolve, reject) => {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${parseFloat(lat)}&longitude=${parseFloat(lon)}&current=temperature_2m,relative_humidity_2m,weather_code,is_day,wind_speed_10m&hourly=precipitation_probability&daily=et0_fao_evapotranspiration&timezone=auto&models=best_match`;
+        const url = `https://api.open-meteo.com/v1/forecast?latitude=${parseFloat(lat)}&longitude=${parseFloat(lon)}&current=temperature_2m,relative_humidity_2m,weather_code,is_day,wind_speed_10m&hourly=precipitation,precipitation_probability&daily=et0_fao_evapotranspiration&timezone=auto&models=best_match`;
         
         https.get(url, (res) => {
             let body = '';
@@ -264,12 +264,6 @@ exports.getInsightsIA = async (req, res) => {
         
         const { lat, lon } = u;
 
-        // Verifica Cache Redis
-        let cachedIa = await redis.get(`ia:${u.id}`);
-        if (cachedIa) {
-            return res.json({ diagnostico: JSON.parse(cachedIa), cached: true });
-        }
-
         // Puxar insumos (dados brutos reais)
         let satData = null;
         try { satData = await satelliteService.fetchSateliteData(lat, lon); } catch(e) {}
@@ -278,6 +272,7 @@ exports.getInsightsIA = async (req, res) => {
         let climaData = climaDataString ? JSON.parse(climaDataString) : null;
         if (!climaData) {
             climaData = await fetchOpenMeteo(lat, lon); 
+            await redis.setex(`weather:${u.id}`, CACHE_DURATIONS.WEATHER, JSON.stringify(climaData));
         }
         
         // Calcular previsão (motor de regras determinístico)
@@ -286,21 +281,28 @@ exports.getInsightsIA = async (req, res) => {
 
         const umidadeAtual = sensorState.umidadeAtual !== null ? sensorState.umidadeAtual : "Desconhecida";
 
-        // Prepara dados formatados p/ a IA
-        const dadosMatematicos = {
-            tempoHoras: previsao.tempoHoras,
-            _meta: {
-                dropRealTime: previsao._meta?.dropRealTime || 0,
-                umidadeAtual: umidadeAtual,
-                rainProb: previsao._meta?.rainProb || 0,
-                satUmidadeMacro: satData ? satData.umidadeMacro : 'N/A',
-                sensorState: sensorState
-            }
+        // Cache Determinístico Baseado no Payload (Salva Cota do LLM se a matemática não mudou)
+        const crypto = require('crypto');
+        const hashStr = JSON.stringify({ e: previsao.engineData, u: umidadeAtual, c: u.tipoPlantacao });
+        const cacheHash = crypto.createHash('md5').update(hashStr).digest('hex');
+        const iaCacheKey = `ia_v2:${u.id}:${cacheHash}`;
+
+        let cachedIa = await redis.get(iaCacheKey);
+        if (cachedIa) {
+            return res.json({ diagnostico: JSON.parse(cachedIa), cached: true });
+        }
+
+        // Prepara dados formatados p/ a IA (Contrato Novo)
+        const payloadIA = {
+            engineData: previsao.engineData,
+            cultura: u.tipoPlantacao,
+            umidadeAtual: umidadeAtual,
+            satUmidadeMacro: satData ? satData.umidadeMacro : null
         };
         
-        const laudo = await iaService.traduzirDiagnostico(dadosMatematicos, u.tipoPlantacao);
+        const laudo = await iaService.traduzirDiagnostico(payloadIA, u.id);
 
-        await redis.setex(`ia:${u.id}`, CACHE_DURATIONS.IA, JSON.stringify(laudo));
+        await redis.setex(iaCacheKey, CACHE_DURATIONS.IA, JSON.stringify(laudo));
 
         res.json({ diagnostico: laudo, cached: false });
     } catch (error) {
