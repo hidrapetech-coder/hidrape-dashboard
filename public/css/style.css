@@ -203,6 +203,9 @@ body::after {
     transition: all var(--duration) var(--ease-out);
     position: relative;
     z-index: 2;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.02);
 }
 
 .nav-link .icon {
@@ -218,7 +221,9 @@ body::after {
 
 .nav-link:hover {
     color: var(--sys-light);
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.1);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .nav-link:active {
@@ -227,6 +232,9 @@ body::after {
 
 .nav-link.active {
     color: var(--sys-light);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.15), 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .nav-link.active .icon {
