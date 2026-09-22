@@ -2241,3 +2241,175 @@ select:focus-visible {
     -webkit-filter: brightness(0) saturate(100%) invert(91%) sepia(3%) saturate(1508%) hue-rotate(347deg) brightness(105%) contrast(83%);
     filter: brightness(0) saturate(100%) invert(91%) sepia(3%) saturate(1508%) hue-rotate(347deg) brightness(105%) contrast(83%);
 }
+
+/* ============================================
+   SHADCN UI & MAGIC UI ENHANCEMENTS
+   ============================================ */
+
+/* Shadcn Inputs & Forms */
+.sh-input, .input-field {
+    border-radius: 6px !important;
+    border: 1px solid var(--neutral-600) !important;
+    background: transparent !important;
+    padding: 10px 14px !important;
+    font-size: 0.95rem !important;
+    color: var(--sys-light) !important;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+}
+.sh-input:focus, .input-field:focus {
+    outline: none !important;
+    border-color: var(--sys-accent) !important;
+    box-shadow: 0 0 0 2px rgba(148, 180, 193, 0.2) !important;
+}
+
+/* Shadcn Buttons */
+.sh-btn, .btn, .btn-primary, .auth-btn {
+    border-radius: 6px !important;
+    font-weight: 500 !important;
+    letter-spacing: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1) !important;
+    transition: all 0.2s ease !important;
+}
+.btn-primary, .auth-btn, .demo-upsell-btn {
+    background: var(--sys-accent) !important;
+    color: var(--bg-main) !important;
+    border: none !important;
+}
+.btn-primary:hover, .auth-btn:hover, .demo-upsell-btn:hover {
+    background: #a8cadb !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(148, 180, 193, 0.2) !important;
+}
+
+/* Shadcn Cards refinement */
+.card {
+    border-radius: 12px !important;
+    border: 1px solid var(--neutral-600) !important;
+    background: var(--bg-surface) !important;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
+}
+.card-light {
+    border: 1px solid rgba(255,255,255,0.4) !important;
+}
+
+/* Magic UI - Scroll Reveal */
+.scroll-reveal {
+    opacity: 0;
+    transform: translateY(20px);
+    transition: opacity 0.8s cubic-bezier(0.16, 1, 0.3, 1), transform 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+    will-change: opacity, transform;
+}
+.scroll-reveal.visible {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Magic UI - Lettering Animation */
+.magic-lettering {
+    display: inline-block;
+}
+.magic-lettering .letter {
+    opacity: 0;
+    display: inline-block;
+    transform: translateY(10px);
+    filter: blur(4px);
+    animation: magicLetterIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes magicLetterIn {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+        filter: blur(0);
+    }
+}
+
+/* Magic UI - Glow Effect Enhancement */
+.hover-glow-effect {
+    position: relative;
+    overflow: hidden;
+}
+.hover-glow-effect::after {
+    content: '';
+    position: absolute;
+    top: var(--mouse-y, 50%);
+    left: var(--mouse-x, 50%);
+    width: 250px;
+    height: 250px;
+    background: radial-gradient(circle, rgba(148,180,193,0.1) 0%, transparent 70%);
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+    z-index: 0;
+}
+.hover-glow-effect:hover::after {
+    opacity: 1;
+}
+
+/* Base structural adjustments for Shadcn feel */
+.sidebar {
+    background: var(--neutral-950) !important;
+    border-right: 1px solid var(--neutral-800) !important;
+}
+.main-content {
+    background: transparent !important;
+}
+
+/* ============================================
+   USER REQUESTED UI TWEAKS
+   ============================================ */
+
+/* 1. Mobile Lateral Margin (24px) */
+@media (max-width: 768px) {
+    .main-content {
+        padding-left: 24px !important;
+        padding-right: 24px !important;
+    }
+    .auth-visual-area, .auth-form-panel {
+        padding-left: 24px !important;
+        padding-right: 24px !important;
+    }
+}
+
+/* 2. Solid Icons for Contrast & Touch Area */
+.material-symbols-rounded {
+    font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24 !important;
+}
+
+/* 2. Typography Hierarchy (User Name) */
+.dash-greeting h1 {
+    font-size: 1.4rem !important;
+    font-weight: 500 !important;
+    opacity: 0.9;
+}
+#dash-user {
+    font-weight: 700 !important;
+    font-size: 1.8rem !important;
+    color: var(--sys-light) !important;
+    letter-spacing: -0.5px;
+    display: inline-block;
+}
+
+/* 3. Body Text Harmonization */
+p {
+    font-size: 0.95rem;
+    line-height: 1.6;
+    opacity: 0.85;
+}
+
+/* 4. Button Outlines & Attractiveness */
+.sh-btn, .btn, .btn-primary, .auth-btn, .demo-upsell-btn, #profile-menu-btn {
+    border: 1px solid rgba(255, 255, 255, 0.25) !important;
+    outline: 2px solid transparent;
+    transition: all 0.2s ease, outline 0.2s ease !important;
+}
+
+.sh-btn:hover, .btn:hover, .btn-primary:hover, .auth-btn:hover, #profile-menu-btn:hover {
+    border-color: rgba(255, 255, 255, 0.5) !important;
+    outline: 2px solid rgba(148, 180, 193, 0.3) !important;
+    outline-offset: 2px !important;
+}

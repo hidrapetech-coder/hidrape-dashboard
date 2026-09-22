@@ -1,0 +1,75 @@
+{
+  "manifest_version": "0.3",
+  "name": "shadcn-ui-mcp-server",
+  "display_name": "shadcn/ui MCP Server",
+  "version": "2.0.0",
+  "description": "MCP server providing AI assistants with comprehensive access to shadcn/ui v4 components, blocks, and demos for React, Svelte, Vue, and React Native",
+  "author": {
+    "name": "Janardhan Polle",
+    "url": "https://github.com/Jpisnice"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Jpisnice/shadcn-ui-mcp-server"
+  },
+  "homepage": "https://github.com/Jpisnice/shadcn-ui-mcp-server",
+  "documentation": "https://github.com/Jpisnice/shadcn-ui-mcp-server#readme",
+  "support": "https://github.com/Jpisnice/shadcn-ui-mcp-server/issues",
+  "icon": "icon.png",
+  "server": {
+    "type": "node",
+    "entry_point": "build/index.js",
+    "mcp_config": {
+      "command": "npx",
+      "args": ["-y", "--package=@jpisnice/shadcn-ui-mcp-server", "shadcn-mcp"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${user_config.github_token}"
+      }
+    }
+  },
+  "user_config": {
+    "github_token": {
+      "type": "string",
+      "title": "GitHub Personal Access Token",
+      "description": "Optional token for higher rate limits (5000/hr vs 60/hr). Get one at github.com/settings/tokens",
+      "required": false,
+      "sensitive": true
+    }
+  },
+  "tools": [
+    {"name": "list_components", "description": "List all available shadcn/ui components"},
+    {"name": "get_component", "description": "Get component source code"},
+    {"name": "get_component_demo", "description": "Get component demo/example code"},
+    {"name": "get_component_metadata", "description": "Get component metadata and dependencies"},
+    {"name": "list_blocks", "description": "List available shadcn/ui blocks"},
+    {"name": "get_block", "description": "Get block implementation"},
+    {"name": "get_directory_structure", "description": "Browse repository file structure"}
+  ],
+  "prompts": [
+    {
+      "name": "build-shadcn-page",
+      "description": "Generate a complete shadcn/ui page using v4 components and blocks",
+      "text": "Build a {{pageType}} page with {{features}} using {{layout}} layout and {{style}} style"
+    },
+    {
+      "name": "create-dashboard",
+      "description": "Create a comprehensive dashboard using shadcn/ui v4 blocks and components",
+      "text": "Create a {{dashboardType}} dashboard with {{widgets}} widgets and {{navigation}} navigation"
+    },
+    {
+      "name": "create-auth-flow",
+      "description": "Generate authentication pages using shadcn/ui v4 login blocks",
+      "text": "Create {{authType}} authentication with {{providers}} providers and {{features}} features"
+    },
+    {
+      "name": "optimize-shadcn-component",
+      "description": "Optimize or enhance existing shadcn/ui components with best practices",
+      "text": "Optimize the {{component}} component for {{optimization}} in {{useCase}} use case"
+    },
+    {
+      "name": "create-data-table",
+      "description": "Create advanced data tables with shadcn/ui components",
+      "text": "Create a data table for {{dataType}} with {{features}} and {{actions}} row actions"
+    }
+  ]
+}

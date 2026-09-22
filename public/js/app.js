@@ -2793,4 +2793,69 @@ const initMonthlyReport = async () => {
     loadReport(year, month);
 };
 
-document.addEventListener('DOMContentLoaded', bootApplication);
+// ==========================================
+// MAGIC UI & SHADCN ENHANCEMENTS
+// ==========================================
+function initMagicUI(root = document) {
+    // 1. Scroll Reveal (Intersection Observer)
+    const revealElements = root.querySelectorAll('.scroll-reveal:not(.observed)');
+    if (revealElements.length > 0) {
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('visible');
+                    observer.unobserve(entry.target);
+                }
+            });
+        }, { threshold: 0.1 });
+
+        revealElements.forEach(el => {
+            el.classList.add('observed');
+            observer.observe(el);
+        });
+    }
+
+    // 2. Hover Glow Effect (Mouse Move)
+    const glowCards = root.querySelectorAll('.card, .hover-glow-effect');
+    glowCards.forEach(card => {
+        if(card.dataset.glowBound) return;
+        card.dataset.glowBound = "true";
+        card.classList.add('hover-glow-effect'); // ensure class is there
+        card.addEventListener('mousemove', e => {
+            const rect = card.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            card.style.setProperty('--mouse-x', `${x}px`);
+            card.style.setProperty('--mouse-y', `${y}px`);
+        });
+    });
+
+    // 3. Magic Lettering
+    const letteringTexts = root.querySelectorAll('.magic-lettering:not(.processed)');
+    letteringTexts.forEach(el => {
+        el.classList.add('processed');
+        const text = el.textContent;
+        el.innerHTML = '';
+        text.split('').forEach((char, i) => {
+            const span = document.createElement('span');
+            span.classList.add('letter');
+            span.textContent = char === ' ' ? '\u00A0' : char; // preserve space
+            span.style.animationDelay = `${i * 0.03}s`;
+            el.appendChild(span);
+        });
+    });
+}
+
+// Global initialization and SPA mutation tracking
+document.addEventListener('DOMContentLoaded', () => {
+    bootApplication();
+    initMagicUI();
+    
+    const appContent = document.getElementById('app-content');
+    if (appContent) {
+        const mutationObserver = new MutationObserver(() => {
+            initMagicUI(appContent);
+        });
+        mutationObserver.observe(appContent, { childList: true, subtree: true });
+    }
+});

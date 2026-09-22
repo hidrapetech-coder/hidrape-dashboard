@@ -1,0 +1,79 @@
+# Labeler configuration
+# See: https://github.com/actions/labeler
+
+# Documentation changes
+documentation:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '*.md'
+          - 'docs/**'
+          - 'LICENSE'
+
+# Source code changes
+source:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/**'
+
+# Build/tooling changes
+build:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'tsconfig.json'
+          - 'package.json'
+          - 'package-lock.json'
+
+# CI/CD changes
+ci:
+  - changed-files:
+      - any-glob-to-any-file:
+          - '.github/**'
+
+# Docker changes
+docker:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'Dockerfile'
+          - 'docker-compose.yml'
+          - 'nginx.conf'
+          - '.dockerignore'
+
+# Server/core changes
+server:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/server/**'
+
+# Tools changes
+tools:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/tools/**'
+
+# Utils changes
+utils:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/utils/**'
+
+# CLI changes
+cli:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'src/cli/**'
+
+# Scripts/automation
+scripts:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'scripts/**'
+          - 'test-package.ps1'
+          - 'test-package.sh'
+          - 'examples.sh'
+
+# Dependencies
+dependencies:
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'package.json'
+          - 'package-lock.json'

@@ -1,0 +1,127 @@
+name: Docker Build and Test
+
+on:
+  push:
+    branches:
+      - master
+      - main
+  pull_request:
+    branches:
+      - master
+      - main
+
+jobs:
+  docker-build:
+    name: Build and Test Docker Image
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: false
+          load: true  # Load image into local Docker daemon
+          tags: shadcn-ui-mcp-server:test
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      
+      - name: Verify image exists
+        run: |
+          echo "Verifying Docker image was built..."
+          docker images shadcn-ui-mcp-server:test
+          if ! docker image inspect shadcn-ui-mcp-server:test > /dev/null 2>&1; then
+            echo "❌ Docker image not found!"
+            exit 1
+          fi
+          echo "✅ Docker image exists"
+      
+      - name: Start container
+        id: start-container
+        run: |
+          echo "Starting container..."
+          docker run -d \
+            --name shadcn-mcp-test \
+            -p 7423:7423 \
+            -e MCP_TRANSPORT_MODE=sse \
+            -e MCP_HOST=0.0.0.0 \
+            -e MCP_PORT=7423 \
+            shadcn-ui-mcp-server:test
+          
+          # Verify container is running
+          sleep 2
+          if docker ps | grep -q shadcn-mcp-test; then
+            echo "✅ Container started successfully"
+            echo "container_started=true" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Container failed to start"
+            echo "=== Container Logs ==="
+            docker logs shadcn-mcp-test 2>&1 || echo "No logs available"
+            echo "container_started=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+      
+      - name: Wait for server to start
+        run: |
+          echo "Waiting for server to be ready..."
+          for i in {1..30}; do
+            if curl -f http://localhost:7423/health 2>/dev/null; then
+              echo ""
+              echo "✅ Server is ready!"
+              exit 0
+            fi
+            echo "Attempt $i/30: Server not ready yet, waiting..."
+            sleep 2
+          done
+          echo "❌ Server failed to start within 60 seconds"
+          echo "=== Container Logs ==="
+          docker logs shadcn-mcp-test 2>&1 || echo "No logs available"
+          exit 1
+      
+      - name: Test health endpoint
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:7423/health)
+          if [ "$response" != "200" ]; then
+            echo "❌ Health check failed with status code: $response"
+            docker logs shadcn-mcp-test 2>&1 || true
+            exit 1
+          fi
+          echo "✅ Health endpoint returned 200 OK"
+      
+      - name: Test server connectivity
+        run: |
+          curl -f http://localhost:7423/health || {
+            echo "❌ Server connectivity test failed"
+            docker logs shadcn-mcp-test 2>&1 || true
+            exit 1
+          }
+          echo "✅ Server connectivity verified"
+      
+      - name: Check container logs on failure
+        if: failure()
+        run: |
+          echo "=== Container Logs (on failure) ==="
+          if docker ps -a | grep -q shadcn-mcp-test; then
+            docker logs shadcn-mcp-test 2>&1
+          else
+            echo "Container 'shadcn-mcp-test' does not exist"
+            echo "Listing all containers:"
+            docker ps -a
+            echo ""
+            echo "Listing all images:"
+            docker images
+          fi
+      
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "Cleaning up..."
+          docker stop shadcn-mcp-test 2>/dev/null || true
+          docker rm shadcn-mcp-test 2>/dev/null || true
+          echo "✅ Cleanup complete"
