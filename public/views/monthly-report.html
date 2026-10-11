@@ -76,12 +76,12 @@
 
     <!-- Histórico de Recomendações -->
     <div class="card glass-panel" style="grid-column: 1 / -1;">
-        <h3 class="card-title">Necessidade Hídrica Estimada</h3>
+        <h3 class="card-title">Registros do Motor e Referência Meteorológica</h3>
         <div class="report-section" style="display: flex; gap: 32px; margin-top: 16px; flex-wrap: wrap;">
             <div style="flex: 1; min-width: 250px;">
-                <h4 style="font-size: 1rem; margin-bottom: 8px;">Recomendações de Irrigação</h4>
+                <h4 style="font-size: 1rem; margin-bottom: 8px;">Decisões IRRIGAR registradas</h4>
                 <p id="mr-recomendacoes-count" style="font-size: 2rem; font-family: 'Space Grotesk', sans-serif; font-weight: 600; color: var(--warning);">--</p>
-                <p class="text-sm" style="color: var(--neutral-300);">Eventos onde a umidade caiu abaixo do limite, disparando alerta.</p>
+                <p class="text-sm" style="color: var(--neutral-300);">Número de registros do motor; não comprova alertas enviados nem irrigações executadas.</p>
                 <div style="margin-top: 16px;">
                     <span class="badge" style="background: rgba(255, 153, 0, 0.2); color: var(--warning); padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">ESTIMATIVA</span>
                 </div>
@@ -133,10 +133,10 @@
 
     <!-- Qualidade de Dados -->
     <div class="card stat-card" style="grid-column: span 1; justify-content: flex-start;">
-        <h3 class="card-title">Qualidade dos Dados</h3>
+        <h3 class="card-title">Cobertura Climática</h3>
         <div style="margin-top: 16px;">
             <p style="font-size: 2.5rem; font-family: 'Space Grotesk', sans-serif; font-weight: 600; color: #4ade80;" id="mr-qualidade-pct">--%</p>
-            <p class="text-sm" style="color: var(--neutral-300);">Dias com leituras válidas do sensor no período.</p>
+            <p class="text-sm" style="color: var(--neutral-300);">Proporção de dias com chuva e ET₀ disponíveis no período consultado.</p>
             
             <div style="margin-top: 16px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 16px;">
                 <p style="font-size: 0.9rem; color: var(--neutral-200); display: flex; justify-content: space-between;">
@@ -157,7 +157,7 @@
     <!-- Rodapé de Transparência -->
     <div style="grid-column: 1 / -1; margin-top: 16px; margin-bottom: 32px; padding: 20px; border-radius: 8px; background: rgba(255,255,255,0.02); border: 1px dashed rgba(255,255,255,0.1);">
         <h4 style="font-size: 0.9rem; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; color: var(--neutral-400);">Sobre este relatório</h4>
-        <p style="font-size: 0.85rem; color: var(--neutral-300); line-height: 1.5;">O Hidrape analisa as condições do solo e do ambiente utilizando sensores e dados meteorológicos. O sistema atualmente não mede diretamente o volume de água aplicado, o consumo elétrico da bomba ou o custo da irrigação. Por isso, indicadores de necessidade hídrica, lâmina recomendada e volume teórico são <strong style="color: var(--sys-accent);">estimativas</strong> baseadas nos dados disponíveis.</p>
+        <p style="font-size: 0.85rem; color: var(--neutral-300); line-height: 1.5;">O Hidrape analisa as condições do solo e do ambiente utilizando sensores e dados meteorológicos. O sistema atualmente não mede diretamente o volume de água aplicado, o consumo elétrico da bomba ou o custo da irrigação. O volume teórico é ET₀ × área e não representa lâmina recomendada ou volume necessário de irrigação. Não há prescrição de volume ou duração.</p>
     </div>
 
 </div>

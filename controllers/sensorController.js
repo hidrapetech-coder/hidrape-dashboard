@@ -2,65 +2,30 @@ const axios = require('axios');
 const prisma = require('../lib/prisma');
 const { decrypt } = require('../lib/encryption');
 const redis = require('../lib/redis');
+const cache = require('../lib/cache');
 
 const { getCropConfig } = require('../config/cultures');
 
-// --- IA DE DIAGNÓSTICO (SISTEMA BASEADO EM REGRAS) ---
-const gerarDiagnostico = (umidade, tipoPlantacao) => {
-    // Definir os thresholds baseados no tipo
-    const limites = getCropConfig(tipoPlantacao);
-
-    let statusIA = '';
-    let recomendacaoIA = '';
-
-    if (umidade < limites.minIdeal) {
-        statusIA = 'SECO';
-        recomendacaoIA = `Solo da cultura de ${tipoPlantacao.toLowerCase()} com umidade abaixo do ideal. Irrigação necessária`;
-    } else if (umidade > limites.maxIdeal) {
-        statusIA = 'ENCHARCADO';
-        recomendacaoIA = `Excesso de umidade detectado na cultura de ${tipoPlantacao.toLowerCase()}. Suspenda a irrigação`;
-    } else {
-        statusIA = 'IDEAL';
-        recomendacaoIA = `Umidade do solo adequada para a cultura de ${tipoPlantacao.toLowerCase()}`;
-    }
-
-    return { statusIA, recomendacaoIA };
+const { evaluate } = require('../services/agroEngine');
+const { isMoisture } = require('../services/agroEngine/dataQuality');
+const rules = require('../config/agro');
+const { timeZoneFor } = require('../lib/time');
+const parseSensorValue = value => {
+    if (typeof value !== 'number' && (typeof value !== 'string' || !/^\d+(?:\.\d+)?$/.test(value.trim()))) throw new Error('INVALID_SENSOR_VALUE');
+    const number = Number(value);
+    if (!isMoisture(number)) throw new Error('INVALID_SENSOR_VALUE');
+    return number;
 };
-
-// --- CONTROLE DE ALERTA WHATSAPP (MEMÓRIA / TEMP) ---
-const testarEEnviarWhatsApp = async (user, umidade, statusIA, recomendacaoIA) => {
-    // 1. O usuário tem whatsapp configurado?
-    if(!user.whatsappPhone || !user.callmebotApiKey) return;
-
-    // 2. Transição de status via Redis
-    const redisKey = `wpp_alert:${user.id}`;
-    const rawHistorico = await redis.get(redisKey);
-    const historicoAlerta = rawHistorico ? JSON.parse(rawHistorico) : { lastStatus: null, timer: 0 };
-    
-    // Se mudou de estado OU se já faz muito tempo que enviou aviso (evitar spam 30min)
-    const mudouEstado = historicoAlerta.lastStatus !== statusIA;
-    const cooldownPassou = (Date.now() - historicoAlerta.timer) > (30 * 60 * 1000);
-
-    // O status é critico? (Só alertar SECO ou ENCHARCADO)
-    if(statusIA !== 'IDEAL' && (mudouEstado || cooldownPassou)) {
-        
-        try {
-            const apiKey = decrypt(user.callmebotApiKey);
-            const mensagem = encodeURIComponent(`🚨 ALERTA HIDRAPE [${user.tipoPlantacao}]: ${recomendacaoIA} (Umidade atual: ${umidade}%)`);
-            const url = `https://api.callmebot.com/whatsapp.php?phone=${user.whatsappPhone}&text=${mensagem}&apikey=${apiKey}`;
-            
-            await axios.get(url);
-            console.log(`[WhatsApp] Alerta Inteligente enviado p/ ${user.nome} - Status: ${statusIA}`);
-            
-            // Atualizar status e segurar no Redis por 2h
-            await redis.setex(redisKey, 2 * 60 * 60, JSON.stringify({ lastStatus: statusIA, timer: Date.now() }));
-
-        } catch (error) {
-            console.error(`[WhatsApp Error] - User ${user.nome}:`, error.message);
-        }
-    } else if (statusIA === 'IDEAL' && mudouEstado && historicoAlerta.lastStatus !== null) {
-        await redis.setex(redisKey, 2 * 60 * 60, JSON.stringify({ lastStatus: 'IDEAL', timer: Date.now() }));
-    }
+const testarEEnviarWhatsApp = async (user, umidade, decision, eligible) => {
+    if (!eligible || !user.whatsappPhone || !user.callmebotApiKey || !['IRRIGAR','EXCESSO_UMIDADE'].includes(decision.action)) return;
+    const key = `wpp_alert:v3:${user.id}`;
+    let locked = false;
+    try {
+        locked = await redis.set(key,decision.action,'EX',1800,'NX') === 'OK';
+        if (!locked) return;
+        const params = new URLSearchParams({phone:user.whatsappPhone,apikey:decrypt(user.callmebotApiKey),text:`HIDRAPE: ${decision.explanation.join(' ')}`});
+        await axios.get(`https://api.callmebot.com/whatsapp.php?${params}`,{timeout:4000,maxRedirects:0,maxContentLength:65536});
+    } catch { console.warn('[WhatsApp] Alerta indisponível.'); }
 };
 
 // @route   GET /api/sensores/umidade
@@ -79,25 +44,28 @@ exports.getLiveSystem = async (req, res) => {
         try {
             // Verifica primeiro se o hardware está de fato online no Blynk
             const urlConn = blynkUrl.replace('/get', '/isHardwareConnected');
-            const connRes = await axios.get(`${urlConn}?token=${token}`, { timeout: 3000 });
+            const connRes = await axios.get(`${urlConn}?${new URLSearchParams({token})}`, { timeout: 3000, maxRedirects:0, maxContentLength:65536 });
             
             // O Blynk retorna "true" ou "false" (ou booleano) indicando status da placa
-            if (connRes.data === false || connRes.data === 'false') {
+            if (connRes.data !== true && connRes.data !== 'true') {
                 throw new Error("Hardware is disconnected in Blynk cloud");
             }
 
-            const response = await axios.get(`${blynkUrl}?token=${token}&V0`, { timeout: 4000 });
-            valor = parseFloat(response.data);
+            const response = await axios.get(`${blynkUrl}?${new URLSearchParams({token,V0:""})}`, { timeout: 4000, maxRedirects:0, maxContentLength:65536 });
+            valor = parseSensorValue(response.data);
             if(isNaN(valor)) {
                 throw new Error("Valor retornado pelo Blynk não é numérico");
             }
         } catch(apiErr) {
-            console.warn(`[Sensores] Erro ao bater Blynk (Sensor Offline). User: ${user.email}`);
+            await cache.write(`sensor:health:${user.id}`,1800,{online:false});
+            console.warn('[Sensores] Leitura inválida ou sensor indisponível.');
             return res.status(503).json({ error: 'Sensor IoT Offline ou Sem Comunicação' });
         }
 
+        await cache.write(`sensor:health:${user.id}`,1800,{online:true});
         // Lógica de Diagnóstico IA
-        const { statusIA, recomendacaoIA } = gerarDiagnostico(valor, user.tipoPlantacao);
+        const limits = getCropConfig(user);
+        const statusIA = !limits.supported ? 'INDEFINIDO' : valor <= limits.minIdeal ? 'SECO' : valor > limits.maxIdeal ? 'ENCHARCADO' : 'IDEAL';
 
         // Desacoplamento Leitura/Escrita
         const ultimaLeitura = await prisma.sensor.findFirst({
@@ -123,18 +91,25 @@ exports.getLiveSystem = async (req, res) => {
         }
 
         // Verificar / Disparar Whatsapp Inteligente (Await obrigatório em Serverless)
-        await testarEEnviarWhatsApp(user, valor, statusIA, recomendacaoIA).catch(e => console.error(e));
+        const history = await prisma.sensor.findMany({where:{userId:user.id,data:{gte:new Date(Date.now()-rules.historyHours*3600000)}},orderBy:{data:'desc'},take:rules.historyLimit});
+        // A leitura ao vivo também precisa passar pelo gate, mesmo quando o histórico é gravado a cada 15 minutos.
+        const liveTime = Date.now();
+        const liveHistory = [{data:new Date(liveTime),umidade:valor},...history.filter(r=>new Date(r.data).getTime() !== liveTime)];
+        const snapshot = evaluate(user,liveHistory,null,null,liveTime);
+        await testarEEnviarWhatsApp(user,valor,snapshot.engineData.recommendation,snapshot.engineData.confidence.eligible);
 
         // Retornar ao App
         return res.json({
             umidade: valor,
-            status: statusIA,
-            diagnostico: recomendacaoIA,
-            timestamp: timestampLeitura
+            status: snapshot.engineData.confidence.eligible ? statusIA : "INDEFINIDO",
+            diagnostico: snapshot.recomendacao,
+            previsao: snapshot,
+            timestamp: new Date(liveTime),
+            storedAt: timestampLeitura
         });
 
     } catch (error) {
-        console.error(error.message);
+        console.error('[API] Operação indisponível.');
         res.status(500).send('Erro no servidor');
     }
 };
@@ -145,8 +120,10 @@ exports.getLiveSystem = async (req, res) => {
 exports.getHistorico = async (req, res) => {
     try {
         const userId = req.user.id;
-        const limit = parseInt(req.query.limit) || 20; // Default 20 para o frontend grafico
-        const page = parseInt(req.query.page) || 1;
+        const limit = Number(req.query.limit ?? 20), page = Number(req.query.page ?? 1);
+        if (!Number.isInteger(limit) || limit < 1 || limit > 200 || !Number.isInteger(page) || page < 1 || page > 10000) return res.status(400).json({error:'Paginação inválida'});
+        const user = await prisma.user.findUnique({where:{id:userId}});
+        if (!user) return res.status(404).json({error:'Usuário não encontrado'});
         
         // Paginação via Prisma
         const startIndex = (page - 1) * limit;
@@ -164,7 +141,7 @@ exports.getHistorico = async (req, res) => {
         const formatados = results.map(r => ({
             umidade: r.umidade,
             status: r.status,
-            timeLabel: new Date(r.data).toLocaleTimeString('pt-BR', { hour12: false }),
+            timeLabel: new Date(r.data).toLocaleTimeString('pt-BR', { hour12: false, timeZone:timeZoneFor(user) }),
             dataFull: r.data
         })).reverse();
 
@@ -179,7 +156,9 @@ exports.getHistorico = async (req, res) => {
         });
 
     } catch (error) {
-        console.error(error.message);
+        console.error('[API] Operação indisponível.');
         res.status(500).send('Erro no servidor');
     }
 };
+
+exports.parseSensorValue = parseSensorValue;

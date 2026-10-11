@@ -1,12 +1,13 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const https = require('https');
+const { getJson, validCoordinates } = require('../lib/httpJson');
+const { getCropConfig } = require('../config/cultures');
+const cache = require('../lib/cache');
 const crypto = require('crypto');
 const prisma = require('../lib/prisma');
 const emailService = require('../services/emailService');
 const { encrypt } = require('../lib/encryption');
 const audit = require('../middleware/audit');
-const redis = require('../lib/redis');
 
 const env = require('../lib/env');
 
@@ -41,6 +42,8 @@ const toSafeUser = (user) => {
         estado: user.estado,
         tamanhoFazenda: user.tamanhoFazenda,
         role: user.role,
+        lat: user.lat, lon: user.lon, timeZone: user.timeZone,
+        minIdeal: user.minIdeal, maxIdeal: user.maxIdeal, cropConfig: getCropConfig(user),
         hasBlynkToken: !!user.blynkToken,
         hasCallmebotApiKey: !!user.callmebotApiKey,
         hasWhatsappPhone: !!user.whatsappPhone
@@ -48,47 +51,15 @@ const toSafeUser = (user) => {
 };
 
 // Utilitário Nominatim API (Sem dependência de API Keys)
-const geolocate = (cidade, estado, endereco = '') => {
-    return new Promise((resolve, reject) => {
-        let url = '';
-        if (endereco && endereco.trim().length > 0) {
-            url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(endereco + ', ' + cidade + ', ' + estado + ', Brazil')}&format=json&limit=1`;
-        } else {
-            url = `https://nominatim.openstreetmap.org/search?city=${encodeURIComponent(cidade)}&state=${encodeURIComponent(estado)}&country=Brazil&format=json&limit=1`;
-        }
-        
-        let isResolved = false;
-        
-        // Timeout de segurança (3 segundos) para não travar o cadastro
-        const timer = setTimeout(() => {
-            if (!isResolved) {
-                isResolved = true;
-                console.warn(`⏳ Nominatim TIMEOUT para ${cidade}.`);
-                reject(new Error("Timeout ao buscar geolocalização."));
-            }
-        }, 3000);
-
-        https.get(url, { headers: { 'User-Agent': 'Hidrape-IoT-SaaS/1.0' } }, (res) => {
-            let body = '';
-            res.on('data', chunk => body += chunk);
-            res.on('end', () => {
-                if (isResolved) return;
-                isResolved = true;
-                clearTimeout(timer);
-                try {
-                    const data = JSON.parse(body);
-                    if (data && data.length > 0) resolve({ lat: data[0].lat, lon: data[0].lon });
-                    else reject(new Error("Endereço não encontrado pelo satélite."));
-                } catch(e) { reject(new Error("Falha ao interpretar dados de geolocalização.")); }
-            });
-        }).on('error', (err) => {
-            if (isResolved) return;
-            isResolved = true;
-            clearTimeout(timer);
-            console.error("Erro Nominatim:", err.message);
-            reject(new Error("Serviço de mapas indisponível no momento."));
-        });
-    });
+const geolocate = async (cidade, estado, endereco = '') => {
+    const params = new URLSearchParams({ q:[endereco,cidade,estado,'Brazil'].filter(Boolean).join(', '), format:'json',limit:'1' });
+    const data = await getJson(`https://nominatim.openstreetmap.org/search?${params}`, { timeout:3000, headers:{'User-Agent':'Hidrape-IoT-SaaS/1.0'} });
+    const rawLat = data?.[0]?.lat, rawLon = data?.[0]?.lon;
+    const numeric = value => typeof value === 'number' || typeof value === 'string' && /^[-+]?\d+(?:\.\d+)?$/.test(value.trim());
+    if (!numeric(rawLat) || !numeric(rawLon)) throw new Error('GEOLOCATION_UNAVAILABLE');
+    const lat = Number(rawLat), lon = Number(rawLon);
+    if (!validCoordinates(lat,lon)) throw new Error('GEOLOCATION_UNAVAILABLE');
+    return {lat,lon};
 };
 
 // @route   POST /api/auth/register
@@ -100,8 +71,9 @@ exports.register = async (req, res) => {
         const email = (req.body.email || '').trim().toLowerCase();
         const senha = req.body.senha || '';
         const tipoPlantacao = sanitize(req.body.tipoPlantacao) || 'Personalizado';
-        const cidade = sanitize(req.body.cidade) || 'São Paulo';
-        const estado = sanitize(req.body.estado || 'SP').toUpperCase().slice(0, 2);
+        const cidade = sanitize(req.body.cidade);
+        if (!cidade || !req.body.estado) return res.status(400).json({error:'Cidade e UF são obrigatórias.'});
+        const estado = sanitize(req.body.estado).toUpperCase().slice(0, 2);
 
         if (!nome || nome.length < 2) return res.status(400).json({ error: 'Nome deve ter ao menos 2 caracteres' });
         if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: 'E-mail inválido' });
@@ -128,12 +100,12 @@ exports.register = async (req, res) => {
         user = await prisma.user.create({
             data: {
                 nome, email, senha: hashedSenha,
-                tipoPlantacao, cidade, estado, lat, lon
+                tipoPlantacao, cidade, estado, lat, lon, timeZone:req.body.timeZone || null
             }
         });
 
         // E-mail assíncrono
-        emailService.enviarBoasVindas(user.email, user.nome).catch(e => console.error('Email Async Erro:', e.message));
+        emailService.enviarBoasVindas(user.email, user.nome).catch(e => console.error('[Email] Envio indisponível.'));
 
         const token = await signToken(user.id, user.role);
         res.cookie('token', token, {
@@ -142,11 +114,11 @@ exports.register = async (req, res) => {
             sameSite: 'strict',
             maxAge: 24 * 60 * 60 * 1000 // 1 dia
         });
-        res.status(201).json({ user: toSafeUser(user), token });
+        res.status(201).json({ user: toSafeUser(user) });
 
     } catch (err) {
-        console.error(err.message);
-        res.status(500).json({ error: 'Erro no servidor: ' + err.message });
+        console.error('[API] Operação indisponível.');
+        res.status(500).json({ error: 'Erro no servidor' });
     }
 };
 
@@ -206,10 +178,10 @@ exports.login = async (req, res) => {
         req.user = user; // para o log capturar o userId
         await audit.logAudit(req, 200);
         
-        res.json({ user: toSafeUser(user), token });
+        res.json({ user: toSafeUser(user) });
 
     } catch (err) {
-        console.error(err.message);
+        console.error('[API] Operação indisponível.');
         res.status(500).json({ error: 'Erro no servidor' });
     }
 };
@@ -232,7 +204,7 @@ exports.getMe = async (req, res) => {
         
         res.json(toSafeUser(user));
     } catch (err) {
-        console.error(err.message);
+        console.error('[API] Operação indisponível.');
         res.status(500).send('Erro no servidor');
     }
 };
@@ -268,26 +240,26 @@ exports.updateConfig = async (req, res) => {
                 return res.status(400).json({ error: 'Endereço inválido ou não encontrado pelo satélite. Verifique e tente novamente.' });
             }
             
-            // Invalida o cache climático para forçar refresh na próxima tela de Dashboard
-            const agroController = require('./agroController');
-            if (agroController.clearWeatherCache) {
-                agroController.clearWeatherCache(user.id);
-            }
+
         }
 
-        if(req.body.blynkToken !== undefined) updatedData.blynkToken = req.body.blynkToken ? encrypt(sanitize(req.body.blynkToken)) : null;
+        if(req.body.blynkToken !== undefined) updatedData.blynkToken = req.body.blynkToken ? encrypt(sanitize(req.body.blynkToken)) : "";
         if(req.body.whatsappPhone !== undefined) updatedData.whatsappPhone = sanitize(req.body.whatsappPhone);
-        if(req.body.callmebotApiKey !== undefined) updatedData.callmebotApiKey = req.body.callmebotApiKey ? encrypt(sanitize(req.body.callmebotApiKey)) : null;
+        if(req.body.callmebotApiKey !== undefined) updatedData.callmebotApiKey = req.body.callmebotApiKey ? encrypt(sanitize(req.body.callmebotApiKey)) : "";
 
+        for (const field of ['timeZone','minIdeal','maxIdeal']) if (req.body[field] !== undefined) updatedData[field] = req.body[field];
+        const merged = {...user, ...updatedData};
+        if ((merged.minIdeal != null || merged.maxIdeal != null) && !getCropConfig({...merged,tipoPlantacao:'Personalizado'}).supported) return res.status(400).json({error:'Configure limites entre 0 e 100, com mínimo menor que máximo.'});
         const updatedUser = await prisma.user.update({
             where: { id: user.id },
             data: updatedData
         });
 
+        await cache.remove(`sensor:health:${user.id}`, `weekly:${user.id}`, `weather:v3:${user.id}:${user.lat}:${user.lon}`);
         // Resposta sem dados sensíveis
         res.json(toSafeUser(updatedUser));
     } catch (err) {
-        console.error(err.message);
+        console.error('[API] Operação indisponível.');
         res.status(500).json({ error: 'Erro no servidor' });
     }
 };
@@ -322,11 +294,11 @@ exports.forgotPassword = async (req, res) => {
         });
 
         // Enviar e-mail (enviamos o token cru, não o hash)
-        emailService.enviarRecuperacaoSenha(user.email, user.nome, resetToken).catch(e => console.error('Email Async Erro:', e.message));
+        emailService.enviarRecuperacaoSenha(user.email, user.nome, resetToken).catch(e => console.error('[Email] Envio indisponível.'));
 
         res.json({ message: 'Se o e-mail estiver cadastrado, você receberá um link de recuperação em alguns minutos.' });
     } catch (err) {
-        console.error(err.message);
+        console.error('[API] Operação indisponível.');
         res.status(500).json({ error: 'Erro no servidor' });
     }
 };
@@ -373,7 +345,7 @@ exports.resetPassword = async (req, res) => {
 
         res.json({ message: 'Senha atualizada com sucesso! Você já pode fazer login com sua nova senha.' });
     } catch (err) {
-        console.error(err.message);
+        console.error('[API] Operação indisponível.');
         res.status(500).json({ error: 'Erro no servidor' });
     }
 };
@@ -420,7 +392,7 @@ exports.deleteUser = async (req, res) => {
 
         res.json({ message: 'Conta e todos os dados foram apagados permanentemente.' });
     } catch (err) {
-        console.error('Erro na deleção de conta (LGPD):', err.message);
+        console.error('[API] Falha ao excluir conta');
         res.status(500).json({ error: 'Erro no servidor ao apagar conta' });
     }
 };

@@ -1,4 +1,7 @@
 const { z } = require('zod');
+const { validTimeZone } = require('../lib/time');
+const timeZoneSchema = z.string().refine(validTimeZone, 'Fuso IANA inválido');
+const stateSchema = z.enum(['AC','AL','AP','AM','BA','CE','DF','ES','GO','MA','MT','MS','MG','PA','PB','PR','PE','PI','RJ','RN','RS','RO','RR','SC','SP','SE','TO']);
 
 // Schema para Registro de Usuário
 const registerSchema = z.object({
@@ -6,8 +9,9 @@ const registerSchema = z.object({
     email: z.string().email('E-mail inválido').trim().toLowerCase(),
     senha: z.string().min(6, 'Senha deve ter ao menos 6 caracteres').max(100),
     tipoPlantacao: z.enum(['Milho', 'Feijão', 'Hortaliças', 'Cana-de-açúcar', 'Personalizado']).optional(),
-    cidade: z.string().max(100).optional(),
-    estado: z.string().length(2).optional()
+    cidade: z.string().trim().min(2).max(100),
+    estado: stateSchema,
+    timeZone: timeZoneSchema.optional()
 }).strict();
 
 // Schema para Login
@@ -20,13 +24,16 @@ const loginSchema = z.object({
 const updateSchema = z.object({
     nome: z.string().min(2).max(50).optional(),
     tipoPlantacao: z.enum(['Milho', 'Feijão', 'Hortaliças', 'Cana-de-açúcar', 'Personalizado']).optional(),
-    cidade: z.string().max(100).optional(),
-    estado: z.string().length(2).optional(),
+    cidade: z.string().trim().min(2).max(100).optional(),
+    estado: stateSchema.optional(),
+    timeZone: timeZoneSchema.optional(),
     endereco: z.string().max(255).optional(),
     blynkToken: z.string().max(100).optional(),
     whatsappPhone: z.string().max(20).optional(),
     callmebotApiKey: z.string().max(50).optional(),
-    tamanhoFazenda: z.union([z.string(), z.number()]).optional()
+    minIdeal: z.number().min(0).max(100).nullable().optional(),
+    maxIdeal: z.number().min(0).max(100).nullable().optional(),
+    tamanhoFazenda: z.coerce.number().positive().max(100000).optional()
 }).strict();
 
 // Schema para Esqueceu a Senha

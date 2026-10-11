@@ -1,106 +1,37 @@
-/**
- * Módulo de Qualidade de Dados (Data Quality)
- * Avalia a confiabilidade dos dados dos sensores antes da análise agronômica.
- */
-
-const evaluateDataQuality = (historico) => {
-    // 1. Tratamento de Ausência de Dados
-    if (!historico || historico.length === 0) {
-        return {
-            score: 0,
-            level: 'INVALID',
-            sensorStatus: 'OFFLINE',
-            lastUpdate: null,
-            staleData: true,
-            anomaliesDetected: false,
-            missingData: true,
-            issues: ['Nenhum histórico encontrado para este sensor.']
-        };
-    }
-
-    const latest = historico[0];
-    const ageMs = Date.now() - new Date(latest.data).getTime();
-    const ageMinutes = Math.floor(ageMs / (1000 * 60));
-
-    let score = 100;
-    const issues = [];
-    let sensorStatus = 'ONLINE';
-    let staleData = false;
-    let anomaliesDetected = false;
-
-    // 2. Avaliação de Staleness (Tempo da última leitura)
-    // - Até 60 minutos: Perfeito (Score não perde pontos)
-    // - 1h a 6h: Tolerável (Perde alguns pontos)
-    // - 6h a 24h: Stale (Perde muitos pontos)
-    // - > 24h: Offline / Invalid
-    if (ageMinutes <= 60) {
-        sensorStatus = 'ONLINE';
-    } else if (ageMinutes <= 360) {
-        sensorStatus = 'ONLINE';
-        score -= 10; // Leve desatualização
-        issues.push(`Última leitura ocorreu há ${Math.floor(ageMinutes/60)} horas.`);
-    } else if (ageMinutes <= 1440) { // 24h
-        sensorStatus = 'STALE';
-        staleData = true;
-        score -= 40; 
-        issues.push(`Leitura muito desatualizada (${Math.floor(ageMinutes/60)}h). Confiança comprometida.`);
-    } else {
-        sensorStatus = 'OFFLINE';
-        staleData = true;
-        score = 0;
-        issues.push(`Sensor offline há mais de 24h. Dados inválidos para tomada de decisão em tempo real.`);
-    }
-
-    // 3. Quantidade de Leituras no Histórico Recente
-    // Precisa de pelo menos 3 leituras para ter um histórico minimamente confiável
-    if (historico.length < 3 && sensorStatus !== 'OFFLINE') {
-        score -= 20;
-        issues.push('Pouco histórico acumulado no banco. Previsão de tendências pode ser imprecisa.');
-    }
-
-    // 4. Verificação de Limites Físicos Absurdos
-    const moisture = latest.umidade;
-    if (moisture < 0 || moisture > 100) {
-        score = 0;
-        anomaliesDetected = true;
-        sensorStatus = 'ERROR';
-        issues.push(`Leitura do sensor fora do limite físico possível (${moisture}%). Falha de hardware suspeita.`);
-    }
-
-    // 5. Verificação de Variações Abruptas Inexplicáveis (Pico ou Queda)
-    if (historico.length >= 2 && score > 0) {
-        const previous = historico[1];
-        const diff = Math.abs(latest.umidade - previous.umidade);
-        const timeDiffMins = Math.abs((new Date(latest.data).getTime() - new Date(previous.data).getTime()) / (1000 * 60));
-        
-        // Se a umidade saltou ou caiu mais de 25% em menos de 10 minutos (anormal, salvo se regou)
-        if (diff > 25 && timeDiffMins > 0 && timeDiffMins <= 30) {
-            score -= 15;
-            anomaliesDetected = true;
-            issues.push(`Variação abrupta de umidade detectada (${latest.umidade}% vs ${previous.umidade}% em curto período).`);
+const rules = require('../../config/agro');
+const isMoisture = value => typeof value === 'number' && Number.isFinite(value) && value >= 0 && value <= 100;
+const timestamp = value => value instanceof Date || typeof value === 'string' ? new Date(value).getTime() : NaN;
+// Ordena sem mutar o chamador; amostras inválidas e duplicadas são explicitamente sinalizadas.
+const normalizeHistory = (history, now = Date.now()) => {
+    const issues = [], readings = [], seen = new Map();
+    for (const row of Array.isArray(history) ? history : []) {
+        const time = timestamp(row?.data);
+        if (!isMoisture(row?.umidade) || !Number.isFinite(time) || time > now) {
+            issues.push('Leitura inválida ou com data futura.'); continue;
         }
+        if (seen.has(time)) {
+            issues.push(seen.get(time) === row.umidade ? 'Timestamp duplicado.' : 'Leituras conflitantes no mesmo timestamp.'); continue;
+        }
+        seen.set(time, row.umidade);
+        readings.push({ data: new Date(time).toISOString(), umidade: row.umidade });
     }
-
-    // 6. Resolução do Level Baseado no Score Final
-    let level = 'HIGH';
-    if (score === 0) {
-        level = 'INVALID';
-    } else if (score < 50) {
-        level = 'LOW';
-    } else if (score < 85) {
-        level = 'MEDIUM';
-    }
-
-    return {
-        score: Math.max(0, score),
-        level,
-        sensorStatus,
-        lastUpdate: latest.data,
-        staleData,
-        anomaliesDetected,
-        missingData: false,
-        issues
-    };
+    readings.sort((a, b) => timestamp(b.data) - timestamp(a.data));
+    return { readings, issues: [...new Set(issues)] };
 };
-
-module.exports = { evaluateDataQuality };
+const evaluateDataQuality = (history, now = Date.now()) => {
+    const { readings, issues } = normalizeHistory(history, now);
+    const last = readings[0];
+    const ageMinutes = last ? (now - timestamp(last.data)) / 60000 : null;
+    const staleData = !last || ageMinutes > rules.freshnessMinutes;
+    const spanHours = readings.length ? (timestamp(last.data) - timestamp(readings.at(-1).data)) / 3600000 : 0;
+    if (!last) issues.push('Nenhuma leitura válida disponível.');
+    if (last && staleData) issues.push('Leitura com mais de 30 minutos; atualizar o sensor.');
+    if (readings.length < rules.minSamples || spanHours < rules.minSpanHours) issues.push('Histórico insuficiente: mínimo de 5 leituras distintas ao longo de 1 hora.');
+    const eligible = !!last && !staleData && issues.length === 0;
+    const score = !last ? 0 : eligible ? 100 : staleData ? 20 : 35;
+    return { score, level: score === 0 ? 'INVALID' : eligible ? 'HIGH' : 'LOW', eligible,
+        sensorStatus: !last ? 'OFFLINE' : staleData ? 'STALE' : 'ONLINE', lastUpdate: last?.data ?? null,
+        ageMinutes, spanHours, sampleCount: readings.length, staleData,
+        anomaliesDetected: issues.length > 0, missingData: !last, issues };
+};
+module.exports = { evaluateDataQuality, normalizeHistory, isMoisture, timestamp };

@@ -60,7 +60,7 @@
         <div id="nasa-card" class="card scroll-reveal" style="padding: 16px; cursor: pointer; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
                 <div>
-                    <h2 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7;">Umidade Macro</h2>
+                    <h2 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7;">Saturação Regional</h2>
                     <p style="font-size: 0.75rem; opacity: 0.5; margin-top: 2px;">Superfície regional via satélite</p>
                 </div>
                 <div style="display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.05); padding: 3px 8px; border-radius: 6px;">
@@ -79,9 +79,9 @@
     </div>
 
     <div class="dash-col-3" style="display: flex;">
-        <!-- Saúde do Solo -->
+        <!-- Confiança dos Dados -->
         <div class="card scroll-reveal" style="padding: 16px; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
-            <h2 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; margin-bottom: 14px;">Saúde do Solo</h2>
+            <h2 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; margin-bottom: 14px;">Confiança dos Dados</h2>
             <div style="display: flex; align-items: center; gap: 16px;">
                 <div style="position: relative; width: 64px; height: 64px; flex-shrink: 0;">
                     <svg viewBox="0 0 36 36" style="transform: rotate(-90deg);">
@@ -92,7 +92,7 @@
                 </div>
                 <div>
                     <p id="saude-status" style="font-weight: 600; color: var(--color-good); font-size: 0.9rem;">Analisando</p>
-                    <p style="font-size: 0.7rem; opacity: 0.5; margin-top: 2px;">Índice composto de saúde</p>
+                    <p style="font-size: 0.7rem; opacity: 0.5; margin-top: 2px;">Score operacional do motor</p>
                 </div>
             </div>
         </div>
@@ -191,7 +191,7 @@
         <h2 style="font-size: 1.15rem; font-weight: 600; margin-bottom: 4px;">Tendência Superficial NASA</h2>
         <p style="font-size: 0.8rem; opacity: 0.5; margin-bottom: 16px;">Últimos 7 dias observados por satélite</p>
         <div style="background: rgba(6,214,160,0.08); padding: 12px; border-radius: 10px; margin-bottom: 20px; font-size: 0.8rem; line-height: 1.5; color: var(--color-good); border: 1px solid rgba(6,214,160,0.15);">
-            <strong>O que é isso?</strong> Este gráfico puxa dados diretamente do satélite espacial da NASA (Projeto POWER) para a sua coordenada exata. Ele mede a <strong>umidade real do solo</strong> na sua região, ajudando a IA a entender se a terra está secando nos últimos dias.
+            <strong>O que é isso?</strong> Este gráfico exibe GWETTOP da NASA POWER: estimativa regional de saturação relativa da camada superficial. A escala difere da leitura do sensor local. Apenas datas recebidas da fonte são mostradas.
         </div>
         <div style="height: 280px; position: relative; width: 100%;">
             <canvas id="nasaChart"></canvas>

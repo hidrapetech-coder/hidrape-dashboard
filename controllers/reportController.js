@@ -1,196 +1,74 @@
 const prisma = require('../lib/prisma');
-const axios = require('axios');
-const iaService = require('../services/iaService');
+const ia = require('../services/iaService');
 const { getCropConfig } = require('../config/cultures');
-
-// Limites (Thresholds) extraídos da lógica já existente
-const getLimites = (tipoPlantacao) => {
-    return getCropConfig(tipoPlantacao);
-};
-
-// Integração Histórica com Open-Meteo (past_days)
-const fetchOpenMeteoHistorical = async (lat, lon, pastDays = 92) => {
-    try {
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${parseFloat(lat)}&longitude=${parseFloat(lon)}&daily=precipitation_sum,et0_fao_evapotranspiration,temperature_2m_max,temperature_2m_min,temperature_2m_mean&past_days=${pastDays}&forecast_days=1&timezone=auto`;
-        const res = await axios.get(url, { timeout: 8000 });
-        return res.data;
-    } catch (e) {
-        console.warn(`[Open-Meteo] Falha ao buscar histórico climático para lat ${lat} lon ${lon}: ${e.message}`);
-        return null;
-    }
-};
-
+const { getJson, validCoordinates } = require('../lib/httpJson');
+const { timeZoneFor, localDate } = require('../lib/time');
+const cache = require('../lib/cache');
 const { z } = require('zod');
-
-const querySchema = z.object({
-    year: z.string().regex(/^\d{4}$/, 'Ano inválido').transform(Number),
-    month: z.string().regex(/^(0?[1-9]|1[0-2])$/, 'Mês inválido').transform(Number)
-});
-
-exports.getMonthlyReport = async (req, res) => {
+const querySchema = z.object({year:z.string().regex(/^\d{4}$/).transform(Number).pipe(z.number().min(2000).max(2100)),month:z.string().regex(/^(0?[1-9]|1[0-2])$/).transform(Number)});
+const climateHistory = async (user,start,end,zone) => {
+    if (!user.cidade?.trim() || !validCoordinates(user.lat,user.lon) || start > end) return null;
+    const key = `monthly:weather:v3:${user.id}:${user.lat}:${user.lon}:${zone}:${start}:${end}`;
+    const stored = await cache.read(key); if (stored) return stored;
     try {
-        const userId = req.user.id;
-        
-        // Zod validation
-        const parseResult = querySchema.safeParse(req.query);
-        if (!parseResult.success) {
-            return res.status(400).json({ error: parseResult.error.errors[0].message });
-        }
-        
-        const { year: targetYear, month: targetMonth } = parseResult.data;
-
-        const user = await prisma.user.findUnique({ where: { id: userId } });
-        if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
-
-        // Intervalo do mês selecionado
-        const startDate = new Date(targetYear, targetMonth - 1, 1);
-        const endDate = new Date(targetYear, targetMonth, 0, 23, 59, 59, 999);
-        
-        const limites = getLimites(user.tipoPlantacao);
-
-        // 1. Dados do Banco de Dados (Sensores) agregados por dia via SQL
-        const agregation = await prisma.$queryRaw`
-            SELECT 
-                DATE_TRUNC('day', "data") as dia, 
-                AVG("umidade") as avg_umidade,
-                COUNT(*) as total_dia,
-                SUM(CASE WHEN "status" = 'SECO' THEN 1 ELSE 0 END) as qtd_seco,
-                SUM(CASE WHEN "status" = 'ENCHARCADO' THEN 1 ELSE 0 END) as qtd_encharcado,
-                SUM(CASE WHEN "status" = 'IDEAL' THEN 1 ELSE 0 END) as qtd_ideal
-            FROM "Sensor"
-            WHERE "userId" = ${userId} AND "data" >= ${startDate} AND "data" <= ${endDate}
-            GROUP BY DATE_TRUNC('day', "data")
-            ORDER BY dia ASC
-        `;
-
-        let totalLeituras = 0;
-        let sumUmidadeTotal = 0;
-        let countIdeal = 0, countDeficit = 0, countExcesso = 0;
-        let recomendacoesCount = 0; // Aproximação baseada em dias secos
-        let sensorChartData = [];
-
-        agregation.forEach(row => {
-            const n = Number(row.total_dia);
-            totalLeituras += n;
-            sumUmidadeTotal += (Number(row.avg_umidade) * n);
-            countIdeal += Number(row.qtd_ideal);
-            countDeficit += Number(row.qtd_seco);
-            countExcesso += Number(row.qtd_encharcado);
-            
-            // Para recomendacoesCount aproximado, contamos os dias com predominância de SECO
-            if (Number(row.qtd_seco) > Number(row.qtd_ideal)) {
-                recomendacoesCount++;
-            }
-
-            sensorChartData.push({ data: row.dia, umidade: Number(row.avg_umidade) });
-        });
-
-        let umidadeMedia = 0, pctIdeal = 0, pctDeficit = 0, pctExcesso = 0;
-
-        if (totalLeituras > 0) {
-            umidadeMedia = sumUmidadeTotal / totalLeituras;
-            pctIdeal = (countIdeal / totalLeituras) * 100;
-            pctDeficit = (countDeficit / totalLeituras) * 100;
-            pctExcesso = (countExcesso / totalLeituras) * 100;
-        }
-
-        // 2. Dados Meteorológicos (Open-Meteo Histórico)
-        let chuvaAcumulada = null;
-        let et0Acumulada = null;
-        let climaChartData = [];
-        let climaValido = false;
-
-        const climaHist = await fetchOpenMeteoHistorical(user.lat, user.lon, 92);
-        
-        if (climaHist && climaHist.daily) {
-            const { time, precipitation_sum, et0_fao_evapotranspiration, temperature_2m_mean } = climaHist.daily;
-            
-            let sumChuva = 0;
-            let sumEt0 = 0;
-            
-            // Format YYYY-MM para filtro simples
-            const targetMonthStr = `${targetYear}-${String(targetMonth).padStart(2, '0')}`;
-
-            time.forEach((dateStr, index) => {
-                if (dateStr.startsWith(targetMonthStr)) {
-                    const chuva = precipitation_sum[index] || 0;
-                    const et0 = et0_fao_evapotranspiration[index] || 0;
-                    const temp = temperature_2m_mean[index] || 0;
-
-                    sumChuva += chuva;
-                    sumEt0 += et0;
-                    climaValido = true;
-
-                    climaChartData.push({
-                        data: dateStr,
-                        chuva: chuva,
-                        et0: et0,
-                        temp: temp
-                    });
-                }
-            });
-
-            if (climaValido) {
-                chuvaAcumulada = sumChuva;
-                et0Acumulada = sumEt0;
-            }
-        }
-
-        // 3. Volume Teórico Estimado
-        // V = ET0 (mm) * Área (ha) * 10 (m³/ha/mm) = m³
-        let volumeTeorico = null;
-        if (climaValido && user.tamanhoFazenda > 0) {
-            volumeTeorico = et0Acumulada * user.tamanhoFazenda * 10;
-        }
-
-        // 4. Inteligência Artificial (Leitura do Mês)
-        let leituraIA = "Não foi possível gerar a leitura do mês (sem conexão com IA).";
-        if (totalLeituras >= 10) { // Só gerar interpretação se tiver dados suficientes para o mês
-            try {
-                const contexto = {
-                    mes: `${targetMonth}/${targetYear}`,
-                    cultura: user.tipoPlantacao,
-                    pctIdeal: Math.round(pctIdeal),
-                    pctDeficit: Math.round(pctDeficit),
-                    chuvaAcumulada: chuvaAcumulada !== null ? Math.round(chuvaAcumulada) : 'indisponível',
-                    et0Acumulada: et0Acumulada !== null ? Math.round(et0Acumulada) : 'indisponível',
-                    recomendacoesEmitidas: recomendacoesCount
-                };
-                leituraIA = await iaService.gerarResumoMensal(contexto);
-            } catch (err) {
-                console.warn("[IA] Falha ao gerar resumo mensal:", err.message);
-                leituraIA = "Serviço de interpretação indisponível no momento. Avalie os indicadores técnicos abaixo.";
-            }
-        } else if (totalLeituras > 0 && totalLeituras < 10) {
-            leituraIA = "Dados insuficientes neste mês para gerar um resumo detalhado e confiável.";
-        } else {
-            leituraIA = "Nenhuma leitura de umidade registrada neste mês para esta cultura.";
-        }
-
-        // 5. Retorno
-        res.json({
-            kpis: {
-                totalLeituras,
-                pctIdeal: Math.round(pctIdeal),
-                pctDeficit: Math.round(pctDeficit),
-                pctExcesso: Math.round(pctExcesso),
-                chuvaAcumulada: chuvaAcumulada !== null ? Math.round(chuvaAcumulada) : null,
-                et0Acumulada: et0Acumulada !== null ? Math.round(et0Acumulada) : null,
-                recomendacoesCount,
-                volumeTeorico: volumeTeorico !== null ? Math.round(volumeTeorico) : null,
-                limites: limites
-            },
-            graficos: {
-                solo: sensorChartData,
-                clima: climaChartData
-            },
-            ia: {
-                resumo: leituraIA
-            }
-        });
-
-    } catch (e) {
-        console.error('Erro no Relatório Mensal:', e.message);
-        res.status(500).json({ error: 'Erro ao processar relatório mensal' });
-    }
+        const params = new URLSearchParams({latitude:user.lat,longitude:user.lon,start_date:start,end_date:end,daily:'precipitation_sum,et0_fao_evapotranspiration,temperature_2m_mean',timezone:zone});
+        const result = await getJson(`https://archive-api.open-meteo.com/v1/archive?${params}`);
+        if (!Array.isArray(result?.daily?.time) || result.error) return null;
+        await cache.write(key,3600,result); return result;
+    } catch { return null; }
 };
+const aggregateClimate = (raw,start,end) => {
+    const rows = [], seen = new Set();
+    const valid = v => typeof v === 'number' && Number.isFinite(v) && v >= 0;
+    for (const [i,date] of (Array.isArray(raw?.daily?.time) ? raw.daily.time : []).entries()) {
+        if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date) || date < start || date > end || seen.has(date)) continue;
+        seen.add(date);
+        const rain = raw.daily.precipitation_sum?.[i], eto = raw.daily.et0_fao_evapotranspiration?.[i], temp = raw.daily.temperature_2m_mean?.[i];
+        rows.push({data:date,chuva:valid(rain)?rain:null,et0:valid(eto)?eto:null,temp:typeof temp === 'number' && Number.isFinite(temp)?temp:null});
+    }
+    const expected = Math.max(0,Math.round((Date.parse(end)-Date.parse(start))/86400000)+1);
+    const complete = expected > 0 && rows.length === expected && rows.every(r => r.chuva !== null && r.et0 !== null);
+    return {rows,expected,covered:rows.filter(r=>r.chuva!==null&&r.et0!==null).length,complete,
+        rain:complete?rows.reduce((s,r)=>s+r.chuva,0):null,eto:complete?rows.reduce((s,r)=>s+r.et0,0):null};
+};
+exports.getMonthlyReport = async (req,res) => {
+    try {
+        const parsed = querySchema.safeParse(req.query);
+        if (!parsed.success) return res.status(400).json({error:parsed.error.issues[0].message});
+        const user = await prisma.user.findUnique({where:{id:req.user.id}});
+        if (!user) return res.status(404).json({error:'Usuário não encontrado'});
+        const {year,month} = parsed.data, prefix = `${year}-${String(month).padStart(2,'0')}`;
+        const zone = timeZoneFor(user), start = prefix+'-01', end = new Date(Date.UTC(year,month,0)).toISOString().slice(0,10);
+        const today = localDate(Date.now(),zone);
+        if (start > today) return res.status(400).json({error:'Mês futuro não permitido'});
+        const limits = getCropConfig(user);
+        // Prisma DateTime no Postgres é timestamp sem fuso e armazena UTC. Converter antes de agrupar.
+        const rows = await prisma.$queryRaw`
+            SELECT to_char(("data" AT TIME ZONE 'UTC') AT TIME ZONE ${zone}, 'YYYY-MM-DD') AS dia,
+                AVG("umidade") AS avg_umidade, COUNT(*) AS total_dia,
+                SUM(CASE WHEN "umidade" <= ${limits.minIdeal} THEN 1 ELSE 0 END) AS qtd_seco,
+                SUM(CASE WHEN "umidade" > ${limits.maxIdeal} THEN 1 ELSE 0 END) AS qtd_encharcado,
+                SUM(CASE WHEN "umidade" > ${limits.minIdeal} AND "umidade" <= ${limits.maxIdeal} THEN 1 ELSE 0 END) AS qtd_ideal
+            FROM "Sensor" WHERE "userId" = ${user.id}
+                AND "data" >= ${new Date(Date.parse(start)-86400000)} AND "data" < ${new Date(Date.parse(end)+2*86400000)}
+                AND "data" <= ${new Date()} AND "umidade" BETWEEN 0 AND 100
+                AND to_char(("data" AT TIME ZONE 'UTC') AT TIME ZONE ${zone}, 'YYYY-MM') = ${prefix}
+            GROUP BY dia ORDER BY dia`;
+        const decisions = await prisma.$queryRaw`
+            SELECT COUNT(*) AS total FROM "AgroLog" WHERE "userId" = ${user.id} AND "recomendacao" = 'IRRIGAR'
+                AND "timestamp" >= ${new Date(Date.parse(start)-86400000)} AND "timestamp" < ${new Date(Date.parse(end)+2*86400000)}
+                AND to_char(("timestamp" AT TIME ZONE 'UTC') AT TIME ZONE ${zone}, 'YYYY-MM') = ${prefix}`;
+        const total = rows.reduce((sum,r)=>sum+Number(r.total_dia),0);
+        const pct = field => total && limits.supported ? Math.round(rows.reduce((sum,r)=>sum+Number(r[field]),0)*100/total) : null;
+        const endAvailable = end < today ? end : today;
+        const climate = aggregateClimate(await climateHistory(user,start,endAvailable,zone),start,endAvailable);
+        const count = Number(decisions[0]?.total ?? 0);
+        const context = {pctIdeal:pct('qtd_ideal'),pctDeficit:pct('qtd_seco'),chuvaAcumulada:climate.rain,et0Acumulada:climate.eto,recomendacoesEmitidas:count};
+        const summary = total >= 10 ? await ia.gerarResumoMensal(context,user.id) : 'Dados insuficientes para interpretar o mês. Valores ausentes não são zero.';
+        res.json({timeZone:zone,timeZoneConfigured:!!user.timeZone,coverage:{climateDays:climate.covered,expectedDays:climate.expected,complete:climate.complete,partialMonth:endAvailable!==end},
+            kpis:{totalLeituras:total,pctIdeal:context.pctIdeal,pctDeficit:context.pctDeficit,pctExcesso:pct('qtd_encharcado'),chuvaAcumulada:climate.rain,et0Acumulada:climate.eto,recomendacoesCount:count,
+                volumeTeorico:climate.eto !== null && user.tamanhoFazenda > 0 ? Math.round(climate.eto*user.tamanhoFazenda*10) : null,limites:limits},
+            graficos:{solo:rows.map(r=>({data:r.dia,umidade:Number(r.avg_umidade)})),clima:climate.rows},ia:{resumo:summary}});
+    } catch { console.error('[Monthly] Relatório indisponível.'); res.status(503).json({error:'Erro ao processar relatório mensal'}); }
+};
+exports.aggregateClimate = aggregateClimate;

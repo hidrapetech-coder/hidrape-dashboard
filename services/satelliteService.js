@@ -1,111 +1,30 @@
-const https = require('https');
-const redis = require('../lib/redis');
-
-const CACHE_DURATION_SEC = 12 * 60 * 60; // 12 horas em segundos
-
-/**
- * Busca dados de satélite da NASA POWER (Surface Soil Wetness)
- * @param {string|number} lat 
- * @param {string|number} lon 
- * @returns {Promise<Object>} Objeto com umidade (0-100) e data de referência
- */
-const fetchSateliteData = async (lat, lon) => {
-    return new Promise(async (resolve) => {
-        const cacheKey = `sat:${lat},${lon}`;
-        
-        // Retornar do cache se válido
-        const cached = await redis.get(cacheKey);
-        if (cached) {
-            return resolve(JSON.parse(cached));
-        }
-
-        // Janela de busca: hoje até 30 dias atrás
-        const end = new Date();
-        const start = new Date(end);
-        start.setDate(start.getDate() - 30);
-
-        const formatDate = (d) => d.toISOString().split('T')[0].replace(/-/g, '');
-        const startStr = formatDate(start);
-        const endStr = formatDate(end);
-
-        const url = `https://power.larc.nasa.gov/api/temporal/daily/point?parameters=GWETTOP&community=AG&longitude=${parseFloat(lon)}&latitude=${parseFloat(lat)}&start=${startStr}&end=${endStr}&format=JSON`;
-
-        const handleFallback = async (err) => {
-            console.warn('[NASA Satellite] Aviso/Fallback:', err ? err.message : 'Dados indisponíveis');
-            const fallbackCached = await redis.get(cacheKey);
-            if (fallbackCached) {
-                return resolve(JSON.parse(fallbackCached));
-            }
-            // Não injetar dados falsos
-            resolve({
-                umidadeMacro: null,
-                dataReferencia: null,
-                fonte: 'Indisponível',
-                historico: []
-            });
-        };
-
-        const req = https.get(url, (res) => {
-            let body = '';
-            res.on('data', d => body += d);
-            res.on('end', async () => {
-                try {
-                    const json = JSON.parse(body);
-                    if (!json || !json.properties || !json.properties.parameter || !json.properties.parameter.GWETTOP) {
-                        return handleFallback(new Error("Formato inválido da NASA POWER"));
-                    }
-
-                    const rawData = json.properties.parameter.GWETTOP;
-                    const historico = [];
-                    let latestEntry = null;
-
-                    // A NASA retorna datas como YYYYMMDD
-                    const dates = Object.keys(rawData).sort((a,b) => b.localeCompare(a));
-                    
-                    for(let i=0; i<dates.length; i++){
-                        let val = rawData[dates[i]];
-                        if(val !== -999) { // -999 é null data na NASA
-                            if (!latestEntry) latestEntry = { date: dates[i], val: val };
-                            if (historico.length < 7) {
-                                historico.push({
-                                    data: `${dates[i].substring(0,4)}-${dates[i].substring(4,6)}-${dates[i].substring(6,8)}`,
-                                    valor: Math.round(val * 100)
-                                });
-                            }
-                        }
-                        if (historico.length >= 7) break;
-                    }
-
-                    if (!latestEntry) {
-                        return handleFallback(new Error("Sem dados válidos nos últimos 30 dias"));
-                    }
-
-                    const result = {
-                        umidadeMacro: Math.round(latestEntry.val * 100),
-                        dataReferencia: `${latestEntry.date.substring(0,4)}-${latestEntry.date.substring(4,6)}-${latestEntry.date.substring(6,8)}`,
-                        fonte: 'NASA POWER',
-                        historico: historico.reverse()
-                    };
-
-                    // Salvar no Cache Global Redis
-                    await redis.setex(cacheKey, CACHE_DURATION_SEC, JSON.stringify(result));
-
-                    resolve(result);
-                } catch(e) { 
-                    handleFallback(e);
-                }
-            });
-        });
-
-        req.on('error', handleFallback);
-
-        req.setTimeout(8000, () => {
-            req.destroy();
-            handleFallback(new Error("Timeout na conexão com NASA POWER"));
-        });
-    });
+const { getJson, validCoordinates } = require('../lib/httpJson');
+const cache = require('../lib/cache');
+const unavailable = () => ({ available:false, umidadeMacro:null, dataReferencia:null, fonte:'Indisponível', historico:[], unit:'relative_saturation_percent' });
+const parseSatellite = (json, now = Date.now()) => {
+    const rows = Object.entries(json?.properties?.parameter?.GWETTOP || {}).flatMap(([day,value]) => {
+        if (!/^\d{8}$/.test(day) || typeof value !== 'number' || !Number.isFinite(value) || value < 0 || value > 1) return [];
+        const date = `${day.slice(0,4)}-${day.slice(4,6)}-${day.slice(6,8)}`;
+        const ms = Date.parse(date+'T00:00:00Z');
+        if (!Number.isFinite(ms) || new Date(ms).toISOString().slice(0,10) !== date || ms > now || now-ms > 30*86400000) return [];
+        return [{ data:date, valor:Math.round(value*100) }];
+    }).sort((a,b) => a.data.localeCompare(b.data)).slice(-7);
+    if (!rows.length) return unavailable();
+    const latest = rows.at(-1), ageDays = Math.floor((now-Date.parse(latest.data+'T00:00:00Z'))/86400000);
+    return { available:ageDays <= 7, stale:ageDays > 7, umidadeMacro:ageDays <= 7 ? latest.valor : null,
+        dataReferencia:latest.data, ageDays, fonte:'NASA POWER', historico:rows, unit:'relative_saturation_percent', retrievedAt:new Date(now).toISOString() };
 };
-
-module.exports = {
-    fetchSateliteData
+const fetchSateliteData = async (lat,lon) => {
+    if (!validCoordinates(lat,lon)) return unavailable();
+    const key = `sat:v3:${lat},${lon}`;
+    const stored = await cache.read(key);
+    if (stored && Date.now()-Date.parse(stored.retrievedAt) < 12*3600000 && Date.now()-Date.parse(stored.dataReferencia+'T00:00:00Z') <= 7*86400000) return stored;
+    try {
+        const day = ms => new Date(ms).toISOString().slice(0,10).replaceAll('-','');
+        const params = new URLSearchParams({parameters:'GWETTOP', community:'AG',longitude:lon,latitude:lat,start:day(Date.now()-30*86400000),end:day(Date.now()),format:'JSON'});
+        const result = parseSatellite(await getJson(`https://power.larc.nasa.gov/api/temporal/daily/point?${params}`));
+        if (result.available) await cache.write(key,43200,result);
+        return result;
+    } catch { console.warn('[NASA] Fonte indisponível.'); return unavailable(); }
 };
+module.exports = { fetchSateliteData, parseSatellite };

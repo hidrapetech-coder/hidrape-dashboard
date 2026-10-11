@@ -188,10 +188,9 @@ app.get('*', (req, res) => {
 
 // Global Error Handler
 app.use((err, req, res, next) => {
-    if (process.env.NODE_ENV !== 'test') console.error(err.stack);
+    if (process.env.NODE_ENV !== 'test') console.error('[API] Erro interno.');
     res.status(500).json({
         error: 'Erro Interno do Servidor',
-        message: process.env.NODE_ENV === 'development' ? err.message : undefined
     });
 });
 

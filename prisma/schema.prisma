@@ -21,6 +21,9 @@ model User {
   estado              String    @default("SP")
   lat                 Float     @default(-23.5505)
   lon                 Float     @default(-46.6333)
+  timeZone            String?
+  minIdeal            Float?
+  maxIdeal            Float?
   tamanhoFazenda      Float     @default(10)
   blynkToken          String    @default("")
   whatsappPhone       String    @default("")

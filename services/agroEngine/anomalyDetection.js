@@ -1,80 +1,34 @@
-/**
- * Módulo de Detecção de Anomalias (Anomaly Detection)
- * Busca comportamentos suspeitos cruzando dados do sensor e clima.
- */
-
-const detectAnomalies = (historico, clima, dataQuality) => {
+const rules = require('../../config/agro');
+const { normalizeHistory, timestamp } = require('./dataQuality');
+const detectAnomalies = (history, climate, quality, now = Date.now()) => {
     const anomalies = [];
-
-    // Se a qualidade já está inválida, não vale a pena gastar processamento procurando padrões sutis.
-    if (dataQuality.level === 'INVALID') {
-        anomalies.push({
-            type: 'SENSOR_OFFLINE',
-            severity: 'CRITICAL',
-            explanation: 'O sensor não está enviando dados válidos.'
-        });
-        return anomalies;
+    const { readings } = normalizeHistory(history, now);
+    if (!quality.eligible) anomalies.push({ type: 'DATA_QUALITY', severity: 'HIGH', explanation: quality.issues.join(' ') });
+    const recent = readings.filter(r => now - timestamp(r.data) <= rules.historyHours * 3600000);
+    const flat = [];
+    for (const row of recent) {
+        if (Math.abs(row.umidade-recent[0].umidade) > rules.frozenTolerance) break;
+        flat.push(row);
     }
-
-    if (!historico || historico.length < 5) {
-        return anomalies; // Pouco dado para detectar padrões anômalos
+    const span = flat.length ? (timestamp(flat[0].data) - timestamp(flat.at(-1).data)) / 3600000 : 0;
+    if (flat.length >= rules.minSamples && span >= rules.minSpanHours) {
+        anomalies.push({ type: 'FROZEN_SENSOR', severity: 'HIGH', explanation: `Variação de até ${rules.frozenTolerance} ponto percentual em ${span.toFixed(1)}h; possível sensor congelado ou solo estável. Conferir antes de recomendar manejo.` });
     }
-
-    const latest = historico[0];
-    const past24h = historico.filter(h => 
-        (new Date(latest.data).getTime() - new Date(h.data).getTime()) <= (24 * 60 * 60 * 1000)
-    );
-
-    // Regra 1: Sensor Congelado (Sensor Frozen)
-    // Se nas últimas 24h (com pelo menos 5 leituras) a umidade nunca mudou nem 1%
-    if (past24h.length >= 5) {
-        let isFrozen = true;
-        for (let i = 1; i < past24h.length; i++) {
-            if (past24h[i].umidade !== latest.umidade) {
-                isFrozen = false;
+    for (let i = 1; i < recent.length; i++) {
+        const minutes = (timestamp(recent[i-1].data) - timestamp(recent[i].data)) / 60000;
+        const change = recent[i-1].umidade - recent[i].umidade;
+        if (minutes <= rules.jumpMinutes && Math.abs(change) > rules.jumpPoints) {
+            const confirmed = i >= rules.minSamples && (timestamp(recent[0].data)-timestamp(recent[i-1].data))/3600000 >= rules.minSpanHours;
+            if (confirmed) {
+                anomalies.push({type:'PAST_JUMP',severity:'INFO',explanation:'Variação abrupta anterior; há pelo menos 5 novas leituras ao longo de 1h após o evento.'});
                 break;
             }
-        }
-        if (isFrozen) {
-            anomalies.push({
-                type: 'FROZEN_SENSOR',
-                severity: 'HIGH',
-                explanation: 'A leitura de umidade não sofreu nenhuma alteração nas últimas 24h. Verifique se o sensor está travado.'
-            });
+            anomalies.push({ type: change > 0 ? 'RAPID_WETTING' : 'ABRUPT_DROP', severity: 'HIGH',
+                explanation: change > 0 ? 'Aumento rápido: pode ser chuva, irrigação ou falha. Aguardar confirmação por novas leituras.' : 'Queda abrupta; conferir leitura e instalação antes de recomendar irrigação.' });
+            break;
         }
     }
-
-    // Regra 2: Comportamento Incompatível com o Clima
-    // Se a umidade caiu vertiginosamente (>15%) num período em que choveu muito.
-    const timeArray = clima?.hourly?.time;
-    const precipArray = clima?.hourly?.precipitation_probability;
-    if (precipArray && precipArray.length > 0 && timeArray) {
-        const now = Date.now();
-        let startIndex = 0;
-        for (let i = 0; i < timeArray.length; i++) {
-            if (new Date(timeArray[i]).getTime() >= now) {
-                startIndex = i;
-                break;
-            }
-        }
-        
-        // As 3 horas anteriores à hora atual
-        const pastStart = Math.max(0, startIndex - 3);
-        const recentRain = precipArray.slice(pastStart, startIndex).some(prob => prob > 80);
-        
-        if (recentRain && past24h.length >= 2) {
-            const drop = past24h[past24h.length - 1].umidade - latest.umidade;
-            if (drop > 15) {
-                anomalies.push({
-                    type: 'CLIMATE_MISMATCH',
-                    severity: 'MEDIUM',
-                    explanation: 'A umidade do solo caiu abruptamente mesmo com alta probabilidade de chuva recente. Possível erro de leitura ou drenagem excessiva.'
-                });
-            }
-        }
-    }
-
+    // Probabilidade prevista de chuva não prova chuva observada no ponto do sensor.
     return anomalies;
 };
-
 module.exports = { detectAnomalies };

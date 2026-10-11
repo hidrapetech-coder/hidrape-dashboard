@@ -1,6 +1,8 @@
 // ==========================================
 // CORE: ESTADO, AUTENTICAÇÃO E ROTEAMENTO
 // ==========================================
+try { localStorage.removeItem('jwt'); } catch {}
+let sessionRevision = 0;
 let currentUser = null;
 let currentToken = null; // mantido temporariamente por legibilidade de código legado
 
@@ -337,11 +339,14 @@ const initAuth = async () => {
 };
 
 const logout = async (redirect = true) => {
-    try {
-        await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-    } catch(e) {}
+    sessionRevision++;
+    try { localStorage.removeItem('jwt'); } catch {}
+    clearAgroState();
     currentToken = null;
     currentUser = null;
+    try {
+        await fetch('/api/auth/logout', {method:'POST',credentials:'include',signal:AbortSignal.timeout(5000)});
+    } catch {}
     if (liveInterval) clearTimeout(liveInterval);
     if (weatherInterval) clearTimeout(weatherInterval);
     if (demoIntervalId) clearInterval(demoIntervalId);
@@ -351,6 +356,7 @@ const logout = async (redirect = true) => {
 
 // Navegação Básica (SPA)
 const navigate = async (route) => {
+    sessionRevision++;
     // 1. Limpar timers (Impedir vazamento assíncrono)
     if (liveInterval) { clearTimeout(liveInterval); liveInterval = null; }
     if (weatherInterval) { clearTimeout(weatherInterval); weatherInterval = null; }
@@ -514,15 +520,49 @@ document.body.addEventListener('click', e => {
 // ==========================================
 // MÓDULOS DE INTELIGÊNCIA ARTIFICIAL E AGRONÔMICA
 // ==========================================
-window._latestUmid = 50;
-window._latestStatus = 'IDEAL';
+window._latestUmid = null;
+window._latestStatus = 'INDEFINIDO';
 window._latestClima = null;
 window._latestSemana = [];
 window._latestSat = null;
 window._sensorState = null;
 
+window._agroSnapshot = null;
+const clearAgroState = () => {
+    window._latestUmid = null; window._latestStatus = 'INDEFINIDO'; window._latestClima = null;
+    window._latestSemana = []; window._latestSat = null; window._sensorState = null; window._agroSnapshot = null;
+    for (const id of ['predict-time','analysis-hero-time','analysis-hero-status','umidade-valor','saude-valor','an-saude-score']) {
+        const element = document.getElementById(id); if (element) element.textContent = 'Indisponível';
+    }
+    for (const id of ['predict-text','analysis-hero-reco','analise-texto','soil-insight']) {
+        const element = document.getElementById(id); if (element) element.textContent = 'Dados indisponíveis. Recomendação suspensa.';
+    }
+};
+const predictionTime = hours => Number.isFinite(hours) ? hours === 0 ? 'AGORA' : `≈ ${hours.toFixed(1)}h` : 'Indisponível';
+const applyAgroSnapshot = snapshot => {
+    if (!snapshot) return;
+    window._agroSnapshot = snapshot; window._sensorState = snapshot.sensorState || snapshot._meta?.sensorState || null;
+    const status = snapshot.engineData?.recommendation?.action || 'VERIFICAR_SENSOR';
+    for (const id of ['predict-text','analysis-hero-reco','analise-texto','soil-insight']) {
+        const element = document.getElementById(id); if (element) element.textContent = snapshot.recomendacao;
+    }
+    for (const id of ['predict-time','analysis-hero-time','an-tl-irrig']) {
+        const element = document.getElementById(id); if (element) element.textContent = predictionTime(snapshot.tempoHoras);
+    }
+    const hero = document.getElementById('analysis-hero-status'); if (hero) hero.textContent = status;
+    const factors = document.getElementById('an-confidence-factors');
+    if (factors) factors.textContent = snapshot.engineData?.confidence?.factors?.join(' ') || 'Dados recentes e sem anomalias detectadas. O score não é uma probabilidade estatística.';
+};
+const renderMapAvailability = () => {
+    const text = document.getElementById('ndvi-analysis-text');
+    if (text) text.textContent = 'Mapa de localização. Não há dados de NDVI, limites medidos do talhão ou diagnóstico espacial disponíveis.';
+    for (const id of ['btn-layer-ndvi','btn-layer-rain','legend-ndvi','legend-rain']) {
+        const el = document.getElementById(id); if (el) el.style.display = 'none';
+    }
+};
+
 const renderInteligence = () => {
-    if (!window._latestClima || !document.getElementById('analise-texto')) return;
+    if (!document.getElementById('analise-texto')) return;
 
     // Se o sensor estiver offline ou os dados forem velhos, desativamos algumas coisas
     const hasValidData = window._sensorState ? window._sensorState.hasValidData : true; // fallback to true se ainda nao tiver carregado
@@ -561,162 +601,19 @@ const renderInteligence = () => {
     document.getElementById('analise-texto').textContent = txt;
 };
 
-const calcularEvapotranspiracao = (clima) => {
-    const et0 = clima.daily?.et0_fao_evapotranspiration?.[0];
-    if (et0 !== undefined) {
-        if (et0 > 5) return { nivel: et0.toFixed(1) + ' mm', desc: 'Alta perda (FAO). A umidade do solo evapora rapidamente.', cor: 'var(--color-dry)', icon: 'air' };
-        if (et0 < 2) return { nivel: et0.toFixed(1) + ' mm', desc: 'Baixa perda (FAO). Condições favoráveis para retenção de água.', cor: 'var(--color-good)', icon: 'cloud' };
-        return { nivel: et0.toFixed(1) + ' mm', desc: 'Perda média (FAO). Taxa normal para o período.', cor: 'var(--color-mid)', icon: 'routine' };
-    }
-    const temp = clima.current.temperature_2m;
-    const umid = clima.current.relative_humidity_2m;
-    if (temp > 28 && umid < 45) return { nivel: 'Alta', desc: 'Temperatura elevada e baixa umidade do ar aceleram a perda de água do solo.', cor: 'var(--color-dry)', icon: 'air' };
-    if (temp < 20 || umid > 75) return { nivel: 'Baixa', desc: 'Condições favoráveis para retenção de água no solo.', cor: 'var(--color-good)', icon: 'cloud' };
-    return { nivel: 'Média', desc: 'Taxa de evaporação dentro dos parâmetros normais para o período.', cor: 'var(--color-mid)', icon: 'routine' };
+const calcularEvapotranspiracao = () => {
+    const eto = window._agroSnapshot?.engineData?.climateAnalysis?.eto;
+    return {nivel:Number.isFinite(eto)?eto.toFixed(1)+' mm/dia':'Indisponível',desc:'Evapotranspiração de referência meteorológica; não mede a perda de água do sensor.',cor:'var(--sys-light)',icon:'air'};
 };
-
-// Thresholds ideais por cultura (espelha backend sensorController)
-const getCropLimits = (tipo) => {
-    switch ((tipo || '').toLowerCase()) {
-        case 'milho': return { min: 40, max: 70, center: 55 };
-        case 'feijão': return { min: 40, max: 60, center: 50 };
-        case 'hortaliças': return { min: 50, max: 80, center: 65 };
-        case 'cana-de-açúcar': return { min: 35, max: 60, center: 47.5 };
-        default: return { min: 40, max: 60, center: 50 };
-    }
+const getCropLimits = () => {
+    const config = currentUser?.cropConfig;
+    return {min:config?.minIdeal ?? null,max:config?.maxIdeal ?? null,center:config?.center ?? null};
 };
-
-/**
- * ALGORITMO DE SAÚDE DO SOLO — Multi-Fator Ponderado
- *
- * Fatores (pesos):
- *   F1 (40%) - Posição na faixa ideal da cultura
- *   F2 (25%) - Consistência histórica (desvio da média semanal)
- *   F3 (20%) - Estabilidade diária (variância entre dias)
- *   F4 (15%) - Estresse climático (temp + umid do ar)
- */
-const calcularSaudeSolo = (umidAtual, dadosSemana, clima, tipoPlantacao, sensorState) => {
-    if (sensorState && !sensorState.hasValidData) {
-        return {
-            score: '--',
-            status: 'Indisponível',
-            cor: 'var(--sys-light)',
-            mensagem: 'Aguardando dados do sensor.'
-        };
-    }
-
-    const limits = getCropLimits(tipoPlantacao);
-
-    // ===== F1: Proximidade à faixa ideal (40%) =====
-    let f1 = 100;
-    if (umidAtual >= limits.min && umidAtual <= limits.max) {
-        // Dentro da faixa — bonús se perto do centro
-        const distCenter = Math.abs(umidAtual - limits.center);
-        const halfRange = (limits.max - limits.min) / 2;
-        f1 = 100 - (distCenter / halfRange) * 15; // Máx perde 15pts do centro as bordas
-    } else {
-        // Fora da faixa — penalidade proporcional
-        const overshoot = umidAtual < limits.min
-            ? limits.min - umidAtual
-            : umidAtual - limits.max;
-        f1 = Math.max(0, 100 - overshoot * 3);
-    }
-
-    // ===== F2: Consistência com média semanal (25%) =====
-    // Filtrar dias com dados reais (media > 0 = tem leitura)
-    const diasComDados = dadosSemana.filter(d => d.media > 0);
-    let f2 = 80; // Padrão neutro quando não há histórico
-    if (diasComDados.length > 0) {
-        const mediaReal = diasComDados.reduce((sum, d) => sum + d.media, 0) / diasComDados.length;
-        const desvio = Math.abs(umidAtual - mediaReal);
-        f2 = Math.max(0, 100 - desvio * 2.5);
-    }
-
-    // ===== F3: Estabilidade entre dias (20%) =====
-    let f3 = 75; // Padrão neutro
-    if (diasComDados.length >= 2) {
-        const medias = diasComDados.map(d => d.media);
-        const avg = medias.reduce((a, b) => a + b, 0) / medias.length;
-        const variance = medias.reduce((sum, v) => sum + Math.pow(v - avg, 2), 0) / medias.length;
-        const stdDev = Math.sqrt(variance);
-        // Desvio padrão baixo = estável = bom
-        f3 = Math.max(0, 100 - stdDev * 4);
-    }
-
-    // ===== F4: Estresse Climático (15%) =====
-    let f4 = 80;
-    if (clima && clima.current) {
-        const temp = clima.current.temperature_2m || 25;
-        const airHumid = clima.current.relative_humidity_2m || 50;
-
-        // Temperatura ideal: 18-28°C
-        if (temp >= 18 && temp <= 28) {
-            f4 = 100;
-        } else if (temp > 35 || temp < 5) {
-            f4 = 30; // Estresse severo
-        } else {
-            f4 = 70; // Estresse leve
-        }
-
-        // Umidade do ar: 40-80% é favorável
-        if (airHumid < 25) f4 -= 20;       // Ar muito seco evapora solo
-        else if (airHumid > 90) f4 -= 10;  // Risco de fungos
-        f4 = Math.max(0, f4);
-    }
-
-    // ===== Score Final Ponderado =====
-    const score = Math.round(
-        f1 * 0.40 +
-        f2 * 0.25 +
-        f3 * 0.20 +
-        f4 * 0.15
-    );
-
-    const clampedScore = Math.max(0, Math.min(100, score));
-
-    if (clampedScore >= 86) return { score: clampedScore, status: 'Ideal', cor: 'var(--color-good)' };
-    if (clampedScore >= 71) return { score: clampedScore, status: 'Bom', cor: '#27ae60' };
-    if (clampedScore >= 51) return { score: clampedScore, status: 'Regular', cor: 'var(--color-mid)' };
-    if (clampedScore >= 31) return { score: clampedScore, status: 'Baixo', cor: '#f39c12' };
-    return { score: clampedScore, status: 'Crítico', cor: 'var(--color-dry)' };
+const calcularSaudeSolo = () => {
+    const confidence = window._agroSnapshot?.engineData?.confidence;
+    return {score:confidence?.score ?? '--',status:confidence?.level || 'Indisponível',cor:confidence?.eligible?'var(--color-good)':'var(--sys-light)'};
 };
-
-const analiseAvancada = (umidade, status, clima, tipoPlantacao, satData = null, sensorState = null) => {
-    if (sensorState && !sensorState.hasValidData) {
-        return `As análises estão limitadas porque o sensor de solo está offline ou desatualizado. Verifique a conectividade.`;
-    }
-
-    const temp = clima.current.temperature_2m;
-    const umidAr = clima.current.relative_humidity_2m;
-    const limits = getCropLimits(tipoPlantacao);
-
-    // 1. Detecção de Anomalias e Padrões
-    if (status === 'SECO' && temp > 30) {
-        return `Com a temperatura de ${temp.toFixed(1)}°C, a evaporação da cultura de ${tipoPlantacao.toLowerCase()} está acelerada. Recomenda-se irrigação.`;
-    }
-
-    if (status === 'ENCHARCADO' && umidAr > 80) {
-        return `Solo com excesso de umidade e umidade do ar elevada. Atenção ao risco de doenças fúngicas na cultura de ${tipoPlantacao.toLowerCase()}.`;
-    }
-
-    if (umidade < limits.min) {
-        return `Umidade do solo abaixo do ideal para ${tipoPlantacao.toLowerCase()}. A planta pode apresentar estresse hídrico.`;
-    }
-
-    if (status === 'IDEAL' && temp >= 20 && temp <= 28) {
-        return `Condições ideais de solo e clima para o desenvolvimento da cultura de ${tipoPlantacao.toLowerCase()}.`;
-    }
-
-    if (status === 'ENCHARCADO') {
-        return `Solo encharcado. Suspenda a irrigação para evitar danos às raízes da cultura de ${tipoPlantacao.toLowerCase()}.`;
-    }
-
-    if (satData && Math.abs(umidade - satData.umidadeMacro) > 30) {
-        return `Divergência: Sensor local marca ${umidade.toFixed(1)}% e o satélite marca a região com ${satData.umidadeMacro}%. Indica possível irrigação recente localizada ou microclima extremo na sua área.`;
-    }
-
-    return `Condições gerais estáveis. Solo em boas condições para a atividade agrícola.`;
-};
+const analiseAvancada = () => window._agroSnapshot?.recomendacao || 'Dados indisponíveis. Recomendação suspensa.';
 
 // ==========================================
 // MÓDULOS DE ROTA
@@ -734,13 +631,14 @@ const initRouteScript = (route) => {
     if (route === 'monthly-report') initMonthlyReport();
 };
 
-const setupAuthFetch = (url, options = {}) => {
-    options.headers = {
-        ...options.headers,
-        'Content-Type': 'application/json'
-    };
-    options.credentials = 'include';
-    return fetch(url, options);
+const setupAuthFetch = async (url, options = {}) => {
+    const revision = sessionRevision, owner = currentUser?.id;
+    const response = await fetch(url, {...options, headers:{...options.headers,'Content-Type':'application/json'}, credentials:'include'});
+    const check = () => { if (revision !== sessionRevision || owner !== currentUser?.id) throw new Error('Resposta de sessão anterior descartada'); };
+    check();
+    const parse = response.json.bind(response);
+    response.json = async () => { const data = await parse(); check(); return data; };
+    return response;
 };
 
 // ----- LOGIN -----
@@ -806,9 +704,9 @@ const initLogin = () => {
 
             if (!res.ok) throw new Error(data.error || 'Falha ao autenticar.');
 
-            currentToken = data.token;
+            currentToken = "cookie";
             currentUser = data.user;
-            localStorage.setItem('jwt', currentToken);
+
             if (errObj) errObj.style.display = 'none';
             navigate('dashboard');
         } catch (e) {
@@ -981,7 +879,7 @@ const initRegister = () => {
             email: document.getElementById('reg-email').value,
             senha: document.getElementById('reg-senha').value,
             cidade: document.getElementById('reg-cidade').value,
-            estado: stateInput ? stateInput.toUpperCase() : 'SP',
+            estado: stateInput.toUpperCase(),
             tipoPlantacao: document.getElementById('reg-cultura').value
         };
 
@@ -1004,9 +902,9 @@ const initRegister = () => {
             }
             if (!res.ok) throw new Error(data.error);
 
-            currentToken = data.token;
+            currentToken = "cookie";
             currentUser = data.user;
-            localStorage.setItem('jwt', currentToken);
+
             isDemoMode = true;
             navigate('dashboard');
         } catch (e) {
@@ -1182,13 +1080,13 @@ const initDashboard = async () => {
     // Leaflet Map Init
     let farmMap = null;
     let farmCircle = null;
-    if (document.getElementById('farm-map') && typeof L !== 'undefined') {
+    if (document.getElementById('farm-map') && typeof L !== 'undefined' && Number.isFinite(currentUser.lat) && Number.isFinite(currentUser.lon)) {
         const mapContainer = L.DomUtil.get('farm-map');
         if (mapContainer != null) {
             mapContainer._leaflet_id = null;
         }
-        const lat = parseFloat(currentUser.lat) || -23.55;
-        const lon = parseFloat(currentUser.lon) || -46.63;
+        const lat = Number.isFinite(currentUser.lat) ? currentUser.lat : 0;
+        const lon = Number.isFinite(currentUser.lon) ? currentUser.lon : 0;
 
         if (isNaN(lat) || isNaN(lon)) {
             console.error("Coordenadas inválidas para o mapa", currentUser);
@@ -1200,14 +1098,9 @@ const initDashboard = async () => {
         }).addTo(farmMap);
 
         L.marker([lat, lon]).addTo(farmMap)
-            .bindPopup(`<b>${currentUser.nome}</b><br>Cultivo: ${currentUser.tipoPlantacao}`).openPopup();
+            .bindPopup(`<b>${escapeHTML(currentUser.nome)}</b><br>Cultivo: ${escapeHTML(currentUser.tipoPlantacao)}`).openPopup();
 
-        farmCircle = L.circle([lat, lon], {
-            color: 'var(--color-good)',
-            fillColor: 'var(--color-good)',
-            fillOpacity: 0.2,
-            radius: 800 // 800 metros
-        }).addTo(farmMap);
+
 
         // Fix de renderização para Single Page Applications (Força o cálculo de tamanho após o DOM pintar)
         setTimeout(() => {
@@ -1256,30 +1149,14 @@ const initDashboard = async () => {
             document.body.style.overflow = 'hidden';
 
             let hist = (window._latestSat && window._latestSat.historico) ? [...window._latestSat.historico] : [];
-            if (hist.length === 1) {
-                const single = hist[0];
-                const baseDate = new Date(single.data + 'T12:00:00Z');
-                const expanded = [];
-                for (let i = 6; i >= 0; i--) {
-                    const d = new Date(baseDate);
-                    d.setDate(d.getDate() - i);
-                    const variance = i === 0 ? 0 : Math.round(Math.sin(i * 1.5) * 2);
-                    expanded.push({
-                        data: d.toISOString().split('T')[0],
-                        valor: Math.max(0, Math.min(100, single.valor + variance))
-                    });
-                }
-                hist = expanded;
-            }
-
-            const ctxNasa = document.getElementById('nasaChart').getContext('2d');
+                        const ctxNasa = document.getElementById('nasaChart').getContext('2d');
             if (nasaChartObj) nasaChartObj.destroy();
             nasaChartObj = new Chart(ctxNasa, {
                 type: 'line',
                 data: {
                     labels: hist.map(h => h.data.slice(-5)),
                     datasets: [{
-                        label: 'Umidade Macro (%)',
+                        label: 'Saturação regional relativa (%)',
                         data: hist.map(h => h.valor),
                         borderColor: '#f39c12',
                         backgroundColor: 'rgba(243, 156, 18, 0.2)',
@@ -1376,6 +1253,7 @@ const initDashboard = async () => {
                     sysStatus.nextElementSibling.style.color = '#ff4444';
                 }
 
+                clearAgroState();
                 window._sensorState = { status: 'offline', hasValidData: false };
                 renderInteligence();
             };
@@ -1420,8 +1298,8 @@ const initDashboard = async () => {
             if (soilInsight) {
                 const cultura = currentUser?.tipoPlantacao || 'cultura';
                 if (data.status === 'IDEAL') soilInsight.textContent = `${data.umidade.toFixed(0)}% — dentro da faixa ideal para ${cultura.toLowerCase()}`;
-                else if (data.status === 'SECO') soilInsight.textContent = `${data.umidade.toFixed(0)}% — abaixo do limite ideal. Considere irrigar.`;
-                else if (data.status === 'ENCHARCADO') soilInsight.textContent = `${data.umidade.toFixed(0)}% — acima do ideal. Suspenda irrigação.`;
+                else soilInsight.textContent = data.diagnostico;
+
             }
 
             valText.style.color = color;
@@ -1454,9 +1332,9 @@ const initDashboard = async () => {
             // Store para Engine IA global e Roda Update
             window._latestUmid = data.umidade;
             window._latestStatus = data.status;
-            window._sensorState = { status: 'online', hasValidData: true };
+            applyAgroSnapshot(data.previsao);
             renderInteligence();
-        } catch (e) { console.error('API IoT Error', e); }
+        } catch (e) { clearAgroState(); console.warn('Sensor indisponível'); }
         finally {
             if (document.getElementById('umidade-valor')) {
                 liveInterval = setTimeout(updateIoT, 30000); // Polling Mais Lento 30s
@@ -1470,6 +1348,8 @@ const initDashboard = async () => {
             // -- CLIMA & IA --
             const resClima = await setupAuthFetch('/api/agro/clima');
             const agroData = await resClima.json();
+            if (!resClima.ok) throw new Error('Motor indisponível');
+            applyAgroSnapshot(agroData.previsao);
 
             if (!document.getElementById('predict-text')) return;
 
@@ -1511,13 +1391,14 @@ const initDashboard = async () => {
             document.getElementById('predict-text').innerHTML = `<span style="opacity:0.7">Gerando IA...</span>`;
 
             try {
-                const iaRes = await setupAuthFetch('/api/agro/insights-ia');
+                const iaRes = await setupAuthFetch('/api/agro/insights-ia' + (agroData?.snapshotId ? '?snapshotId=' + encodeURIComponent(agroData.snapshotId) : ''));
                 if (!iaRes.ok) throw new Error("IA Fallback");
                 const iaData = await iaRes.json();
+                if (iaData.previsao) { if (agroData) agroData.previsao = iaData.previsao; applyAgroSnapshot(iaData.previsao); }
 
                 const predictTextEl = document.getElementById('predict-text');
                 predictTextEl.innerHTML = `
-                    <span style="font-size: 0.75rem; background: var(--color-good); padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-bottom: 6px; display: inline-block; color: white;">✦ IA GENERATIVA</span><br/>
+                    <span style="font-size: 0.75rem; background: var(--color-good); padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-bottom: 6px; display: inline-block; color: white;">✦ DIAGNÓSTICO DO MOTOR</span><br/>
                 `;
                 const textNode = document.createTextNode(iaData.diagnostico);
                 predictTextEl.appendChild(textNode);
@@ -1526,8 +1407,7 @@ const initDashboard = async () => {
                 document.getElementById('predict-text').textContent = agroData.previsao.recomendacao;
             }
 
-            let timeText = Math.round(agroData.previsao.tempoHoras) + 'H';
-            if (agroData.previsao.tempoHoras <= 0) timeText = 'AGORA';
+            let timeText = predictionTime(agroData.previsao.tempoHoras);
 
             document.getElementById('predict-time').textContent = timeText;
 
@@ -1580,7 +1460,7 @@ const initDashboard = async () => {
             }
 
             // Satelite Update UI
-            if (agroData.satelite && document.getElementById('satelite-valor')) {
+            if (agroData.satelite?.available && document.getElementById('satelite-valor')) {
                 document.getElementById('satelite-valor').textContent = agroData.satelite.umidadeMacro + '%';
                 document.getElementById('satelite-data').textContent = 'Ref: ' + agroData.satelite.dataReferencia;
             } else if (document.getElementById('satelite-valor')) {
@@ -1590,195 +1470,8 @@ const initDashboard = async () => {
 
             renderInteligence();
 
-            // Render Heatmap NDVI (Estresse Hídrico) no Mapa
-            if (typeof farmMap !== 'undefined' && farmMap && typeof L !== 'undefined' && L.heatLayer) {
-                if (window._heatLayer) {
-                    farmMap.removeLayer(window._heatLayer);
-                }
-
-                // Baseado no status da IA: critico (seco/vermelho), alerta (amarelo), bom (verde)
-                const isCritico = agroData.previsao.status === 'critico';
-                const isAlerta = agroData.previsao.status === 'alerta';
-
-                // Recuperar tamanho em Hectares
-                const tamanhoHectares = currentUser.tamanhoFazenda || 10;
-                const sideMeters = Math.sqrt(tamanhoHectares * 10000);
-                const degreeOffset = (sideMeters / 2) / 111000; // Aproximação métrica para graus
-
-                const baseLat = parseFloat(currentUser.lat) || -23.55;
-                const baseLon = parseFloat(currentUser.lon) || -46.63;
-
-                // Algoritmo PRNG (Pseudo-Random Number Generator) simples (Mulberry32)
-                // Usamos lat+lon para gerar um seed fixo para o terreno.
-                let seed = Math.floor(Math.abs(baseLat + baseLon) * 1000000);
-                const randomGen = () => {
-                    let t = seed += 0x6D2B79F5;
-                    t = Math.imul(t ^ t >>> 15, t | 1);
-                    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-                    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-                };
-
-                // Gerar vértices do Polígono Orgânico de forma fixa usando o PRNG
-                const numVertices = 6;
-                const polygonPoints = [];
-                for (let v = 0; v < numVertices; v++) {
-                    const angle = (v / numVertices) * Math.PI * 2;
-                    // Variação orgânica entre 70% e 130% do raio projetado, mas fixo para a coordenada
-                    const deformacao = 0.7 + randomGen() * 0.6;
-                    const vLat = baseLat + Math.cos(angle) * degreeOffset * deformacao;
-                    const vLon = baseLon + Math.sin(angle) * degreeOffset * deformacao;
-                    polygonPoints.push([vLat, vLon]);
-                }
-
-                // Limpar polígono anterior se existir
-                if (window._farmBoundary) farmMap.removeLayer(window._farmBoundary);
-
-                // Desenhar Polígono (Cerca Orgânica da Fazenda)
-                window._farmBoundary = L.polygon(polygonPoints, {
-                    color: 'var(--sys-accent, #ff3300)',
-                    weight: 2,
-                    dashArray: '5, 5',
-                    fillOpacity: 0
-                }).addTo(farmMap);
-
-                // Forçar a câmera a focar na área exata do polígono irregular
-                farmMap.fitBounds(window._farmBoundary.getBounds(), { padding: [20, 20] });
-
-                // Criar malha térmica (Grid) fixo (Seeded Noise) no relevo da fazenda para parecer uma máscara de satélite real
-                const heatPoints = [];
-                // Preencher o polígono com uma grade densa para efeito de "lente"
-                for (let i = 0; i < 600; i++) {
-                    const angle = randomGen() * Math.PI * 2;
-                    const r = Math.sqrt(randomGen()) * degreeOffset * 0.9; // sqrt para distribuição uniforme no círculo
-                    const rLat = baseLat + Math.cos(angle) * r;
-                    const rLon = baseLon + Math.sin(angle) * r;
-                    const intensity = 0.4 + randomGen() * 0.6; // Intensidade fixa da matriz local
-                    heatPoints.push([rLat, rLon, intensity]);
-                }
-
-                // Buscar dados reais do Radar Meteorológico Global (RainViewer)
-                let rainUrl = '';
-                try {
-                    const rvRes = await fetch('https://api.rainviewer.com/public/weather-maps.json');
-                    if (rvRes.ok) {
-                        const rvData = await rvRes.json();
-                        if (rvData.radar && rvData.radar.past && rvData.radar.past.length > 0) {
-                            const lastFrame = rvData.radar.past[rvData.radar.past.length - 1];
-                            rainUrl = `https://tilecache.rainviewer.com${lastFrame.path}/256/{z}/{x}/{y}/2/1_1.png`;
-                        }
-                    }
-                } catch (e) { console.error('Erro ao buscar RainViewer', e); }
-
-                // Definir Cores do NDVI: Verde (Bom) | Amarelo (Alerta) | Vermelho (Estresse Crítico)
-                // A intensidade das manchas será direcionada pelos dados reais do agroData.
-                let hGradient = { 0.4: '#00ff00', 0.65: '#ffff00', 1.0: '#ff0000' };
-                if (!isCritico && !isAlerta) hGradient = { 0.3: '#00ffff', 0.6: '#00ff00', 1.0: '#00aa00' };
-                else if (isAlerta) hGradient = { 0.4: '#00ff00', 0.7: '#ffff00', 1.0: '#ff9900' };
-
-                if (window._ndviLayer) farmMap.removeLayer(window._ndviLayer);
-                if (window._rainLayer) farmMap.removeLayer(window._rainLayer);
-
-                // Camada 1: NDVI (Máscara Hídrica)
-                window._ndviLayer = L.heatLayer(heatPoints, {
-                    radius: Math.max(25, 80 - Math.log(tamanhoHectares) * 5),
-                    blur: Math.max(20, 50 - Math.log(tamanhoHectares) * 3),
-                    maxZoom: 18,
-                    minOpacity: 0.4,
-                    gradient: hGradient
-                });
-
-                // Camada 2: Chuva (Real-Time Radar TileLayer)
-                if (rainUrl) {
-                    window._rainLayer = L.tileLayer(rainUrl, {
-                        maxZoom: 18,
-                        maxNativeZoom: 12,
-                        opacity: 0.7,
-                        zIndex: 10
-                    });
-                } else {
-                    // Fallback visual vazio se API de radar falhar
-                    window._rainLayer = L.heatLayer([], { maxZoom: 18 });
-                }
-
-                // Default layer é NDVI
-                window._ndviLayer.addTo(farmMap);
-                window._currentLayer = 'ndvi';
-
-                // Lógica de texto da IA
-                const cultura = escapeHTML(currentUser.tipoPlantacao || 'plantação');
-                const updateIAText = (layer) => {
-                    const ndviTextObj = document.getElementById('ndvi-analysis-text');
-                    if (!ndviTextObj) return;
-
-                    if (layer === 'ndvi') {
-                        if (isCritico) {
-                            ndviTextObj.innerHTML = `<strong>Atenção Crítica:</strong> As manchas vermelhas indicam alto estresse hídrico na sua lavoura de <strong>${cultura.toLowerCase()}</strong>. A atividade fotossintética está caindo rapidamente devido à seca severa. Sugerimos ativar o sistema de irrigação com máxima urgência para evitar perdas irreparáveis de colheita.`;
-                        } else if (isAlerta) {
-                            ndviTextObj.innerHTML = `<strong>Alerta Moderado:</strong> As manchas amarelas revelam que a sua lavoura de <strong>${cultura.toLowerCase()}</strong> está começando a perder vigor vegetativo. A umidade do solo está caindo. Planeje um turno de rega em breve para manter a saúde das folhas e garantir a absorção de nutrientes.`;
-                        } else {
-                            ndviTextObj.innerHTML = `<strong>Condição Ideal:</strong> As áreas em verde mostram vegetação super saudável. A sua cultura de <strong>${cultura.toLowerCase()}</strong> está com balanço hídrico adequado e não apresenta sinais de estresse termal. Nenhuma intervenção no pivô/gotejamento é necessária no momento.`;
-                        }
-                    } else if (layer === 'rain') {
-                        if (rainUrl) {
-                            ndviTextObj.innerHTML = `<strong>Radar Meteorológico Ativo (Real-time):</strong> Exibindo cobertura de nuvens e precipitação real sobre a sua coordenada agora. O radar global cruza sinais físicos para projetar volume hídrico no solo.`;
-                        } else {
-                            ndviTextObj.innerHTML = `<strong>Radar Indisponível:</strong> Sinal do satélite meteorológico enfraquecido no momento.`;
-                        }
-                    }
-                };
-
-                updateIAText('ndvi');
-
-                // Toggle Listeners
-                const btnNdvi = document.getElementById('btn-layer-ndvi');
-                const btnRain = document.getElementById('btn-layer-rain');
-                const legNdvi = document.getElementById('legend-ndvi');
-                const legRain = document.getElementById('legend-rain');
-
-                if (btnNdvi && btnRain) {
-                    // Remover listeners antigos para evitar duplicação em re-renders
-                    const newBtnNdvi = btnNdvi.cloneNode(true);
-                    const newBtnRain = btnRain.cloneNode(true);
-                    btnNdvi.parentNode.replaceChild(newBtnNdvi, btnNdvi);
-                    btnRain.parentNode.replaceChild(newBtnRain, btnRain);
-
-                    newBtnNdvi.addEventListener('click', () => {
-                        if (window._currentLayer === 'ndvi') return;
-                        farmMap.removeLayer(window._rainLayer);
-                        window._ndviLayer.addTo(farmMap);
-                        window._currentLayer = 'ndvi';
-
-                        newBtnNdvi.style.background = 'var(--sys-secondary)';
-                        newBtnNdvi.style.color = 'white';
-                        newBtnRain.style.background = 'transparent';
-                        newBtnRain.style.color = 'rgba(255,255,255,0.6)';
-
-                        if (legNdvi) legNdvi.style.display = 'flex';
-                        if (legRain) legRain.style.display = 'none';
-
-                        updateIAText('ndvi');
-                    });
-
-                    newBtnRain.addEventListener('click', () => {
-                        if (window._currentLayer === 'rain') return;
-                        farmMap.removeLayer(window._ndviLayer);
-                        window._rainLayer.addTo(farmMap);
-                        window._currentLayer = 'rain';
-
-                        newBtnRain.style.background = 'var(--sys-secondary)';
-                        newBtnRain.style.color = 'white';
-                        newBtnNdvi.style.background = 'transparent';
-                        newBtnNdvi.style.color = 'rgba(255,255,255,0.6)';
-
-                        if (legRain) legRain.style.display = 'flex';
-                        if (legNdvi) legNdvi.style.display = 'none';
-
-                        updateIAText('rain');
-                    });
-                }
-            }
-
-        } catch (e) { console.error('Agro Sync Error', e); }
+            renderMapAvailability();
+        } catch (e) { clearAgroState(); console.warn('Motor indisponível'); }
         finally {
             if (document.getElementById('clima-cidade')) {
                 weatherInterval = setTimeout(updateAgro, 10 * 60 * 1000); // Polling Seguro em Fila
@@ -1787,25 +1480,25 @@ const initDashboard = async () => {
     };
 
     // Kickoff Inicial Duplo // Recursive call inside handles timings.
-    updateIoT();
-    updateAgro();
+    updateIoT().then(updateAgro);
 };
 
 
 // ----- GEOESPACIAL (MAPA + CLIMA) -----
 const initGeo = async () => {
+    renderMapAvailability();
     if (weatherInterval) { clearTimeout(weatherInterval); weatherInterval = null; }
 
     // Leaflet Map Init
     let farmMap = null;
     let farmCircle = null;
-    if (document.getElementById('farm-map') && typeof L !== 'undefined') {
+    if (document.getElementById('farm-map') && typeof L !== 'undefined' && Number.isFinite(currentUser.lat) && Number.isFinite(currentUser.lon)) {
         const mapContainer = L.DomUtil.get('farm-map');
         if (mapContainer != null) {
             mapContainer._leaflet_id = null;
         }
-        const lat = parseFloat(currentUser.lat) || -23.55;
-        const lon = parseFloat(currentUser.lon) || -46.63;
+        const lat = Number.isFinite(currentUser.lat) ? currentUser.lat : 0;
+        const lon = Number.isFinite(currentUser.lon) ? currentUser.lon : 0;
 
         farmMap = L.map('farm-map').setView([lat, lon], 14);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
@@ -1813,14 +1506,9 @@ const initGeo = async () => {
         }).addTo(farmMap);
 
         L.marker([lat, lon]).addTo(farmMap)
-            .bindPopup(`<b>${currentUser.nome}</b><br>Cultivo: ${currentUser.tipoPlantacao}`).openPopup();
+            .bindPopup(`<b>${escapeHTML(currentUser.nome)}</b><br>Cultivo: ${escapeHTML(currentUser.tipoPlantacao)}`).openPopup();
 
-        farmCircle = L.circle([lat, lon], {
-            color: 'var(--color-good)',
-            fillColor: 'var(--color-good)',
-            fillOpacity: 0.2,
-            radius: 800
-        }).addTo(farmMap);
+
 
         setTimeout(() => {
             if (farmMap) {
@@ -1834,6 +1522,8 @@ const initGeo = async () => {
         try {
             const resClima = await setupAuthFetch('/api/agro/clima');
             const agroData = await resClima.json();
+            if (!resClima.ok) throw new Error('Motor indisponível');
+            applyAgroSnapshot(agroData.previsao);
 
             if (!document.getElementById('clima-cidade')) return;
 
@@ -1854,157 +1544,7 @@ const initGeo = async () => {
                 document.getElementById('clima-icon').textContent = icon;
             }
 
-            if (typeof farmMap !== 'undefined' && farmMap && typeof L !== 'undefined' && L.heatLayer) {
-                if (window._heatLayer) farmMap.removeLayer(window._heatLayer);
-
-                const isCritico = agroData.previsao && agroData.previsao.status === 'critico';
-                const isAlerta = agroData.previsao && agroData.previsao.status === 'alerta';
-
-                const tamanhoHectares = currentUser.tamanhoFazenda || 10;
-                const sideMeters = Math.sqrt(tamanhoHectares * 10000);
-                const degreeOffset = (sideMeters / 2) / 111000;
-
-                const baseLat = parseFloat(currentUser.lat) || -23.55;
-                const baseLon = parseFloat(currentUser.lon) || -46.63;
-
-                let seed = Math.floor(Math.abs(baseLat + baseLon) * 1000000);
-                const randomGen = () => {
-                    let t = seed += 0x6D2B79F5;
-                    t = Math.imul(t ^ t >>> 15, t | 1);
-                    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
-                    return ((t ^ t >>> 14) >>> 0) / 4294967296;
-                };
-
-                const numVertices = 6;
-                const polygonPoints = [];
-                for (let v = 0; v < numVertices; v++) {
-                    const angle = (v / numVertices) * Math.PI * 2;
-                    const deformacao = 0.7 + randomGen() * 0.6;
-                    const vLat = baseLat + Math.cos(angle) * degreeOffset * deformacao;
-                    const vLon = baseLon + Math.sin(angle) * degreeOffset * deformacao;
-                    polygonPoints.push([vLat, vLon]);
-                }
-
-                if (window._farmBoundary) farmMap.removeLayer(window._farmBoundary);
-
-                window._farmBoundary = L.polygon(polygonPoints, {
-                    color: 'var(--sys-accent, #ff3300)',
-                    weight: 2,
-                    dashArray: '5, 5',
-                    fillOpacity: 0
-                }).addTo(farmMap);
-
-                farmMap.fitBounds(window._farmBoundary.getBounds(), { padding: [20, 20] });
-
-                const heatPoints = [];
-                for (let i = 0; i < 600; i++) {
-                    const angle = randomGen() * Math.PI * 2;
-                    const r = Math.sqrt(randomGen()) * degreeOffset * 0.9;
-                    const rLat = baseLat + Math.cos(angle) * r;
-                    const rLon = baseLon + Math.sin(angle) * r;
-                    const intensity = 0.4 + randomGen() * 0.6;
-                    heatPoints.push([rLat, rLon, intensity]);
-                }
-
-                let rainUrl = '';
-                try {
-                    const rvRes = await fetch('https://api.rainviewer.com/public/weather-maps.json');
-                    if (rvRes.ok) {
-                        const rvData = await rvRes.json();
-                        if (rvData.radar && rvData.radar.past && rvData.radar.past.length > 0) {
-                            const lastFrame = rvData.radar.past[rvData.radar.past.length - 1];
-                            rainUrl = `https://tilecache.rainviewer.com${lastFrame.path}/256/{z}/{x}/{y}/2/1_1.png`;
-                        }
-                    }
-                } catch (e) { }
-
-                let hGradient = { 0.4: '#00ff00', 0.65: '#ffff00', 1.0: '#ff0000' };
-                if (!isCritico && !isAlerta) hGradient = { 0.3: '#00ffff', 0.6: '#00ff00', 1.0: '#00aa00' };
-                else if (isAlerta) hGradient = { 0.4: '#00ff00', 0.7: '#ffff00', 1.0: '#ff9900' };
-
-                if (window._ndviLayer) farmMap.removeLayer(window._ndviLayer);
-                if (window._rainLayer) farmMap.removeLayer(window._rainLayer);
-
-                window._ndviLayer = L.heatLayer(heatPoints, {
-                    radius: Math.max(25, 80 - Math.log(tamanhoHectares) * 5),
-                    blur: Math.max(20, 50 - Math.log(tamanhoHectares) * 3),
-                    maxZoom: 18,
-                    minOpacity: 0.4,
-                    gradient: hGradient
-                });
-
-                if (rainUrl) {
-                    window._rainLayer = L.tileLayer(rainUrl, { maxZoom: 18, maxNativeZoom: 12, opacity: 0.7, zIndex: 10 });
-                } else {
-                    window._rainLayer = L.heatLayer([], { maxZoom: 18 });
-                }
-
-                window._ndviLayer.addTo(farmMap);
-                window._currentLayer = 'ndvi';
-
-                const cultura = escapeHTML(currentUser.tipoPlantacao || 'plantação');
-                const updateIAText = (layer) => {
-                    const ndviTextObj = document.getElementById('ndvi-analysis-text');
-                    if (!ndviTextObj) return;
-
-                    if (layer === 'ndvi') {
-                        if (isCritico) ndviTextObj.innerHTML = `<strong>Atenção Crítica:</strong> As manchas vermelhas indicam alto estresse hídrico na sua lavoura de <strong>${cultura.toLowerCase()}</strong>.`;
-                        else if (isAlerta) ndviTextObj.innerHTML = `<strong>Alerta Moderado:</strong> As manchas amarelas revelam que a sua lavoura de <strong>${cultura.toLowerCase()}</strong> está começando a perder vigor vegetativo.`;
-                        else ndviTextObj.innerHTML = `<strong>Condição Ideal:</strong> As áreas em verde mostram vegetação super saudável na cultura de <strong>${cultura.toLowerCase()}</strong>.`;
-                    } else if (layer === 'rain') {
-                        if (rainUrl) ndviTextObj.innerHTML = `<strong>Radar Meteorológico Ativo (Real-time):</strong> Exibindo cobertura de nuvens e precipitação real sobre a sua coordenada agora.`;
-                        else ndviTextObj.innerHTML = `<strong>Radar Indisponível:</strong> Sinal do satélite meteorológico enfraquecido no momento.`;
-                    }
-                };
-
-                updateIAText('ndvi');
-
-                const btnNdvi = document.getElementById('btn-layer-ndvi');
-                const btnRain = document.getElementById('btn-layer-rain');
-                const legNdvi = document.getElementById('legend-ndvi');
-                const legRain = document.getElementById('legend-rain');
-
-                if (btnNdvi && btnRain) {
-                    const newBtnNdvi = btnNdvi.cloneNode(true);
-                    const newBtnRain = btnRain.cloneNode(true);
-                    btnNdvi.parentNode.replaceChild(newBtnNdvi, btnNdvi);
-                    btnRain.parentNode.replaceChild(newBtnRain, btnRain);
-
-                    newBtnNdvi.addEventListener('click', () => {
-                        if (window._currentLayer === 'ndvi') return;
-                        farmMap.removeLayer(window._rainLayer);
-                        window._ndviLayer.addTo(farmMap);
-                        window._currentLayer = 'ndvi';
-
-                        newBtnNdvi.style.background = 'var(--sys-secondary)';
-                        newBtnNdvi.style.color = 'white';
-                        newBtnRain.style.background = 'transparent';
-                        newBtnRain.style.color = 'rgba(255,255,255,0.6)';
-
-                        if (legNdvi) legNdvi.style.display = 'flex';
-                        if (legRain) legRain.style.display = 'none';
-
-                        updateIAText('ndvi');
-                    });
-
-                    newBtnRain.addEventListener('click', () => {
-                        if (window._currentLayer === 'rain') return;
-                        farmMap.removeLayer(window._ndviLayer);
-                        window._rainLayer.addTo(farmMap);
-                        window._currentLayer = 'rain';
-
-                        newBtnRain.style.background = 'var(--sys-secondary)';
-                        newBtnRain.style.color = 'white';
-                        newBtnNdvi.style.background = 'transparent';
-                        newBtnNdvi.style.color = 'rgba(255,255,255,0.6)';
-
-                        if (legRain) legRain.style.display = 'flex';
-                        if (legNdvi) legNdvi.style.display = 'none';
-
-                        updateIAText('rain');
-                    });
-                }
-            }
+            renderMapAvailability();
         } catch (e) { console.error('Geo Sync Error', e); }
         finally {
             if (document.getElementById('clima-cidade')) {
@@ -2110,12 +1650,15 @@ const initSettings = async () => {
     }
 
     // Fill
+    document.getElementById('set-timezone').value = currentUser.timeZone || '';
+    document.getElementById('set-min').value = currentUser.minIdeal ?? '';
+    document.getElementById('set-max').value = currentUser.maxIdeal ?? '';
     if (currentUser.nome) document.getElementById('set-nome').value = currentUser.nome;
-    if (currentUser.tipoPlantacao) document.getElementById('set-plantacao').value = currentUser.tipoPlantacao;
+    if (currentUser.tipoPlantacao) document.getElementById('set-cultura').value = currentUser.tipoPlantacao;
     if (currentUser.cidade) document.getElementById('set-cidade').value = currentUser.cidade;
     if (currentUser.estado) document.getElementById('set-estado').value = currentUser.estado;
     if (currentUser.tamanhoFazenda) document.getElementById('set-tamanho').value = currentUser.tamanhoFazenda;
-    if (currentUser.hasWhatsappPhone) document.getElementById('set-whatsapp').placeholder = 'Telefone configurado (digite para alterar)';
+    if (currentUser.hasWhatsappPhone) document.getElementById('set-phone').placeholder = 'Telefone configurado (digite para alterar)';
     if (currentUser.hasBlynkToken) document.getElementById('set-blynk').placeholder = 'Token configurado (digite para alterar)';
     if (currentUser.hasCallmebotApiKey) document.getElementById('set-apikey').placeholder = 'API Key salva (digite para alterar)';
 
@@ -2136,15 +1679,18 @@ const initSettings = async () => {
 
             const requestBody = {
                 nome: document.getElementById('set-nome').value,
-                tipoPlantacao: document.getElementById('set-plantacao').value,
+                tipoPlantacao: document.getElementById('set-cultura').value,
                 cidade: document.getElementById('set-cidade').value,
                 estado: document.getElementById('set-estado').value,
-                tamanhoFazenda: document.getElementById('set-tamanho').value
+                tamanhoFazenda: document.getElementById('set-tamanho').value,
+                timeZone: document.getElementById('set-timezone').value,
+                minIdeal: document.getElementById('set-min').value === '' ? null : Number(document.getElementById('set-min').value),
+                maxIdeal: document.getElementById('set-max').value === '' ? null : Number(document.getElementById('set-max').value)
             };
 
             const blynkVal = document.getElementById('set-blynk').value;
             const apiKeyVal = document.getElementById('set-apikey').value;
-            const whatsVal = document.getElementById('set-whatsapp').value;
+            const whatsVal = document.getElementById('set-phone').value;
 
             if (blynkVal) requestBody.blynkToken = blynkVal;
             if (apiKeyVal) requestBody.callmebotApiKey = apiKeyVal;
@@ -2157,6 +1703,8 @@ const initSettings = async () => {
             const updated = await res.json();
             if (!res.ok) throw new Error(updated.error || 'Erro ao salvar no BD');
 
+            Object.assign(currentUser, updated);
+            clearAgroState();
             currentUser.nome = updated.nome;
             currentUser.tipoPlantacao = updated.tipoPlantacao;
             currentUser.cidade = updated.cidade;
@@ -2171,10 +1719,10 @@ const initSettings = async () => {
             // Limpa os campos visuais de chaves após o envio
             document.getElementById('set-blynk').value = '';
             document.getElementById('set-apikey').value = '';
-            document.getElementById('set-whatsapp').value = '';
+            document.getElementById('set-phone').value = '';
 
             // Re-render placeholders
-            if (updated.hasWhatsappPhone) document.getElementById('set-whatsapp').placeholder = 'Telefone configurado (digite para alterar)';
+            if (updated.hasWhatsappPhone) document.getElementById('set-phone').placeholder = 'Telefone configurado (digite para alterar)';
             if (updated.hasBlynkToken) document.getElementById('set-blynk').placeholder = 'Token configurado (digite para alterar)';
             if (updated.hasCallmebotApiKey) document.getElementById('set-apikey').placeholder = 'API Key salva (digite para alterar)';
 
@@ -2211,8 +1759,10 @@ const initSettings = async () => {
                 })
             });
             const updated = await res.json();
-            currentUser.blynkToken = updated.blynkToken;
-            currentUser.whatsappPhone = updated.whatsappPhone;
+            if (!res.ok) throw new Error(updated.error || 'Falha ao salvar');
+            Object.assign(currentUser, updated);
+            clearAgroState();
+            for (const id of ['set-blynk','set-phone','set-apikey']) document.getElementById(id).value = '';
             document.getElementById('int-success').style.display = 'block';
             setTimeout(() => { document.getElementById('int-success').style.display = 'none'; }, 3000);
         } catch (e) { alert(e.message); }
@@ -2249,13 +1799,13 @@ const initAnalysis = async () => {
     const srcCultFaixa = document.getElementById('an-src-cult-faixa');
     const srcCultCenter = document.getElementById('an-src-cult-center');
     if (srcCultTipo) srcCultTipo.textContent = cultura;
-    if (srcCultFaixa) srcCultFaixa.textContent = limits.min + '% – ' + limits.max + '%';
-    if (srcCultCenter) srcCultCenter.textContent = limits.center + '%';
+    if (srcCultFaixa) srcCultFaixa.textContent = Number.isFinite(limits.min) ? limits.min + '% – ' + limits.max + '%' : 'Não configurada';
+    if (srcCultCenter) srcCultCenter.textContent = Number.isFinite(limits.center) ? limits.center + '%' : 'Não configurado';
 
     // Timeline: Limite da cultura
     const tlLimit = document.getElementById('an-tl-limit');
     const tlLimitDesc = document.getElementById('an-tl-limit-desc');
-    if (tlLimit) tlLimit.textContent = limits.min + '%';
+    if (tlLimit) tlLimit.textContent = Number.isFinite(limits.min) ? limits.min + '%' : 'Não configurado';
     if (tlLimitDesc) tlLimitDesc.textContent = cultura.toLowerCase();
 
     // --- 2. FETCH SENSOR ---
@@ -2277,7 +1827,7 @@ const initAnalysis = async () => {
             if (tlNow) tlNow.textContent = sensorData.umidade.toFixed(1) + '%';
             if (srcSensorVal) srcSensorVal.textContent = sensorData.umidade.toFixed(1) + '%';
 
-            let statusText = sensorData.status === 'IDEAL' ? 'Faixa ideal' : sensorData.status === 'SECO' ? 'Abaixo do ideal' : 'Acima do ideal';
+            let statusText = sensorData.status === 'IDEAL' ? 'Faixa de referência' : sensorData.status === 'SECO' ? 'Abaixo da faixa' : sensorData.status === 'ENCHARCADO' ? 'Acima da faixa' : 'Verificar sensor';
             if (kpiUmidStatus) kpiUmidStatus.textContent = statusText;
             if (srcSensorStatus) {
                 srcSensorStatus.textContent = 'Conectado';
@@ -2302,7 +1852,7 @@ const initAnalysis = async () => {
         const alertText = document.getElementById('an-alert-text');
         if (alertBox && alertText) {
             alertBox.style.display = 'block';
-            alertText.textContent = 'O sensor está sem comunicação. Algumas estimativas podem estar baseadas nos últimos dados disponíveis.';
+            alertText.textContent = 'O sensor está sem comunicação. Recomendações de manejo foram suspensas.';
         }
     }
 
@@ -2312,7 +1862,8 @@ const initAnalysis = async () => {
         const agroRes = await setupAuthFetch('/api/agro/clima');
         if (agroRes.ok) {
             agroData = await agroRes.json();
-            setCheck('an-check-clima', true, 'Disponível');
+            applyAgroSnapshot(agroData.previsao);
+            setCheck('an-check-clima', !!agroData.clima, agroData.clima ? 'Disponível' : 'Indisponível');
 
             const clima = agroData.clima;
             const previsao = agroData.previsao;
@@ -2334,7 +1885,9 @@ const initAnalysis = async () => {
                 let statusColor = 'var(--color-good)';
                 let icon = 'psychiatry';
 
-                if (previsao.status === 'critico') {
+                if (previsao.status === 'indisponivel') {
+                    statusLabel = 'INDISPONÍVEL'; statusColor = 'var(--sys-light)'; icon = 'sensors_off';
+                } else if (previsao.status === 'critico') {
                     statusLabel = 'CRÍTICO';
                     statusColor = 'var(--color-dry)';
                     icon = 'warning';
@@ -2352,13 +1905,12 @@ const initAnalysis = async () => {
                 if (heroIconWrap) heroIconWrap.style.background = statusColor;
                 if (heroIcon) heroIcon.textContent = icon;
 
-                let timeText = Math.round(previsao.tempoHoras) + ' horas';
-                if (previsao.tempoHoras <= 0) timeText = 'AGORA';
+                let timeText = predictionTime(previsao.tempoHoras);
                 if (heroTime) heroTime.textContent = timeText;
 
                 // Timeline
                 const tlIrrig = document.getElementById('an-tl-irrig');
-                if (tlIrrig) tlIrrig.textContent = previsao.tempoHoras <= 0 ? 'AGORA' : '≈ ' + Math.round(previsao.tempoHoras) + 'h';
+                if (tlIrrig) tlIrrig.textContent = predictionTime(previsao.tempoHoras);
             }
 
             hideSkeleton('analysis-hero-skeleton');
@@ -2367,11 +1919,11 @@ const initAnalysis = async () => {
             if (meta) {
                 const kpiDrop = document.getElementById('an-kpi-drop');
                 const tlDrop = document.getElementById('an-tl-drop');
-                if (kpiDrop) kpiDrop.textContent = '-' + meta.dropRealTime + '%/h';
-                if (tlDrop) tlDrop.textContent = '-' + meta.dropRealTime + '%/h';
+                if (kpiDrop) kpiDrop.textContent = Number.isFinite(meta.dropRealTime) ? meta.dropRealTime.toFixed(2) + ' pp/h' : 'Indisponível';
+                if (tlDrop) tlDrop.textContent = Number.isFinite(meta.dropRealTime) ? meta.dropRealTime.toFixed(2) + ' pp/h' : 'Indisponível';
 
                 const kpiRain = document.getElementById('an-kpi-rain');
-                if (kpiRain) kpiRain.textContent = meta.rainProb + '%';
+                if (kpiRain) kpiRain.textContent = Number.isFinite(meta.rainProb) ? meta.rainProb + '%' : 'Indisponível';
             }
 
             if (clima && clima.current) {
@@ -2398,10 +1950,10 @@ const initAnalysis = async () => {
             }
 
             // ET₀
-            const et0Val = clima?.daily?.et0_fao_evapotranspiration?.[0];
+            const et0Val = previsao?.engineData?.climateAnalysis?.eto;
             const kpiEt0 = document.getElementById('an-kpi-et0');
             const srcClimaEt0 = document.getElementById('an-src-clima-et0');
-            if (et0Val !== undefined) {
+            if (Number.isFinite(et0Val)) {
                 if (kpiEt0) kpiEt0.textContent = et0Val.toFixed(1) + ' mm';
                 if (srcClimaEt0) srcClimaEt0.textContent = et0Val.toFixed(1) + ' mm';
             } else {
@@ -2410,7 +1962,7 @@ const initAnalysis = async () => {
             }
 
             // --- SATÉLITE ---
-            if (agroData.satelite) {
+            if (agroData.satelite?.available) {
                 setCheck('an-check-nasa', true, 'Disponível');
                 const srcNasaVal = document.getElementById('an-src-nasa-val');
                 const srcNasaDate = document.getElementById('an-src-nasa-date');
@@ -2422,29 +1974,13 @@ const initAnalysis = async () => {
                     const ctxNasa = document.getElementById('an-nasaChart');
                     if (ctxNasa) {
                         let anHist = [...agroData.satelite.historico];
-                        if (anHist.length === 1) {
-                            const single = anHist[0];
-                            const baseDate = new Date(single.data + 'T12:00:00Z');
-                            const expanded = [];
-                            for (let i = 6; i >= 0; i--) {
-                                const d = new Date(baseDate);
-                                d.setDate(d.getDate() - i);
-                                const variance = i === 0 ? 0 : Math.round(Math.sin(i * 1.5) * 2);
-                                expanded.push({
-                                    data: d.toISOString().split('T')[0],
-                                    valor: Math.max(0, Math.min(100, single.valor + variance))
-                                });
-                            }
-                            anHist = expanded;
-                        }
-
-                        if (analysisNasaChart) analysisNasaChart.destroy();
+                                                if (analysisNasaChart) analysisNasaChart.destroy();
                         analysisNasaChart = new Chart(ctxNasa.getContext('2d'), {
                             type: 'line',
                             data: {
                                 labels: anHist.map(h => h.data.slice(-5)),
                                 datasets: [{
-                                    label: 'Umidade Macro (%)',
+                                    label: 'Saturação regional relativa (%)',
                                     data: anHist.map(h => h.valor),
                                     borderColor: '#f39c12',
                                     backgroundColor: 'rgba(243, 156, 18, 0.15)',
@@ -2492,6 +2028,7 @@ const initAnalysis = async () => {
             throw new Error('Agro API error');
         }
     } catch (e) {
+        clearAgroState();
         setCheck('an-check-clima', false, 'Indisponível');
         setCheck('an-check-nasa', false, 'Indisponível');
         hideSkeleton('analysis-hero-skeleton');
@@ -2532,7 +2069,7 @@ const initAnalysis = async () => {
             });
 
             // Average
-            const diasComDados = weekData.filter(d => d.media > 0);
+            const diasComDados = weekData.filter(d => Number.isFinite(d.media));
             if (diasComDados.length > 0) {
                 const avg = diasComDados.reduce((s, d) => s + d.media, 0) / diasComDados.length;
                 const avgEl = document.getElementById('an-week-avg-val');
@@ -2544,7 +2081,7 @@ const initAnalysis = async () => {
     }
 
     // --- 5. INTELLIGENCE (Evapotranspiração, Saúde do Solo, Análise Avançada) ---
-    if (window._latestClima) {
+    if (window._agroSnapshot) {
         // Evapotranspiração
         const evapo = calcularEvapotranspiracao(window._latestClima);
         const evapoNivel = document.getElementById('an-evapo-nivel');
@@ -2558,7 +2095,7 @@ const initAnalysis = async () => {
 
         // Saúde do Solo
         const saude = calcularSaudeSolo(
-            window._latestUmid || 50,
+            window._latestUmid,
             window._latestSemana || [],
             window._latestClima,
             cultura
@@ -2573,16 +2110,17 @@ const initAnalysis = async () => {
         // Análise Avançada
         const analiseTexto = document.getElementById('an-analise-texto');
         if (analiseTexto) {
-            const txt = analiseAvancada(window._latestUmid || 50, window._latestStatus || 'IDEAL', window._latestClima, cultura, window._latestSat);
+            const txt = analiseAvancada(window._latestUmid, window._latestStatus || 'INDEFINIDO', window._latestClima, cultura, window._latestSat);
             analiseTexto.textContent = txt;
         }
     }
 
     // --- 6. FETCH IA GENERATIVA ---
     try {
-        const iaRes = await setupAuthFetch('/api/agro/insights-ia');
+        const iaRes = await setupAuthFetch('/api/agro/insights-ia' + (agroData?.snapshotId ? '?snapshotId=' + encodeURIComponent(agroData.snapshotId) : ''));
         if (iaRes.ok) {
             const iaData = await iaRes.json();
+                if (iaData.previsao) { if (agroData) agroData.previsao = iaData.previsao; applyAgroSnapshot(iaData.previsao); }
             setCheck('an-check-ia', true, iaData.cached ? 'Em cache' : 'Atualizado');
             const iaLaudo = document.getElementById('an-ia-laudo');
             const iaCache = document.getElementById('an-ia-cache');
@@ -2661,8 +2199,8 @@ const initMonthlyReport = async () => {
             if (!res.ok) throw new Error(data.error || 'Erro ao carregar relatório');
 
             // Preencher KPIs
-            document.getElementById('mr-faixa-ideal').textContent = data.kpis.totalLeituras > 0 ? `${data.kpis.pctIdeal}%` : '--%';
-            document.getElementById('mr-deficit').textContent = data.kpis.totalLeituras > 0 ? `${data.kpis.pctDeficit}%` : '--%';
+            document.getElementById('mr-faixa-ideal').textContent = Number.isFinite(data.kpis.pctIdeal) ? `${data.kpis.pctIdeal}%` : '--%';
+            document.getElementById('mr-deficit').textContent = Number.isFinite(data.kpis.pctDeficit) ? `${data.kpis.pctDeficit}%` : '--%';
             document.getElementById('mr-chuva').textContent = data.kpis.chuvaAcumulada !== null ? `${data.kpis.chuvaAcumulada} mm` : '-- mm';
             document.getElementById('mr-et0').textContent = data.kpis.et0Acumulada !== null ? `${data.kpis.et0Acumulada} mm` : '-- mm';
             document.getElementById('mr-recomendacoes-count').textContent = data.kpis.recomendacoesCount !== undefined ? data.kpis.recomendacoesCount : '--';
@@ -2671,7 +2209,7 @@ const initMonthlyReport = async () => {
 
             // Qualidade dos dados
             const daysInMonth = new Date(year, month, 0).getDate();
-            const pctQualidade = data.kpis.totalLeituras > 0 ? Math.min(100, Math.round((data.kpis.totalLeituras / daysInMonth) * 100)) : 0;
+            const pctQualidade = data.coverage?.expectedDays ? Math.round(data.coverage.climateDays / data.coverage.expectedDays * 100) : 0;
             const qPctEl = document.getElementById('mr-qualidade-pct');
             qPctEl.textContent = `${pctQualidade}%`;
             if (pctQualidade >= 90) qPctEl.style.color = '#4ade80';
@@ -2686,7 +2224,7 @@ const initMonthlyReport = async () => {
             if (data.kpis.totalLeituras === 0) {
                 resumoEl.textContent = 'Não há dados de sensores suficientes para gerar um relatório abrangente neste período.';
             } else {
-                resumoEl.textContent = `Neste período, o solo permaneceu dentro da faixa adequada em ${data.kpis.pctIdeal}% das leituras observadas. Foram identificados ${data.kpis.recomendacoesCount} eventos onde a umidade reduziu e alertas foram possivelmente gerados. A ocorrência de precipitação acumulou ${data.kpis.chuvaAcumulada !== null ? data.kpis.chuvaAcumulada : 0} mm, influenciando o balanço contra uma evapotranspiração teórica de ${data.kpis.et0Acumulada !== null ? data.kpis.et0Acumulada : 0} mm.`;
+                resumoEl.textContent = `${data.kpis.totalLeituras} amostras registradas, agrupadas no fuso ${data.timeZone}${data.timeZoneConfigured ? '' : ' (configure o fuso da propriedade)'}. ${data.kpis.recomendacoesCount} decisões IRRIGAR registradas, sem comprovação de execução. Clima: ${data.coverage.climateDays}/${data.coverage.expectedDays} dias disponíveis.`;
             }
 
             // Renderizar Gráfico de Solo
@@ -2694,7 +2232,7 @@ const initMonthlyReport = async () => {
             if (mrSoilChartInstance) mrSoilChartInstance.destroy();
 
             if (data.graficos.solo && data.graficos.solo.length > 0) {
-                const labels = data.graficos.solo.map(d => new Date(d.data).toLocaleDateString('pt-BR'));
+                const labels = data.graficos.solo.map(d => new Date(d.data.slice(0,10) + 'T12:00:00Z').toLocaleDateString('pt-BR', {timeZone:'UTC'}));
                 const values = data.graficos.solo.map(d => d.umidade);
 
                 mrSoilChartInstance = new Chart(ctxSoil, {
@@ -2722,8 +2260,8 @@ const initMonthlyReport = async () => {
                                 annotations: {
                                     box1: {
                                         type: 'box',
-                                        yMin: data.kpis.limites.minIdeal,
-                                        yMax: data.kpis.limites.maxIdeal,
+                                        yMin: data.kpis.limites.minIdeal ?? undefined,
+                                        yMax: data.kpis.limites.maxIdeal ?? undefined,
                                         backgroundColor: 'rgba(74, 222, 128, 0.1)',
                                         borderWidth: 0
                                     }
@@ -2743,7 +2281,7 @@ const initMonthlyReport = async () => {
             if (mrClimateChartInstance) mrClimateChartInstance.destroy();
 
             if (data.graficos.clima && data.graficos.clima.length > 0) {
-                const labels = data.graficos.clima.map(d => new Date(d.data).toLocaleDateString('pt-BR'));
+                const labels = data.graficos.clima.map(d => new Date(d.data.slice(0,10) + 'T12:00:00Z').toLocaleDateString('pt-BR', {timeZone:'UTC'}));
                 const chuva = data.graficos.clima.map(d => d.chuva);
                 const et0 = data.graficos.clima.map(d => d.et0);
 

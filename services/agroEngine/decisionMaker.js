@@ -1,75 +1,24 @@
-/**
- * Módulo de Tomada de Decisão (Decision Maker & Explicability)
- * 
- * Agrega todos os módulos e sugere uma ação estruturada,
- * acompanhada da explicabilidade dos fatores determinantes.
- */
-
-const makeDecision = (dataQuality, anomalies, climate, predictor, riskAndConfidence, currentMoisture) => {
-    let action = 'MONITORAR';
+const makeDecision = (quality, anomalies, climate, predictor, riskAndConfidence, current) => {
+    if (!quality.eligible || !riskAndConfidence.confidence.eligible || anomalies.some(a => ['HIGH','CRITICAL'].includes(a.severity))) {
+        return { action: 'VERIFICAR_SENSOR', explanation: ['Recomendação de manejo suspensa: conferir sensor, histórico e configuração da cultura.', ...riskAndConfidence.confidence.factors] };
+    }
     const explanation = [];
-
-    // Prioridade Máxima: Fallback de Segurança
-    if (riskAndConfidence.confidence.level === 'LOW') {
-        action = 'VERIFICAR_SENSOR';
-        explanation.push('Não há dados confiáveis suficientes para recomendar irrigação com segurança.');
-        explanation.push(...riskAndConfidence.confidence.factors);
-        
-        return { action, explanation };
-    }
-
-    // Regras de Negócio e Agronomia
-    const rainProb = climate.maxRainProb12h;
-    const expectedRainVolume = climate.expectedRainVolume12h || 0;
-    const deficit = predictor.deficitAtual || 0;
-
-    // Se a plantação JÁ está no limite crítico ou abaixo
-    if (deficit > 0 || predictor.hoursUntilStress <= 0) {
-        // Verifica se a chuva esperada será suficiente para cobrir o déficit (assumindo conversão empírica 1mm ~ 1%)
-        // Aqui estamos simplificando: se a chuva não for pelo menos 80% do déficit, precisa irrigar.
-        if (expectedRainVolume >= (deficit * 0.8)) {
-            action = 'AGUARDAR';
-            explanation.push(`A umidade atual está crítica (${currentMoisture}%), mas há previsão de chuva suficiente (${Math.round(expectedRainVolume)} mm) para reverter o quadro nas próximas horas.`);
-            explanation.push(`Aguarde e monitore se a chuva realmente ocorre antes de acionar a irrigação.`);
-        } else {
-            action = 'IRRIGAR';
-            explanation.push(`A umidade atual (${currentMoisture}%) está no limite crítico ou abaixo dele (${predictor.criticalLimit}%).`);
-            explanation.push('O risco de estresse hídrico grave é iminente.');
-            
-            if (expectedRainVolume > 0) {
-                explanation.push(`RESSALVA: Há previsão de chuva leve (${Math.round(expectedRainVolume)} mm), mas o volume é insuficiente para repor o déficit atual.`);
-            }
-
-            if (climate.eto > 5 || climate.temperature > 30) {
-                explanation.push(`As condições atmosféricas (Calor / ETo alta) estão acelerando a perda de água.`);
-            }
-        }
-    } else if (rainProb > 60 && expectedRainVolume > 2) {
-        // Não há déficit crítico, mas vai chover razoavelmente
-        action = 'AGUARDAR';
-        explanation.push(`Aguardar. Alta probabilidade de chuva com volume esperado de ${Math.round(expectedRainVolume)} mm nas próximas horas.`);
-        explanation.push('Irrigar agora geraria desperdício hídrico e risco de saturação (excesso de água).');
-    } else if (predictor.hoursUntilStress > 0 && predictor.hoursUntilStress <= 6) {
-        // Sem chuva suficiente e déficit próximo
+    let action = 'MONITORAR';
+    if (current > predictor.upperLimit) {
+        action = 'EXCESSO_UMIDADE';
+        explanation.push(`Umidade de ${current}% acima da faixa de referência (${predictor.upperLimit}%). Evite acrescentar água e confira a condição do solo e a drenagem.`);
+    } else if (current <= predictor.criticalLimit) {
+        action = 'IRRIGAR';
+        explanation.push(`Umidade de ${current}% no limite inferior ou abaixo (${predictor.criticalLimit}%). Avalie a irrigação após confirmar a leitura no campo. Volume e duração dependem de calibração do solo e do sistema.`);
+    } else if (predictor.hoursUntilStress !== null && predictor.hoursUntilStress <= 6) {
         action = 'ATENÇÃO';
-        explanation.push(`Previsão indica necessidade de irrigação nas próximas ${Math.round(predictor.hoursUntilStress)} horas.`);
-        explanation.push(`Umidade projetada: ${Math.round(predictor.predictions.in6h)}%. Prepare os sistemas de irrigação.`);
+        explanation.push(`Se a secagem observada continuar, o limite de referência poderá ser atingido em ${predictor.hoursUntilStress.toFixed(1)}h. Monitorar novamente antes do manejo.`);
     } else {
-        // Sem déficit, sem chuva que atrapalhe, longe do limite
-        action = 'MONITORAR';
-        explanation.push(`Condições estáveis e dentro da faixa segura. Umidade projetada em 12h: ${Math.round(predictor.predictions.in12h)}%.`);
-        
-        if (rainProb > 0 && expectedRainVolume > 0) {
-            explanation.push(`Existe uma leve chance de chuva com ${Math.round(expectedRainVolume)} mm esperados.`);
-        }
+        explanation.push(`Leitura atual de ${current}% dentro da faixa de referência. Continue monitorando.`);
     }
-
-    // Injeção de Risco na Explicação
-    if (riskAndConfidence.risk.level === 'HIGH' && action !== 'IRRIGAR') {
-        explanation.push('CUIDADO: Apesar da recomendação atual, há fatores de alto risco presentes. Monitore ativamente.');
-    }
-
+    if (!climate.available) explanation.push('Clima indisponível; não foi possível avaliar a previsão meteorológica.');
+    else if (climate.expectedRainVolume12h > 0) explanation.push(`Precipitação prevista em 12h: ${climate.expectedRainVolume12h.toFixed(1)} mm. Não comprova chuva no talhão nem reposição do déficit do sensor.`);
+    if (predictor.dynamicDropRate === null) explanation.push('Sem tendência de secagem confiável para estimar horário de irrigação.');
     return { action, explanation };
 };
-
 module.exports = { makeDecision };

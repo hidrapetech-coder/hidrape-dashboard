@@ -14,15 +14,18 @@ Dashboard inteligente para monitoramento agrícola em tempo real, com integraç�
 
 - **📊 Dashboard em Tempo Real** — Monitoramento de umidade do solo com gráficos interativos (Live & Histórico).
 - **🌤️ Inteligência Climática** — Previsão do tempo, evapotranspiração (ET₀) e dados meteorológicos integrados via Open-Meteo.
-- **🛰️ Satélite NASA POWER** — Monitoramento da tendência regional de umidade superficial direto do satélite.
-- **🤖 Motor Agro (v2.0)** — Processamento avançado que cruza dados de IoT, Clima e Satélite com módulos de:
-  - **Data Quality:** Avaliação da integridade dos dados dos sensores.
-  - **Anomaly Detection:** Filtro inteligente de ruídos e falhas nos sensores.
-  - **ML Predictor:** Previsão da taxa de secagem e estimativa do momento ideal para irrigação.
-  - **Risk & Confidence:** Cálculo do nível de risco e confiabilidade para evitar falsos alertas.
-- **🧠 Laudos por IA Generativa** — Diagnóstico agronômico traduzido para linguagem natural (via Gemini AI).
-- **🔐 Autenticação JWT** — Sistema de login seguro com bcrypt e sessões criptografadas.
-- **⚙️ Configuração por Usuário** — Personalização de tipo de cultura (faixas ideais), limites e configurações de cidade/UF.
+- **🛰️ Satélite NASA POWER** — Estimativa regional de saturação superficial relativa (GWETTOP), com datas e indisponibilidade explícitas. Não é uma medição do talhão.
+- **🤖 Motor Agro v3** — Pipeline determinístico com entradas e decisão registradas:
+  - **Qualidade:** percentual numérico 0–100, datas válidas e distintas, leitura há até 30 minutos; ao menos 5 leituras ao longo de 1h para recomendar manejo.
+  - **Anomalias:** suspeita de congelamento com tolerância e janela real; saltos requerem confirmação. Chuva/irrigação legítima pode causar salto; o sistema não afirma defeito automaticamente.
+  - **Tendência:** regressão linear observada em pontos percentuais/hora. Extrapolação limitada ao histórico disponível, até 24h. Ausência de tendência resulta em `null`, não em taxa inventada. Não há treinamento de ML ou autocalibração em produção.
+  - **Risco e confiança:** bloqueio explícito de recomendações com dados inválidos, antigos, anomalias graves ou cultura sem limites; risco fica desconhecido. Scores são operacionais, não probabilidades calibradas.
+- **🧠 Gemini opcional** — Organiza frases aprovadas pelo motor por IDs; validação aceita apenas permutação completa, preservando o aviso principal. Não gera números ou recomendações livres. Falhas, quotas e respostas inválidas retornam o diagnóstico determinístico.
+- **🔐 Autenticação JWT** — Senhas com bcrypt e sessão em cookie HttpOnly; nenhum token retornado no JSON ou persistido no localStorage.
+- **⚙️ Configuração por usuário** — Cultura, cidade/UF, coordenadas, fuso IANA e limites explícitos para “Personalizado”. Sem fuso, relatórios usam UTC e mostram o aviso para configurar.
+- **📍 Mapa de localização** — Não há produto NDVI nem limites medidos do talhão. Foram removidos polígonos, mapas de calor e séries históricas artificiais das telas operacionais.
+
+As faixas de cultura são referências do **percentual do sensor calibrado**, não teor volumétrico de água. ET₀/chuva em mm e GWETTOP regional não são convertidos em porcentagem do sensor. O motor não calcula lâmina, volume ou duração de irrigação. Volume teórico mensal por ET₀ × área é um indicador meteorológico, não uma prescrição.
 
 ---
 
@@ -69,7 +72,7 @@ dashboard-hidrape/
 ## ⚡ Instalação e Execução
 
 ### Pré-requisitos
-- Node.js >= 18
+- Node.js 24 LTS
 - Conta no Supabase (PostgreSQL)
 - Chave API do Gemini (Google AI Studio)
 
@@ -85,26 +88,13 @@ npm install
 ```
 
 ### 3. Configure as variáveis de ambiente
-Crie um arquivo `.env` na raiz baseado nas configurações abaixo:
-```env
-PORT=3002
-JWT_SECRET=sua_chave_secreta_aqui
-BLYNK_TOKEN=seu_token_blynk
-BLYNK_URL=https://blynk.cloud/external/api/get
+Use `.env.example` como lista de variáveis e preencha segredos privados no ambiente de execução. `JWT_SECRET` requer ao menos 32 caracteres; `ENCRYPTION_KEY` requer exatamente 32 bytes. Chaves públicas antigas são rejeitadas. O servidor falha na inicialização se faltar configuração obrigatória, sem imprimir valores.
 
-# Supabase / Prisma DB
-DATABASE_URL="postgres://user:pass@host:5432/db?pgbouncer=true"
-DIRECT_URL="postgres://user:pass@host:5432/db"
+Gemini fica desativado por padrão. Para ativá-lo, configure chave/modelo, `GEMINI_ENABLED=true` e Redis disponível. Cota diária UTC e limite de 3 tentativas/minuto por usuário abrangem diagnóstico e resumo mensal; retries também consomem cota. Sem Redis, apenas os resultados determinísticos continuam. Modelo, timeout (1–20s), temperatura e limite de saída são configuráveis.
 
-# IA
-GEMINI_API_KEY=sua_chave_do_google_gemini
-```
+### 4. Prepare o banco e o cliente Prisma
 
-### 4. Sincronize o Banco de Dados (Prisma)
-```bash
-npx prisma db push
-npx prisma generate
-```
+Veja [MIGRACAO_MOTOR_IA.md](MIGRACAO_MOTOR_IA.md) antes de atualizar um banco existente: há uma baseline e uma migração aditiva. Gerar o cliente não aplica migrations. Não use `db push` indiscriminadamente no banco de produção.
 
 ### 5. Execute o servidor
 ```bash
@@ -120,10 +110,23 @@ Acesse: `http://localhost:3002`
 
 ## 🛡️ Segurança e Confiabilidade
 
-- **Sensores Blindados:** O novo módulo `anomalyDetection.js` protege o sistema contra dados congelados ou variações absurdas (ruído elétrico), evitando acionamentos indevidos.
-- **Confiança (Confidence Score):** Se um sensor falha, a IA relata baixa confiança em vez de gerar um laudo falso/perigoso.
-- **Banco de Dados Seguro:** Migração para PostgreSQL via Supabase garante integridade relacional, com Prisma como ORM.
-- **Auth:** Senhas com hash (bcrypt) e rotas protegidas por JWT.
+- Recomendações suspensas em caso de dados insuficientes/invalidade; a suspeita de congelamento precisa ser conferida no campo.
+- Falha climática mantém o sensor disponível com confiança reduzida. Falha do Gemini mantém o diagnóstico determinístico.
+- Fontes externas usam prazo total, limites de corpo e validação. NASA antiga/inválida não influencia a tendência do sensor.
+- Consultas e snapshots têm escopo do usuário autenticado. Logout remove estado local e respostas antigas de outras sessões são descartadas.
+- Relatórios usam datas no fuso configurado, sete dias completos no painel semanal (incluindo dias sem leitura como `null`), cobertura climática e contagem de decisões efetivamente registradas.
+
+### Verificação sem APIs ou banco
+
+```bash
+npm test
+npm run check:prisma
+npm run build
+```
+
+Vitest desativa carregamento de `.env` e bloqueia rede; serviços são substituídos por fixtures. A verificação Prisma usa configuração temporária, credenciais sintéticas e rede/arquivos `.env` bloqueados. Valida schema, geração e compatibilidade do override `deepmerge-ts@8` usado por `@prisma/config`. O override altera a mesclagem de Maps em relação à v7; o projeto usa configuração simples de objetos e testa seu carregamento. Reavalie o override ao atualizar Prisma.
+
+[Correções e validações por achado](CORRECOES_MOTOR_IA.md). A revisão original permanece em [REVISAO_MOTOR_IA.md](REVISAO_MOTOR_IA.md).
 
 ---
 
