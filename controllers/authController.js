@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const { getJson, validCoordinates } = require('../lib/httpJson');
 const { getCropConfig } = require('../config/cultures');
 const cache = require('../lib/cache');
+const redis = require('../lib/redis');
 const crypto = require('crypto');
 const prisma = require('../lib/prisma');
 const emailService = require('../services/emailService');
@@ -181,8 +182,8 @@ exports.login = async (req, res) => {
         res.json({ user: toSafeUser(user) });
 
     } catch (err) {
-        console.error('[API] Operação indisponível.');
-        res.status(500).json({ error: 'Erro no servidor' });
+        console.error('[API] Erro no login:', err.code || err.name, err.message);
+        res.status(500).json({ error: `Erro no servidor (${err.code || err.name || 'Interno'}: ${String(err.message || '').slice(0, 120)})` });
     }
 };
 
