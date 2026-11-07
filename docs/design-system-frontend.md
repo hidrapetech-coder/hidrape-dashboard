@@ -17,10 +17,10 @@ Desktop
 │ Marca/busca  │ Propriedade / página                 │
 │              ├──────────────────────────────────────┤
 │ Monitorar    │ Título, conexão e acesso ao histórico│
-│ Inteligência │ Solo · Satélite · Confiança · ET₀    │
-│ Propriedade  │ Gráfico da sessão  │ Próximo passo   │
-│              │ Médias da semana   │ Análise         │
-│ Conta/sair   │ Contexto das escalas                 │
+│ Inteligência │ Leitura + contexto │ Próximo passo   │
+│ Propriedade  │ Satélite · Confiança · ET₀           │
+│              │ Gráfico da sessão  │ Análise         │
+│ Conta/sair   │ Médias da semana   │                 │
 └──────────────┴──────────────────────────────────────┘
 ```
 
@@ -47,7 +47,7 @@ Escala de espaço: 4, 8, 12, 16, 24, 32, 48 e 64 px. Raios: 8 px nos controles, 
 
 - Busca por nome de página, sem distinção de acentos: botão visível, ⌘K/Ctrl+K, Enter para abrir o primeiro resultado, seta para baixo para selecionar e Escape para fechar.
 - Diálogos nativos de busca e NASA: foco contido pelo navegador, fundo inerte e retorno do foco ao acionador.
-- Em até 768 px, navegação em painel recolhível, conteúdo de fundo inerte, foco contido no menu e fechamento com Escape, fundo ou seleção de página. Métricas em duas colunas; gráficos e diagnóstico em uma coluna. Abaixo de 360 px, métricas em uma coluna.
+- Em até 768 px, navegação em painel recolhível, conteúdo de fundo inerte, foco contido no menu e fechamento com Escape, fundo ou seleção de página. Leitura do solo e próximo passo aparecem primeiro, em uma coluna e na mesma ordem semântica. Indicadores auxiliares vêm depois; gráficos ficam em uma coluna. Abaixo de 360 px, os indicadores auxiliares também usam uma coluna.
 - Leituras e médias dos gráficos disponíveis em texto. Zero é preservado e ausência é identificada como “sem leitura”. Se Chart.js não carregar, os valores textuais continuam disponíveis.
 - Estado de erro oferece orientação de recuperação. Falha climática não apaga uma leitura válida do sensor. Sem observações da NASA, o diálogo apresenta estado vazio.
 - Zoom permitido e movimento reduzido respeitado. Campos de configurações têm rótulos associados. Tabela histórica usa região própria de rolagem com acesso por teclado.
@@ -61,3 +61,11 @@ Escala de espaço: 4, 8, 12, 16, 24, 32, 48 e 64 px. Raios: 8 px nos controles, 
 - Build recompõe `app.min.js` e `style.min.css`, usados pelo HTML de entrada.
 
 A prévia visual utiliza o modo de demonstração. A validação não depende de credenciais nem testa conectividade com sensores, banco ou serviços externos reais.
+
+## Movimento de interação
+
+A revisão Impeccable adicionou tokens de movimento e um controlador compartilhado que interrompe efeitos anteriores ao repetir uma ação. O foco é acompanhar a chegada de leituras e a abertura de camadas, mantendo os estados finais disponíveis sem animação. A especificação, os tempos e os limites de validação estão em `docs/motion-plan.md`.
+
+## Correções dos três P1
+
+A revisão concentrou a leitura e o próximo passo antes das referências. Faixa da cultura, horário com fuso e atualidade ficam junto à umidade. O estado da conexão permanece visível também no tablet. Estimativa ausente, análise não carregada e sensor sem comunicação têm mensagens diferentes; uma nova consulta pode ser acionada sem remontar a tela. Decisões e evidências em `docs/dashboard-p1.md`.

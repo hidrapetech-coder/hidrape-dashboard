@@ -63,6 +63,12 @@
     --radius-pill: 999px;
     --ease-out: ease-out;
     --duration: 160ms;
+    --motion-feedback: 100ms;
+    --motion-exit: 140ms;
+    --motion-control: 160ms;
+    --motion-layer: 240ms;
+    --motion-reading: 320ms;
+    --motion-ease: cubic-bezier(0.16, 1, 0.3, 1);
     --font-family: 'Helvetica Neue', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
     --font-display: var(--font-family);
 }
@@ -1965,7 +1971,7 @@ select:focus-visible {
 .farm-context { display: flex; gap: 8px; align-items: center; color: var(--text-secondary); font-size: 12px; margin-bottom: 24px; flex-wrap: wrap; }
 .farm-context > .material-symbols-rounded { font-size: 16px; color: var(--accent); }
 .farm-context strong { font-weight: 500; color: var(--text-primary); }
-.dashboard-metrics { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
+.dashboard-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 24px; }
 .metric-card { padding: 20px; gap: 12px; }
 .metric-heading { display: flex; justify-content: space-between; gap: 8px; align-items: center; color: var(--text-secondary); }
 .metric-heading h2 { font-size: 12px; font-weight: 400; letter-spacing: 0; }
@@ -1975,7 +1981,7 @@ select:focus-visible {
 .metric-description { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
 .metric-card > .metric-description { margin-top: auto; }
 .moisture-track { height: 4px; border-radius: 4px; overflow: hidden; background: var(--divider); margin: 6px 0; }
-#umidade-progress { width: 0; height: 4px; background: var(--accent); }
+#umidade-progress { width: 100%; height: 4px; background: var(--accent); transform: scaleX(0); transform-origin: left center; }
 .metric-source { display: flex; align-items: center; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
 .source-tag { font-size: 10px; color: var(--text-secondary); background: var(--surface-raised); padding: 3px 6px; border-radius: 4px; width: fit-content; }
 .confidence-value { display: flex; align-items: baseline; gap: 6px; }
@@ -2072,7 +2078,6 @@ body:has(dialog[open]), body.navigation-open { overflow: hidden; }
     .dashboard-workspace { grid-template-columns: minmax(0, 1fr); }
     .dash-top-bar { align-items: flex-start; }
     .dash-actions { gap: 8px; }
-    .dash-actions .connection-status { display: none; }
     .settings-layout { gap: 16px !important; }
     .settings-layout > .card { width: 100% !important; flex-direction: row !important; }
     .workspace-caption { display: none; }
@@ -2128,3 +2133,85 @@ body:has(dialog[open]), body.navigation-open { overflow: hidden; }
 .form-label { color: var(--text-secondary); font-size: 13px; }
 .table-scroll { overflow-x: auto; border-radius: 8px; }
 .chart-unavailable { color: var(--text-secondary); font-size: 13px; padding: 24px 0; }
+
+/* Controls respond to an action; monitoring panels remain still. */
+::selection { background: var(--accent); color: var(--on-accent); }
+input, textarea { caret-color: var(--focus); }
+a { text-underline-offset: 3px; }
+.button, .icon-btn, .workspace-search, .text-button {
+    transition: background-color var(--motion-control) var(--motion-ease),
+        border-color var(--motion-control) var(--motion-ease),
+        color var(--motion-control) var(--motion-ease);
+}
+.button:active, .icon-btn:active, .workspace-search:active {
+    background-color: var(--pressed);
+    border-color: var(--control-border);
+}
+.metric-value { border-radius: 4px; }
+.chart-data summary::marker { color: var(--accent); }
+@media (prefers-reduced-motion: reduce) {
+    .button, .icon-btn, .workspace-search, .text-button, .nav-link {
+        transition-duration: var(--motion-feedback) !important;
+    }
+}
+
+/* The operational answer precedes reference data in both visual and DOM order. */
+.dashboard-overview { display: grid; grid-template-columns: minmax(280px, 1fr) minmax(0, 2fr); gap: 16px; margin-bottom: 24px; }
+.dashboard-overview .card-signature { gap: 12px; }
+.dashboard-overview .metric-value { font-size: 44px; }
+.dashboard-overview .metric-description { margin-top: 0; font-size: 14px; }
+.soil-context { display: grid; gap: 12px; padding-top: 12px; border-top: 1px solid var(--divider); }
+.soil-context div { display: grid; gap: 4px; }
+.soil-context dt { color: var(--text-secondary); font-size: 12px; }
+.soil-context dd { color: var(--text-primary); font-size: 14px; overflow-wrap: anywhere; }
+.reading-freshness { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.reading-freshness[data-state='stale'], .reading-freshness[data-state='unknown'] { color: var(--warning); }
+.reading-freshness[data-state='error'] { color: var(--danger); }
+.diagnosis-panel { gap: 12px; justify-content: flex-start; }
+.decision-title { font-size: 26px; line-height: 1.3; font-weight: 500; letter-spacing: -.02em; overflow-wrap: anywhere; }
+.dash-greeting { min-width: 0; }
+.dash-greeting p, .farm-context > span, .prediction-reason, .diagnosis-message p { overflow-wrap: anywhere; }
+.prediction-context { display: grid; gap: 4px; }
+.prediction-context .prediction-value { font-size: 18px; font-weight: 500; margin: 0; line-height: 1.5; letter-spacing: -.01em; }
+.prediction-reason { font-size: 13px; color: var(--text-secondary); line-height: 1.6; }
+.diagnosis-panel[data-state='attention'] .diagnosis-icon { background: var(--surface-raised); color: var(--warning); }
+.diagnosis-panel[data-state='blocked'] .diagnosis-icon { background: var(--surface-raised); color: var(--text-secondary); }
+.recovery-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: auto; }
+.recovery-actions .button, .recovery-actions .text-button { min-height: 44px; }
+#dashboard-settings-link[hidden] { display: none; }
+.button:disabled { cursor: wait; color: var(--text-secondary); border-color: var(--divider); background: var(--surface-raised); }
+.connection-status { font-size: 12px; }
+.farm-context .demo-badge { margin: 0 0 0 auto; }
+.dashboard-workspace { grid-template-areas: 'live insight' 'weekly insight'; }
+.live-panel { grid-area: live; }
+.weekly-panel { grid-area: weekly; }
+.insight-panel { grid-area: insight; }
+@media (min-width: 769px) and (max-width: 1180px) {
+    .dashboard-overview { grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); }
+    .dashboard-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .dashboard-workspace { grid-template-areas: 'live' 'weekly' 'insight'; }
+    .dash-top-bar { flex-wrap: wrap; }
+    .dash-actions { flex-wrap: wrap; }
+}
+@media (max-width: 768px) {
+    .dash-top-bar { gap: 8px; margin-bottom: 12px; }
+    .dash-greeting h1 { font-size: 24px; max-width: none; letter-spacing: -.02em; }
+    .dash-greeting > p { display: none; }
+    .dash-actions { gap: 8px; }
+    .farm-context { margin-bottom: 16px; row-gap: 8px; }
+    .farm-context .demo-badge { margin: 0; }
+    .dashboard-overview { grid-template-columns: minmax(0, 1fr); gap: 12px; margin-bottom: 16px; }
+    .dashboard-overview .metric-card { padding: 16px; gap: 8px; }
+    .dashboard-overview .metric-value { font-size: 40px; }
+    .soil-context { gap: 8px; padding-top: 8px; }
+    .soil-context dt, .reading-freshness, .prediction-reason { font-size: 14px; }
+    .dashboard-overview .diagnosis-panel { padding: 16px; gap: 12px; }
+    .decision-title { font-size: 24px; }
+    .diagnosis-message p { font-size: 14px; }
+    .dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .dashboard-metrics > .metric-card:last-child { grid-column: 1 / -1; }
+    .dashboard-workspace { grid-template-areas: 'live' 'weekly' 'insight'; }
+}
+@media (max-width: 360px) {
+    .dashboard-metrics { grid-template-columns: minmax(0, 1fr); }
+}

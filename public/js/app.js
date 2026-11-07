@@ -6,6 +6,83 @@ let sessionRevision = 0;
 let currentUser = null;
 let currentToken = null; // mantido temporariamente por legibilidade de código legado
 
+// Motion only explains an applied state; canceling it never changes product data.
+const motionPreference = window.matchMedia?.('(prefers-reduced-motion: reduce)');
+const motionJobs = new Map();
+const motionDuration = (token, fallback) => {
+    const value = getComputedStyle(document.documentElement).getPropertyValue(token);
+    return Number.parseFloat(value) || fallback;
+};
+const cancelMotion = element => {
+    const animation = motionJobs.get(element);
+    if (animation) {
+        motionJobs.delete(element);
+        animation.cancel();
+    }
+};
+const stopAllMotion = () => {
+    for (const element of motionJobs.keys()) cancelMotion(element);
+};
+const playMotion = (element, frames, {duration = 180, reducedFrames = [{opacity: 0.85}, {opacity: 1}]} = {}) => {
+    cancelMotion(element);
+    if (!element?.animate || document.hidden) return null;
+    const reduced = motionPreference?.matches;
+    const keyframes = reduced ? reducedFrames : frames;
+    if (!keyframes) return null;
+    try {
+        const animation = element.animate(keyframes, {
+            duration: reduced ? motionDuration('--motion-feedback', 100) : duration,
+            easing: 'cubic-bezier(0.16, 1, 0.3, 1)'
+        });
+        motionJobs.set(element, animation);
+        const release = () => {
+            if (motionJobs.get(element) === animation) motionJobs.delete(element);
+        };
+        animation.finished.then(release, release);
+        return animation;
+    } catch {
+        return null; // Unsupported motion must never interrupt data or navigation.
+    }
+};
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden) stopAllMotion();
+});
+motionPreference?.addEventListener?.('change', stopAllMotion);
+
+const openDialog = dialog => {
+    if (!dialog.open) dialog.showModal();
+    playMotion(dialog, [
+        {opacity: 0.7, transform: 'translateY(8px) scale(0.985)'},
+        {opacity: 1, transform: 'none'}
+    ], {duration: motionDuration('--motion-layer', 240)});
+};
+const closeDialog = dialog => {
+    if (!dialog) return;
+    cancelMotion(dialog);
+    if (dialog.open) dialog.close();
+};
+document.addEventListener('close', event => {
+    if (!(event.target instanceof HTMLDialogElement)) return;
+    cancelMotion(event.target);
+    if (event.target.id === 'search-dialog' && window.innerWidth <= 768 &&
+        (document.activeElement === document.body || document.getElementById('sidebar').contains(document.activeElement))) {
+        document.getElementById('mobile-menu-btn').focus();
+    }
+}, true);
+
+const updateSoilMeter = (meter, value) => {
+    if (!meter) return;
+    const previous = Number(meter.dataset.value || 0);
+    const next = Math.min(100, Math.max(0, Number.isFinite(value) ? value : 0));
+    meter.dataset.value = String(next);
+    meter.style.width = '100%';
+    meter.style.transform = `scaleX(${next / 100})`;
+    if (next !== previous) playMotion(meter, [
+        {transform: `scaleX(${previous / 100})`},
+        {transform: `scaleX(${next / 100})`}
+    ], {duration: motionDuration('--motion-reading', 320), reducedFrames: null});
+};
+
 // ==========================================
 // DEMO MODE ENGINE
 // ==========================================
@@ -62,11 +139,12 @@ const demoData = {
 const demoSnapshot = () => ({
     status: 'seguro', tempoHoras: null,
     recomendacao: 'Neste exemplo, a umidade está dentro da faixa de referência para milho. Continue acompanhando as leituras. Dados simulados; não use para decisões no campo.',
-    sensorState: {status:'online',hasValidData:true,dataAgeMinutes:0},
+    sensorState: {status:'online',hasValidData:true,dataAgeMinutes:0,lastReadingAt:new Date().toISOString()},
     engineData: {
         recommendation: {action:'MONITORAR'},
         confidence: {score:88,level:'Alta (exemplo)',eligible:true,factors:['Demonstração com dados simulados.']},
-        climateAnalysis: {eto:4.2}
+        climateAnalysis: {eto:4.2},
+        predictor: {dynamicDropRate:null,cropSupported:true}
     }
 });
 
@@ -372,12 +450,13 @@ const logout = async (redirect = true) => {
 // Navegação Básica (SPA)
 const navigate = async (route) => {
     sessionRevision++;
+    stopAllMotion();
     // 1. Limpar timers (Impedir vazamento assíncrono)
     if (liveInterval) { clearTimeout(liveInterval); liveInterval = null; }
     if (weatherInterval) { clearTimeout(weatherInterval); weatherInterval = null; }
     if (demoIntervalId) { clearInterval(demoIntervalId); demoIntervalId = null; }
     closeMobileNavigation(false);
-    document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
+    document.querySelectorAll('dialog[open]').forEach(closeDialog);
 
 
     // 2. Proteção de Rota
@@ -500,7 +579,7 @@ const openSearch = () => {
     closeMobileNavigation(false);
     searchInput.value = '';
     renderSearch();
-    searchDialog.showModal();
+    openDialog(searchDialog);
     searchInput.focus();
 };
 searchInput.addEventListener('input', renderSearch);
@@ -515,20 +594,32 @@ searchInput.addEventListener('keydown', event => {
 });
 document.getElementById('open-search').addEventListener('click', openSearch);
 const closeMobileNavigation = (restoreFocus = true) => {
+    const wasOpen = sidebar.classList.contains('open');
     sidebar.classList.remove('open');
+    sidebar.inert = window.innerWidth <= 768;
     document.getElementById('mobile-menu-btn').setAttribute('aria-expanded', 'false');
     document.getElementById('sidebar-backdrop').hidden = true;
     appContent.inert = false;
     document.body.classList.remove('navigation-open');
+    cancelMotion(sidebar);
+    if (wasOpen && window.innerWidth <= 768) playMotion(sidebar, [
+        {transform: 'translateX(0)', visibility: 'visible'},
+        {transform: 'translateX(-100%)', visibility: 'visible'}
+    ], {duration: motionDuration('--motion-exit', 140), reducedFrames: null});
     if (restoreFocus) document.getElementById('mobile-menu-btn').focus();
 };
 document.getElementById('mobile-menu-btn').addEventListener('click', () => {
     if (sidebar.classList.contains('open')) return closeMobileNavigation();
+    sidebar.inert = false;
     sidebar.classList.add('open');
     document.getElementById('mobile-menu-btn').setAttribute('aria-expanded', 'true');
     document.getElementById('sidebar-backdrop').hidden = false;
     appContent.inert = true;
     document.body.classList.add('navigation-open');
+    playMotion(sidebar, [
+        {transform: 'translateX(-100%)'},
+        {transform: 'translateX(0)'}
+    ], {duration: motionDuration('--motion-layer', 240)});
     sidebar.querySelector('.workspace-search').focus();
 });
 document.getElementById('sidebar-backdrop').addEventListener('click', () => closeMobileNavigation());
@@ -538,7 +629,7 @@ window.matchMedia?.('(min-width: 769px)').addEventListener('change', event => {
 document.addEventListener('keydown', event => {
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k' && currentToken) {
         event.preventDefault();
-        if (searchDialog.open) searchDialog.close(); else openSearch();
+        if (searchDialog.open) closeDialog(searchDialog); else openSearch();
     }
     if (sidebar.classList.contains('open') && !document.querySelector('dialog[open]')) {
         if (event.key === 'Escape') closeMobileNavigation();
@@ -552,16 +643,19 @@ document.addEventListener('keydown', event => {
 });
 document.body.addEventListener('click', event => {
     const close = event.target.closest('[data-close-dialog]');
-    if (close) document.getElementById(close.dataset.closeDialog)?.close();
+    if (close) closeDialog(document.getElementById(close.dataset.closeDialog));
     if (event.target instanceof HTMLDialogElement) {
         const rect = event.target.getBoundingClientRect();
-        if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) event.target.close();
+        if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) closeDialog(event.target);
     }
 });
 
 // Keep data available when the external chart library cannot load.
 const createChart = (context, config) => {
-    if (typeof Chart !== 'undefined') return new Chart(context, config);
+    if (typeof Chart !== 'undefined') {
+        config.options = {...config.options, animation: false};
+        return new Chart(context, config);
+    }
     if (context?.canvas) {
         const notice = document.createElement('p');
         notice.className = 'chart-unavailable';
@@ -600,7 +694,110 @@ window._latestSat = null;
 window._sensorState = null;
 
 window._agroSnapshot = null;
+// The overview distinguishes sensor availability from forecast availability.
+let dashboardContext = null;
+const activeDashboard = () => dashboardContext?.root?.isConnected && dashboardContext.revision === sessionRevision && dashboardContext.owner === currentUser?.id ? dashboardContext : null;
+const dashboardText = (id, text) => {
+    const element = document.getElementById(id);
+    if (element && element.textContent !== text) element.textContent = text;
+};
+const dashboardError = error => {
+    if (error?.status === 401) return {title:'Entre novamente', message:'Sua sessão expirou. Entre novamente para consultar os dados.', kind:'session'};
+    if (error?.status === 403) return {title:'Configure o sensor', message:'A integração do sensor precisa ser configurada. Confira o token em Configurações.', kind:'configuration'};
+    if (error?.status === 429) return {title:'Aguarde para atualizar', message:'Muitas consultas em sequência. Aguarde um pouco e tente novamente.', kind:'rate-limit'};
+    if (error?.status === 503) return {title:'Sensor sem comunicação', message:'Não foi possível receber uma leitura. Confira a alimentação e a conexão do equipamento e tente novamente.', kind:'sensor'};
+    if (error?.invalidReading) return {title:'Confira a leitura do sensor', message:'O sensor retornou uma leitura inválida. Confira o equipamento e tente novamente.', kind:'invalid'};
+    return {title:'Leitura não carregada', message:'Não foi possível consultar o sensor. Verifique sua conexão e tente novamente.', kind:'connection'};
+};
+const dashboardForecast = (snapshot, context = activeDashboard()) => {
+    if (context?.sensorError) return {title:context.sensorError.title,time:'Estimativa suspensa',reason:'A estimativa depende de uma leitura válida e da análise dos dados.',message:context.sensorError.message,state:'blocked',icon:'sensors_off'};
+    if (context?.analysisStatus === 'error') return {title:'Análise não atualizada',time:'Tente atualizar os dados',reason:'A leitura do sensor foi mantida; a estimativa aguarda a análise.',message:'Não foi possível atualizar a análise. Verifique a conexão e tente novamente.',state:'blocked',icon:'sync_problem'};
+    if (!snapshot) return {title:'Aguardando os dados',time:'Carregando análise...',reason:'A estimativa será apresentada após consultar as leituras e a análise.',state:'loading',icon:'sensors'};
+    const engine = snapshot.engineData || {}, predictor = engine.predictor, quality = engine.dataQuality;
+    const action = engine.recommendation?.action;
+    const stale = snapshot.sensorState?.status === 'stale' || quality?.staleData;
+    const blocked = snapshot.status === 'indisponivel' || action === 'VERIFICAR_SENSOR' || engine.confidence?.eligible === false || snapshot.sensorState?.hasValidData === false || snapshot.sensorState?.status === 'offline' || stale;
+    if (blocked) {
+        let reason = 'A qualidade dos dados não permite uma estimativa. Confira os avisos da análise abaixo.';
+        if (stale) reason = 'A análise usa leituras desatualizadas. Atualize os dados antes de avaliar o manejo.';
+        else if (predictor?.cropSupported === false) reason = 'Defina a faixa de referência da cultura em Configurações para permitir a análise.';
+        else if (quality && (quality.sampleCount < (engine.inputs?.rules?.minSamples ?? 5) || quality.spanHours < (engine.inputs?.rules?.minSpanHours ?? 1))) reason = 'Ainda não há histórico suficiente para estimar o tempo até o limite da cultura.';
+        return {title:'Confira os dados antes do manejo',time:'Estimativa suspensa',reason,state:'blocked',icon:'fact_check'};
+    }
+    const titles = {MONITORAR:'Continue acompanhando',IRRIGAR:'Confirme a leitura no campo','ATENÇÃO':'Acompanhe a aproximação do limite',EXCESSO_UMIDADE:'Confira o solo e a drenagem'};
+    const title = titles[action] || 'Consulte a análise';
+    const state = ['IRRIGAR','ATENÇÃO','EXCESSO_UMIDADE'].includes(action) ? 'attention' : 'ready';
+    if (Number.isFinite(snapshot.tempoHoras) && snapshot.tempoHoras >= 0) return {title,time:snapshot.tempoHoras === 0 ? 'Limite inferior atingido' : `≈ ${snapshot.tempoHoras.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})} h`,reason:'Estimativa condicionada à continuidade da secagem observada; chuva e irrigação podem alterá-la.',state,icon:state === 'attention' ? 'water_drop' : 'eco'};
+    let reason = 'A análise não retornou uma estimativa de tempo até o limite da cultura.';
+    if (predictor?.dynamicDropRate === null) reason = 'Não há tendência de secagem confiável para estimar o tempo até o limite.';
+    else if (Number.isFinite(predictor?.dynamicDropRate)) reason = 'O tempo até o limite não pôde ser estimado dentro do horizonte do histórico observado.';
+    return {title,time:'Ainda sem estimativa de tempo',reason,state,icon:'eco'};
+};
+const renderDashboardPrediction = (snapshot = window._agroSnapshot) => {
+    if (!document.getElementById('predict-action')) return;
+    const context = activeDashboard(), forecast = dashboardForecast(snapshot,context);
+    dashboardText('predict-action',forecast.title);
+    dashboardText('predict-time',forecast.time);
+    dashboardText('predict-reason',forecast.reason);
+    const card = document.getElementById('predict-card');
+    card.dataset.state = forecast.state;
+    card.style.removeProperty('border-left');
+    const icon = document.getElementById('predict-icon');
+    icon.textContent = forecast.icon;
+    if (context?.sensorError || context?.analysisStatus === 'error') dashboardText('predict-text',forecast.message);
+    const settings = document.getElementById('dashboard-settings-link');
+    if (settings) {
+        const cropMissing = snapshot?.engineData?.predictor?.cropSupported === false;
+        settings.hidden = !(context?.sensorError?.kind === 'configuration' || cropMissing);
+        settings.firstChild.textContent = cropMissing ? 'Definir faixa da cultura' : 'Configurar sensor';
+    }
+};
+const renderDashboardSensorContext = () => {
+    const context = activeDashboard();
+    if (!context) return;
+    const limits = getCropLimits();
+    const hasLimits = Number.isFinite(limits.min) && Number.isFinite(limits.max) && limits.min >= 0 && limits.max <= 100 && limits.min < limits.max;
+    dashboardText('soil-crop-range',hasLimits ? `${limits.min.toLocaleString('pt-BR')}% a ${limits.max.toLocaleString('pt-BR')}% do sensor calibrado` : 'Faixa não configurada — confira em Configurações');
+    const stamp = context.lastReadingAt ? new Date(context.lastReadingAt).getTime() : NaN;
+    const time = document.getElementById('soil-reading-time');
+    let zone = currentUser?.timeZone || 'UTC';
+    let zoneConfigured = !!currentUser?.timeZone;
+    try { new Intl.DateTimeFormat('pt-BR',{timeZone:zone}).format(); } catch { zone='UTC';zoneConfigured=false; }
+    if (Number.isFinite(stamp)) {
+        time.dateTime = new Date(stamp).toISOString();
+        time.textContent = `${new Intl.DateTimeFormat('pt-BR',{timeZone:zone,day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(stamp)} · ${zone}${zoneConfigured ? '' : ' (configure o fuso)'}`;
+    } else {
+        time.removeAttribute('datetime');
+        time.textContent = context.sensorStatus === 'loading' ? 'Aguardando leitura...' : context.sensorError ? 'Nenhuma leitura recebida nesta sessão' : 'Horário da leitura não informado';
+    }
+    let freshness = 'Consultando o sensor...', state = 'loading';
+    if (context.sensorError) { freshness=context.sensorError.title;state='error'; }
+    else if (context.sensorStatus === 'ready') {
+        const age = Number.isFinite(stamp) ? (Date.now()-stamp)/60000 : null;
+        const limit = context.sensorSnapshot?.engineData?.inputs?.rules?.freshnessMinutes ?? 30;
+        if (age === null) { freshness='Atualidade não confirmada: o horário da leitura não foi informado.';state='unknown'; }
+        else if (age < 0) { freshness='Horário futuro informado. Confira o relógio do equipamento.';state='unknown'; }
+        else if (age > limit || context.sensorSnapshot?.sensorState?.status === 'stale') { freshness=`Leitura desatualizada · há ${Math.floor(age)} min. Atualize os dados.`;state='stale'; }
+        else { freshness=age < 1 ? 'Leitura recebida há menos de 1 min' : `Leitura recebida há ${Math.floor(age)} min`;state='fresh'; }
+    }
+    dashboardText('soil-freshness',freshness);
+    document.getElementById('soil-freshness').dataset.state = state;
+    const status = document.getElementById('sys-status');
+    const label = context.sensorError ? (context.sensorError.kind === 'session' ? 'Sessão expirada' : 'Sem leitura atual') : state === 'stale' ? 'Leitura desatualizada' : context.sensorStatus === 'ready' ? 'Sensor conectado' : 'Consultando sensor';
+    status.style.background = context.sensorError ? 'var(--danger)' : state === 'stale' || state === 'unknown' ? 'var(--warning)' : context.sensorStatus === 'ready' ? 'var(--success)' : 'var(--control-border)';
+    status.nextElementSibling.textContent = label;
+};
+document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) renderDashboardSensorContext();
+});
+
 const clearAgroState = () => {
+    dashboardContext = null;
+    dashboardText('soil-reading-time','Aguardando leitura...');
+    document.getElementById('soil-reading-time')?.removeAttribute('datetime');
+    dashboardText('soil-freshness','Sem leitura atual.');
+    dashboardText('predict-action','Aguardando os dados');
+    dashboardText('predict-reason','Consulte os dados antes de avaliar o manejo.');
     window._latestUmid = null; window._latestStatus = 'INDEFINIDO'; window._latestClima = null;
     window._latestSemana = []; window._latestSat = null; window._sensorState = null; window._agroSnapshot = null;
     for (const id of ['predict-time','analysis-hero-time','analysis-hero-status','umidade-valor','saude-valor','an-saude-score']) {
@@ -613,6 +810,7 @@ const clearAgroState = () => {
 const predictionTime = hours => Number.isFinite(hours) ? hours === 0 ? 'AGORA' : `≈ ${hours.toFixed(1)}h` : 'Indisponível';
 const applyAgroSnapshot = snapshot => {
     if (!snapshot) return;
+    if (activeDashboard()?.sensorError) { renderDashboardPrediction(null); return; }
     window._agroSnapshot = snapshot; window._sensorState = snapshot.sensorState || snapshot._meta?.sensorState || null;
     const status = snapshot.engineData?.recommendation?.action || 'VERIFICAR_SENSOR';
     for (const id of ['predict-text','analysis-hero-reco','analise-texto']) {
@@ -621,6 +819,7 @@ const applyAgroSnapshot = snapshot => {
     for (const id of ['predict-time','analysis-hero-time','an-tl-irrig']) {
         const element = document.getElementById(id); if (element) element.textContent = predictionTime(snapshot.tempoHoras);
     }
+    renderDashboardPrediction(snapshot);
     const hero = document.getElementById('analysis-hero-status'); if (hero) hero.textContent = status;
     const factors = document.getElementById('an-confidence-factors');
     if (factors) factors.textContent = snapshot.engineData?.confidence?.factors?.join(' ') || 'Dados recentes e sem anomalias detectadas. O score não é uma probabilidade estatística.';
@@ -1005,7 +1204,7 @@ const initDashboard = async () => {
         // Exibe badge demo
         const badge = document.getElementById('global-demo-badge');
         if (!badge) {
-            const header = document.querySelector('.dash-greeting');
+            const header = document.querySelector('.farm-context');
             if (header) {
                 const b = document.createElement('div');
                 b.id = 'global-demo-badge';
@@ -1027,12 +1226,11 @@ const initDashboard = async () => {
     document.getElementById('dash-culture').textContent = currentUser.tipoPlantacao || 'Não configurada';
     document.getElementById('dash-location').textContent = [currentUser.cidade, currentUser.estado].filter(Boolean).join(', ') || 'Localização não configurada';
 
-    // Config Iniciais
-    const valText = document.getElementById('umidade-valor');
-    const varBar = document.getElementById('umidade-progress');
-    const iaCard = document.getElementById('predict-card'); // updated to predict-card from generic copy
-    const iaText = document.getElementById('ia-text');
-    const iaIcon = document.getElementById('ia-icon');
+    const context = {root:document.querySelector('.dashboard-view'),revision:sessionRevision,owner:currentUser?.id,sensorStatus:'loading',analysisStatus:'loading',lastReadingAt:null,sensorSnapshot:null,sensorError:null};
+    dashboardContext = context;
+    const isCurrent = () => activeDashboard() === context;
+    renderDashboardSensorContext();
+    renderDashboardPrediction(null);
 
     // Init Live Chart (Garbage Collector)
     if (liveChartObj) liveChartObj.destroy();
@@ -1043,7 +1241,7 @@ const initDashboard = async () => {
         Chart.defaults.font.family = theme.getPropertyValue('--font-family').trim();
         Chart.defaults.font.weight = 400;
         Chart.defaults.font.size = 11;
-        Chart.defaults.animation = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        Chart.defaults.animation = false;
     }
     liveChartObj = createChart(ctxLive, {
         type: 'line',
@@ -1163,7 +1361,7 @@ const initDashboard = async () => {
 
 
             const modal = document.getElementById('nasa-modal');
-            modal.showModal();
+            openDialog(modal);
 
             const hist = window._latestSat?.historico || [];
             document.getElementById('nasa-data-summary').textContent = hist.length ? hist.map(h => `${h.data}: ${h.valor}%`).join('; ') : 'Nenhuma observação disponível. Tente novamente após atualizar os dados.';
@@ -1191,10 +1389,7 @@ const initDashboard = async () => {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    animation: {
-                        duration: 1000,
-                        easing: 'easeOutQuart'
-                    },
+                    animation: false,
                     plugins: {
                         legend: { display: false },
                         tooltip: {
@@ -1222,292 +1417,174 @@ const initDashboard = async () => {
     if (closeNasaBtn) {
         closeNasaBtn.addEventListener('click', () => {
             const modal = document.getElementById('nasa-modal');
-            modal.close();
+            closeDialog(modal);
         });
     }
 
-    // CORE 1: IoT Hardware Polling Ligeiro (A cada 5s)
-    const updateIoT = async () => {
+    // Client refresh retains the existing API contracts and polling cadence.
+    const requestData = async url => {
+        const response = await setupAuthFetch(url,{signal:AbortSignal.timeout(15000)});
+        if (!response.ok) { const error=new Error('Consulta não concluída');error.status=response.status;throw error; }
+        return response.json();
+    };
+    let sensorPending = null, analysisPending = null, refreshPending = null;
+    const readIoT = async force => {
+        if (!isCurrent() || (document.hidden && context.lastReadingAt && !force)) return;
+        context.sensorStatus = 'loading';
+        context.sensorError = null;
+        renderDashboardSensorContext();
         try {
-            const valText = document.getElementById('umidade-valor');
-            const varBar = document.getElementById('variance-bar') || document.getElementById('umidade-progress');
-            const iaCard = document.getElementById('ia-diagnostico-card') || document.getElementById('predict-card');
-            const iaText = document.getElementById('predict-text') || document.getElementById('ia-text');
-            const iaIcon = document.getElementById('ia-status-icon') || document.getElementById('ia-icon');
-
-            // Proteção Assíncrona
-            if (!valText) return;
-
-            const setOfflineState = () => {
-                if (valText) {
-                    valText.textContent = '--';
-                    valText.style.color = 'var(--danger)';
-                }
-                if (varBar) {
-                    varBar.style.width = `100%`; // Para a barra ficar toda vermelha
-                    varBar.style.backgroundColor = 'rgba(255, 68, 68, 0.2)';
-                }
-                if (iaText) iaText.textContent = "Aviso Crítico: Sem comunicação com o sensor. Verifique se o equipamento tem internet/Wi-Fi. Se não voltar, contate o técnico.";
-                if (iaIcon) {
-                    iaIcon.textContent = "wifi_off";
-                    iaIcon.style.color = "#ff4444";
-                }
-                if (iaCard) iaCard.style.boxShadow = `0 8px 32px 0 rgba(255,68,68,0.15)`;
-                const soilInsight = document.getElementById('soil-insight');
-                if (soilInsight) {
-                    soilInsight.textContent = "Sensor sem comunicação. Verifique a conexão.";
-                    soilInsight.style.color = "#ff4444";
-                    soilInsight.style.fontWeight = "bold";
-                }
-
-                const sysStatus = document.getElementById('sys-status');
-                if (sysStatus) {
-                    sysStatus.style.background = '#ff4444';
-                    sysStatus.nextElementSibling.textContent = 'Offline';
-                    sysStatus.nextElementSibling.style.color = '#ff4444';
-                }
-
-                clearAgroState();
-                window._sensorState = { status: 'offline', hasValidData: false };
-                renderInteligence();
-            };
-
-            if (document.hidden && window._latestUmid !== null) {
-                if (document.getElementById('umidade-valor')) {
-                    liveInterval = setTimeout(updateIoT, 30000);
-                }
-                return;
-            }
-
-            let res;
-            try {
-                res = await setupAuthFetch('/api/sensores/umidade');
-                if (res.status === 503) throw new Error('Sensor Offline');
-                if (!res.ok) throw new Error('Erro API');
-            } catch (err) {
-                console.error('Fetch IoT Error', err);
-                setOfflineState();
-                return;
-            }
-
-            const data = await res.json();
-
-            if(!valText) return;
-
-            valText.textContent = data.umidade.toLocaleString('pt-BR', {minimumFractionDigits:1, maximumFractionDigits:1}) + '%';
-
-            let color = 'var(--sys-text)';
-            let glowKey = '';
-
-            if (data.status === 'SECO') { color = 'var(--color-dry)'; glowKey = 'dry'; if(iaIcon) iaIcon.textContent = 'water_drop'; }
-            if (data.status === 'ENCHARCADO') { color = 'var(--color-dry)'; glowKey = 'dry'; if(iaIcon) iaIcon.textContent = 'flood'; }
-            if (data.status === 'IDEAL') { color = 'var(--color-good)'; glowKey = 'good'; if(iaIcon) iaIcon.textContent = 'eco'; }
-
-            // Signature card glow
-            const sigCard = document.querySelector('.card-signature');
-            if (sigCard) sigCard.setAttribute('data-glow', glowKey);
-
-            // Soil insight text
-            const soilInsight = document.getElementById('soil-insight');
-            if (soilInsight) {
-                const cultura = currentUser?.tipoPlantacao || 'cultura';
-                if (data.status === 'IDEAL') soilInsight.textContent = `Dentro da faixa de referência para ${cultura.toLowerCase()}`;
-                else soilInsight.textContent = data.diagnostico;
-
-            }
-
-            valText.style.color = color;
-            if (varBar) {
-                varBar.style.backgroundColor = color;
-                varBar.style.width = `${data.umidade}%`;
-            }
-            if (iaCard) iaCard.style.boxShadow = `0 4px 20px 0 ${color}15`;
-            if (iaText) iaText.textContent = data.diagnostico;
-
-            const sysStatus = document.getElementById('sys-status');
-            if (sysStatus) {
-                sysStatus.style.background = 'var(--color-good)';
-                sysStatus.nextElementSibling.textContent = 'Online';
-                sysStatus.nextElementSibling.style.color = 'var(--sys-light)';
-            }
-
-            // Live Chart Append
-            if (typeof liveChartObj !== 'undefined' && liveChartObj) {
-                const tLabel = new Date(data.timestamp).toLocaleTimeString('pt-BR', {timeZone:currentUser.timeZone || 'UTC'});
-                liveChartObj.data.labels.push(tLabel);
-                liveChartObj.data.datasets[0].data.push(data.umidade);
-                if (liveChartObj.data.labels.length > 20) {
-                    liveChartObj.data.labels.shift();
-                    liveChartObj.data.datasets[0].data.shift();
-                }
-                liveChartObj.update();
-                document.getElementById('live-data-summary').textContent = liveChartObj.data.labels.map((label, i) => `${label}: ${liveChartObj.data.datasets[0].data[i].toFixed(1)}%`).join('; ');
-            }
-
-            // Store para Engine IA global e Roda Update
+            const data = await requestData('/api/sensores/umidade');
+            if (!isCurrent()) return;
+            if (!Number.isFinite(data.umidade) || data.umidade < 0 || data.umidade > 100) { const error=new Error('Leitura inválida');error.invalidReading=true;throw error; }
+            context.sensorStatus = 'ready';
+            context.lastReadingAt = data.timestamp || data.previsao?.sensorState?.lastReadingAt || null;
+            context.sensorSnapshot = data.previsao || null;
+            const value = document.getElementById('umidade-valor');
+            const previous = value.textContent;
+            value.textContent = data.umidade.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%';
+            if (previous !== value.textContent) playMotion(value,[{backgroundColor:'rgba(148, 180, 193, 0.18)'},{backgroundColor:'transparent'}],{duration:motionDuration('--motion-reading',320),reducedFrames:[{backgroundColor:'rgba(148, 180, 193, 0.12)'},{backgroundColor:'transparent'}]});
+            const color = ['SECO','ENCHARCADO'].includes(data.status) ? 'var(--danger)' : data.status === 'IDEAL' ? 'var(--success)' : 'var(--text-primary)';
+            value.style.color = color;
+            const meter = document.getElementById('umidade-progress');
+            meter.style.backgroundColor = color;
+            updateSoilMeter(meter,data.umidade);
+            dashboardText('soil-insight',data.status === 'IDEAL' ? `Dentro da faixa de referência para ${(currentUser.tipoPlantacao || 'a cultura').toLowerCase()}` : data.diagnostico || 'Confira a faixa da cultura e os avisos da análise.');
             window._latestUmid = data.umidade;
-            window._latestStatus = data.status;
+            window._latestStatus = data.status || 'INDEFINIDO';
             applyAgroSnapshot(data.previsao);
             renderInteligence();
-        } catch (e) { clearAgroState(); console.warn('Sensor indisponível'); }
-        finally {
-            if (document.getElementById('umidade-valor')) {
-                liveInterval = setTimeout(updateIoT, 30000); // Polling Mais Lento 30s
+            renderDashboardSensorContext();
+            renderDashboardPrediction();
+            const stamp = new Date(data.timestamp).getTime();
+            if (Number.isFinite(stamp) && liveChartObj) {
+                const zone = currentUser.timeZone;
+                let label;
+                try { label=new Date(stamp).toLocaleTimeString('pt-BR',{timeZone:zone || 'UTC'}); }
+                catch { label=new Date(stamp).toLocaleTimeString('pt-BR',{timeZone:'UTC'}); }
+                liveChartObj.data.labels.push(label);
+                liveChartObj.data.datasets[0].data.push(data.umidade);
+                if (liveChartObj.data.labels.length > 20) { liveChartObj.data.labels.shift();liveChartObj.data.datasets[0].data.shift(); }
+                liveChartObj.update();
+                dashboardText('live-data-summary',liveChartObj.data.labels.map((time,i)=>`${time}: ${liveChartObj.data.datasets[0].data[i].toFixed(1)}%`).join('; '));
             }
+        } catch (error) {
+            if (!isCurrent()) return;
+            context.sensorStatus = 'error';
+            context.sensorError = dashboardError(error);
+            window._latestUmid = null;
+            window._latestStatus = 'INDEFINIDO';
+            window._agroSnapshot = null;
+            window._sensorState = {status:'offline',hasValidData:false};
+            dashboardText('umidade-valor','—');
+            dashboardText('soil-insight','A última consulta não retornou uma leitura válida.');
+            updateSoilMeter(document.getElementById('umidade-progress'),null);
+            renderInteligence();
+            renderDashboardSensorContext();
+            renderDashboardPrediction(null);
         }
     };
-
-    // CORE 2: Data Engineering Polling Lento (A cada 10mins = Cache Safe)
-    const updateAgro = async () => {
+    const updateIoT = (force = false) => {
+        if (!isCurrent()) return Promise.resolve();
+        if (sensorPending) return sensorPending;
+        if (liveInterval) { clearTimeout(liveInterval);liveInterval=null; }
+        sensorPending = readIoT(force).finally(()=>{
+            sensorPending=null;
+            if (isCurrent() && context.sensorError?.kind !== 'session') liveInterval=setTimeout(()=>updateIoT(),30000);
+        });
+        return sensorPending;
+    };
+    const readAgro = async () => {
+        if (!isCurrent()) return;
+        context.analysisStatus = 'loading';
         try {
-            // -- CLIMA & IA --
-            const resClima = await setupAuthFetch('/api/agro/clima');
-            const agroData = await resClima.json();
-            if (!resClima.ok) throw new Error('Motor indisponível');
-            applyAgroSnapshot(agroData.previsao);
-
-            if (!document.getElementById('predict-text')) return;
-
-            if (agroData && agroData.clima && agroData.clima.current) {
-                if (document.getElementById('clima-cidade')) {
-
-                    document.getElementById('clima-cidade').textContent = agroData.cidade;
-                    document.getElementById('clima-temp').textContent = Math.round(agroData.clima.current.temperature_2m) + '°C';
-
-                    // O Open-Meteo V1 entrega exato em .current
-                    const arNivel = agroData.clima.current.relative_humidity_2m !== undefined ? agroData.clima.current.relative_humidity_2m : '--';
-                    document.getElementById('clima-umid').textContent = 'Ar: ' + arNivel + '%';
-
-                    // Tradução do Ícone WeatherCode (WMO) Standard (Ex: 0 = limpo, 1,2,3 = parcial, 61+ = chuva)
-                    const code = agroData.clima.current.weather_code;
-                    const isDay = agroData.clima.current.is_day === 1; // Booleano retornado 1(Dia) / 0(Noite)
-
-                    let icon = 'routine';
-                    if (code <= 3) {
-                        // Limpo ou Parcialmente Nublado
-                        icon = isDay ? 'sunny' : 'mode_night';
-                    }
-                    else if (code <= 69) {
-                        // Chuvoso ou Neve
-                        icon = 'rainy';
-                    }
-                    else if (code <= 99) {
-                        // Tempestade
-                        icon = 'thunderstorm';
-                    }
-                    document.getElementById('clima-icon').textContent = icon;
-                }
-            } else if (document.getElementById('clima-cidade')) {
-                document.getElementById('clima-cidade').textContent = "Erro API Clima";
-                document.getElementById('clima-temp').textContent = "--°C";
-            }
-
-            // Binding Previsão Regras UI (Matemática Pura -> IA Generativa)
-            document.getElementById('predict-text').innerHTML = `<span style="opacity:0.7">Gerando IA...</span>`;
-
-            try {
-                const iaRes = await setupAuthFetch('/api/agro/insights-ia' + (agroData?.snapshotId ? '?snapshotId=' + encodeURIComponent(agroData.snapshotId) : ''));
-                if (!iaRes.ok) throw new Error("IA Fallback");
-                const iaData = await iaRes.json();
-                if (iaData.previsao) { if (agroData) agroData.previsao = iaData.previsao; applyAgroSnapshot(iaData.previsao); }
-
-                const predictTextEl = document.getElementById('predict-text');
-                predictTextEl.innerHTML = `
-                    <span style="font-size: 0.75rem; background: var(--color-good); padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-bottom: 6px; display: inline-block; color: var(--canvas);">Diagnóstico do motor</span><br/>
-                `;
-                const textNode = document.createTextNode(iaData.diagnostico);
-                predictTextEl.appendChild(textNode);
-            } catch (err) {
-                // Fallback para a recomendação puramente matemática se a IA falhar
-                document.getElementById('predict-text').textContent = agroData.previsao.recomendacao;
-            }
-
-            let timeText = predictionTime(agroData.previsao.tempoHoras);
-
-            document.getElementById('predict-time').textContent = timeText;
-
-            const pCard = document.getElementById('predict-card');
-            const pIconWrap = document.getElementById('predict-icon-wrapper');
-            const pIcon = document.getElementById('predict-icon');
-
-            if (agroData.previsao.status === 'indisponivel') {
-                pCard.style.borderLeft = '4px solid var(--sys-light)';
-                pIconWrap.style.background = 'rgba(255, 255, 255, 0.1)';
-                pIcon.style.color = 'var(--sys-light)';
-                pIcon.textContent = 'wifi_off';
-                document.getElementById('predict-time').textContent = '--';
-            } else if (agroData.previsao.status === 'critico') {
-                pCard.style.borderLeft = '4px solid var(--color-dry)';
-                pIconWrap.style.background = 'var(--color-dry)';
-                pIcon.style.color = 'white';
-                pIcon.textContent = 'warning';
-            } else if (agroData.previsao.status === 'alerta') {
-                pCard.style.borderLeft = '4px solid #f39c12';
-                pIconWrap.style.background = '#f39c12';
-                pIcon.style.color = 'white';
-                pIcon.textContent = 'schedule';
+            const data = await requestData('/api/agro/clima');
+            if (!isCurrent()) return;
+            if (!data.previsao || typeof data.previsao.recomendacao !== 'string') throw new Error('Análise incompleta');
+            context.analysisStatus = 'ready';
+            window._latestClima = data.clima;
+            window._latestSat = data.satelite;
+            applyAgroSnapshot(data.previsao);
+            if (data.satelite?.available && Number.isFinite(data.satelite.umidadeMacro)) {
+                dashboardText('satelite-valor',data.satelite.umidadeMacro+'%');
+                dashboardText('satelite-data','Ref: '+data.satelite.dataReferencia);
             } else {
-                pCard.style.borderLeft = '4px solid var(--color-good)';
-                pIconWrap.style.background = 'var(--color-good)';
-                pIcon.style.color = 'var(--bg-main)';
-                pIcon.textContent = 'psychiatry'; // Planta Segura Icon
+                dashboardText('satelite-valor','Indisponível');
+                dashboardText('satelite-data','Dados indisponíveis na fonte. Tente novamente mais tarde.');
             }
-
-            // -- CHART ANALISE SEMANAL DB --
-            const resWeek = await setupAuthFetch('/api/agro/media-semanal');
-            const weekData = await resWeek.json();
-            weeklyChartObj.data.labels = weekData.map(w => w.dia);
-            weeklyChartObj.data.datasets[0].data = weekData.map(w => w.media);
-            weeklyChartObj.update();
-            document.getElementById('weekly-data-summary').textContent = weekData.length ? weekData.map(day => `${day.dia}: ${Number.isFinite(day.media) ? day.media.toFixed(1) + '%' : 'sem leitura'}`).join('; ') : 'Sem leituras nos últimos 7 dias completos. Conecte o sensor em Configurações.';
-
-            // Store para Engine IA e Roda Update
-            window._latestClima = agroData.clima;
-            window._latestSemana = weekData;
-            window._latestSat = agroData.satelite;
-            window._sensorState = agroData.sensorState || null;
-
-            // Adicionar aviso de sensor stale se aplicavel
-            const soilInsight = document.getElementById('soil-insight');
-            if (agroData.sensorState && agroData.sensorState.status === 'stale' && soilInsight) {
-                soilInsight.innerHTML = `<span style="color:#f39c12">⚠️ Dados desatualizados (${agroData.sensorState.dataAgeMinutes}m atrás)</span>`;
-            } else if (agroData.sensorState && agroData.sensorState.status === 'offline' && soilInsight) {
-                soilInsight.innerHTML = `<span style="color:#ff4444">⚠️ Sensor offline</span>`;
-            }
-
-            // Satelite Update UI
-            if (agroData.satelite?.available && document.getElementById('satelite-valor')) {
-                document.getElementById('satelite-valor').textContent = agroData.satelite.umidadeMacro + '%';
-                document.getElementById('satelite-data').textContent = 'Ref: ' + agroData.satelite.dataReferencia;
-            } else if (document.getElementById('satelite-valor')) {
-                document.getElementById('satelite-valor').innerHTML = '<span style="font-size: 1.5rem">Indisponível</span>';
-                document.getElementById('satelite-data').textContent = 'Dados indisponíveis na fonte. Tente novamente mais tarde.';
-            }
-
             renderInteligence();
-
-            renderMapAvailability();
-        } catch (e) {
-            window._agroSnapshot = null;
+            renderDashboardPrediction(data.previsao);
+            // Optional phrasing failures retain the deterministic recommendation.
+            try {
+                const insights = await requestData('/api/agro/insights-ia'+(data.snapshotId ? '?snapshotId='+encodeURIComponent(data.snapshotId) : ''));
+                if (!isCurrent()) return;
+                if (insights.previsao) applyAgroSnapshot(insights.previsao);
+                if (!context.sensorError && typeof insights.diagnostico === 'string') dashboardText('predict-text',insights.diagnostico);
+                renderDashboardPrediction();
+            } catch { /* The motor's existing explanation remains visible. */ }
+        } catch (error) {
+            if (!isCurrent()) return;
+            context.analysisStatus = 'error';
+            if (error.status === 401) context.sensorError = dashboardError(error);
             window._latestClima = null;
             window._latestSat = null;
+            window._agroSnapshot = null;
             renderInteligence();
-            document.getElementById('predict-time').textContent = 'Indisponível';
-            document.getElementById('satelite-valor').textContent = '—';
-            document.getElementById('satelite-data').textContent = 'Não foi possível carregar os dados. Tente novamente mais tarde.';
-            document.getElementById('predict-text').textContent = 'Análise indisponível. Verifique a conexão e as integrações em Configurações.';
-            document.getElementById('weekly-data-summary').textContent = 'Não foi possível carregar as médias. Reabra a visão geral para tentar novamente.';
-            console.warn('Motor indisponível');
+            dashboardText('satelite-valor','—');
+            dashboardText('satelite-data','Não foi possível carregar os dados. Tente novamente mais tarde.');
+            renderDashboardSensorContext();
+            renderDashboardPrediction(null);
         }
-        finally {
-            if (document.getElementById('predict-text')) {
-                weatherInterval = setTimeout(updateAgro, 10 * 60 * 1000); // Polling Seguro em Fila
-            }
+        if (context.sensorError?.kind === 'session') return;
+        // Weekly history is independent of analysis availability.
+        try {
+            const week = await requestData('/api/agro/media-semanal');
+            if (!isCurrent()) return;
+            if (!Array.isArray(week)) throw new Error('Médias inválidas');
+            weeklyChartObj.data.labels = week.map(day=>day.dia);
+            weeklyChartObj.data.datasets[0].data = week.map(day=>Number.isFinite(day.media) ? day.media : null);
+            weeklyChartObj.update();
+            window._latestSemana = week;
+            dashboardText('weekly-data-summary',week.length ? week.map(day=>`${day.dia}: ${Number.isFinite(day.media) ? day.media.toFixed(1)+'%' : 'sem leitura'}`).join('; ') : 'Sem leituras nos últimos 7 dias completos. Conecte o sensor em Configurações.');
+        } catch {
+            if (isCurrent()) dashboardText('weekly-data-summary','Não foi possível carregar as médias. Use Atualizar dados para tentar novamente.');
         }
     };
+    const updateAgro = () => {
+        if (!isCurrent() || context.sensorError?.kind === 'session') return Promise.resolve();
+        if (analysisPending) return analysisPending;
+        if (weatherInterval) { clearTimeout(weatherInterval);weatherInterval=null; }
+        analysisPending=readAgro().finally(()=>{
+            analysisPending=null;
+            if (isCurrent() && context.sensorError?.kind !== 'session') weatherInterval=setTimeout(updateAgro,10*60*1000);
+        });
+        return analysisPending;
+    };
+    const refreshButton = document.getElementById('dashboard-refresh');
+    const refresh = () => {
+        if (refreshPending) return refreshPending;
+        const restoreFocus = document.activeElement === refreshButton;
+        if (liveInterval) {clearTimeout(liveInterval);liveInterval=null;}
+        if (weatherInterval) {clearTimeout(weatherInterval);weatherInterval=null;}
+        refreshButton.disabled=true;
+        refreshButton.setAttribute('aria-busy','true');
+        dashboardText('dashboard-refresh-label','Atualizando...');
+        refreshPending=updateIoT(true).then(updateAgro).finally(()=>{
+            refreshPending=null;
+            if (!isCurrent()) return;
+            refreshButton.disabled=false;
+            refreshButton.removeAttribute('aria-busy');
+            dashboardText('dashboard-refresh-label',context.sensorError?.kind === 'session' ? 'Entrar novamente' : 'Atualizar dados');
+            if (restoreFocus && document.activeElement === document.body) refreshButton.focus({preventScroll:true});
+        });
+        return refreshPending;
+    };
+    refreshButton.addEventListener('click',()=>{
+        if (context.sensorError?.kind === 'session') { logout(true);return; }
+        refresh();
+    });
+    return refresh();
 
-    // Kickoff Inicial Duplo // Recursive call inside handles timings.
-    updateIoT().then(updateAgro);
 };
 
 
@@ -1766,6 +1843,7 @@ const initSettings = async () => {
             btn.disabled = false;
             btn.textContent = originalText;
             document.getElementById('set-success').style.display = 'block';
+            playMotion(document.getElementById('set-success'), [{opacity: 0.6}, {opacity: 1}], {duration: motionDuration('--motion-feedback', 100)});
             setTimeout(() => { document.getElementById('set-success').style.display = 'none'; }, 3000);
         } catch (e) {
             btn.disabled = false;
@@ -1791,6 +1869,7 @@ const initSettings = async () => {
             clearAgroState();
             for (const id of ['set-blynk','set-phone','set-apikey']) document.getElementById(id).value = '';
             document.getElementById('int-success').style.display = 'block';
+            playMotion(document.getElementById('int-success'), [{opacity: 0.6}, {opacity: 1}], {duration: motionDuration('--motion-feedback', 100)});
             setTimeout(() => { document.getElementById('int-success').style.display = 'none'; }, 3000);
         } catch (e) { alert(e.message); }
     });
@@ -1803,6 +1882,8 @@ let analysisWeeklyChart = null;
 let analysisNasaChart = null;
 
 const initAnalysis = async () => {
+    const analysisRevision = sessionRevision;
+    const analysisRoot = document.getElementById('analysis-hero-status');
     // Helper to set check icon
     const setCheck = (id, ok, label) => {
         const el = document.getElementById(id);
@@ -2055,6 +2136,7 @@ const initAnalysis = async () => {
             throw new Error('Agro API error');
         }
     } catch (e) {
+        if (analysisRevision !== sessionRevision || !analysisRoot?.isConnected) return;
         clearAgroState();
         setCheck('an-check-clima', false, 'Indisponível');
         setCheck('an-check-nasa', false, 'Indisponível');

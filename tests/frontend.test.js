@@ -15,9 +15,10 @@ const app=(view,fetcher=async()=>({ok:true,json:async()=>({})}))=>{
     w.HTMLCanvasElement.prototype.getContext=()=>({});
     w.HTMLDialogElement.prototype.showModal=function(){this.open=true;};
     w.HTMLDialogElement.prototype.close=function(){this.open=false;};
+    w.matchMedia=query=>({get matches(){return query.includes('prefers-reduced-motion') ? !!w.__reducedMotion : w.innerWidth >= 769;},addEventListener:vi.fn()});
     const charts=[];w.Chart=class {constructor(ctx,config){this.data=config.data;charts.push(this);}destroy(){}update(){}};
     w.localStorage.setItem('jwt','legacy-token');
-    w.eval(file('public/js/app.js')+`\nwindow.api={initAnalysis,initSettings,initDashboard,applyAgroSnapshot,clearAgroState,predictionTime,logout,setupAuthFetch};window.setUser=(u)=>{currentUser=u;currentToken='cookie';};`);
+    w.eval(file('public/js/app.js')+`\nwindow.api={initAnalysis,initSettings,initDashboard,applyAgroSnapshot,clearAgroState,predictionTime,logout,setupAuthFetch,openDialog,closeDialog,playMotion,stopAllMotion,updateSoilMeter,motionJobs,dashboardForecast};window.setUser=(u)=>{currentUser=u;currentToken='cookie';};`);
     w.setUser(user);
     return {w,dom,charts};
 };
@@ -105,4 +106,168 @@ it('falha de carregamento de Chart.js mantém valores textuais e permite reabrir
     for(let i=0;i<2;i++) {w.document.getElementById('nasa-card').click();expect(w.document.getElementById('nasa-modal').open).toBe(true);w.document.getElementById('close-nasa-modal').click();}
     expect(w.document.querySelectorAll('.nasa-chart-wrap .chart-unavailable').length).toBe(1);
     dom.window.close();
+});
+
+const motionHarness = w => {
+    Object.defineProperty(w.document,'hidden',{configurable:true,value:false});
+    const animations=[];
+    w.HTMLElement.prototype.animate=vi.fn((frames,options)=>{
+        let finish;
+        const animation={frames,options,cancel:vi.fn(),finished:new Promise(resolve=>finish=resolve),finish:()=>finish()};
+        animations.push(animation);return animation;
+    });
+    return animations;
+};
+it('fechar e reabrir diálogo interrompe o efeito antigo sem fechar a nova interação',async()=>{
+    const {w,dom}=app('dashboard'),animations=motionHarness(w),dialog=w.document.getElementById('search-dialog');
+    w.api.openDialog(dialog);w.api.closeDialog(dialog);w.api.openDialog(dialog);
+    expect(animations[0].cancel).toHaveBeenCalledOnce();expect(dialog.open).toBe(true);
+    animations[0].finish();await Promise.resolve();
+    expect(w.api.motionJobs.get(dialog)).toBe(animations[1]);expect(dialog.open).toBe(true);
+    animations[1].finish();await Promise.resolve();expect(w.api.motionJobs.size).toBe(0);
+    dom.window.close();
+});
+it('movimento reduzido mantém feedback de camada sem deslocamento nem escala',()=>{
+    const {w,dom}=app('dashboard'),animations=motionHarness(w);w.__reducedMotion=true;
+    w.api.openDialog(w.document.getElementById('search-dialog'));
+    expect(animations).toHaveLength(1);expect(animations[0].frames.every(frame=>!('transform' in frame))).toBe(true);
+    const meter=w.document.getElementById('umidade-progress');w.api.updateSoilMeter(meter,55);
+    expect(meter.style.transform).toBe('scaleX(0.55)');expect(animations).toHaveLength(1);
+    dom.window.close();
+});
+it('aba oculta encerra efeitos em curso e não cria novos efeitos',()=>{
+    const {w,dom}=app('dashboard'),animations=motionHarness(w),dialog=w.document.getElementById('search-dialog');
+    w.api.openDialog(dialog);Object.defineProperty(w.document,'hidden',{configurable:true,value:true});
+    w.document.dispatchEvent(new w.Event('visibilitychange'));
+    expect(animations[0].cancel).toHaveBeenCalledOnce();expect(w.api.motionJobs.size).toBe(0);
+    w.api.playMotion(dialog,[{opacity:0},{opacity:1}]);expect(animations).toHaveLength(1);expect(dialog.open).toBe(true);
+    dom.window.close();
+});
+it('controles continuam disponíveis quando o navegador não suporta animações',()=>{
+    const {w,dom}=app('dashboard'),dialog=w.document.getElementById('search-dialog');
+    expect(()=>w.api.openDialog(dialog)).not.toThrow();expect(dialog.open).toBe(true);
+    w.api.closeDialog(dialog);expect(dialog.open).toBe(false);dom.window.close();
+});
+it('reabrir o menu móvel durante a saída preserva foco e estado do painel atual',async()=>{
+    const {w,dom}=app('dashboard'),animations=motionHarness(w);
+    Object.defineProperty(w,'innerWidth',{configurable:true,value:390});
+    const button=w.document.getElementById('mobile-menu-btn'),sidebar=w.document.getElementById('sidebar');
+    button.click();expect(sidebar.inert).toBe(false);
+    button.click();expect(sidebar.inert).toBe(true);expect(w.document.activeElement).toBe(button);
+    button.click();animations[1].finish();await Promise.resolve();
+    expect(sidebar.inert).toBe(false);expect(button.getAttribute('aria-expanded')).toBe('true');
+    expect(w.document.getElementById('app-content').inert).toBe(true);
+    expect(w.api.motionJobs.get(sidebar)).toBe(animations[2]);
+    expect(w.document.activeElement).toBe(w.document.getElementById('open-search'));
+    w.api.stopAllMotion();dom.window.close();
+});
+
+const readyForecast = {
+    status:'normal',tempoHoras:null,recomendacao:'Leitura dentro da faixa. Continue monitorando.',
+    sensorState:{status:'online',hasValidData:true},
+    engineData:{recommendation:{action:'MONITORAR'},confidence:{eligible:true,score:65,level:'MEDIUM'},predictor:{dynamicDropRate:null,cropSupported:true}}
+};
+const dashboardResponses = (sensor, forecast=readyForecast) => async url=>({ok:true,json:async()=>url.includes('sensores/umidade')?{umidade:55,status:'IDEAL',timestamp:new Date().toISOString(),previsao:forecast,...sensor}:url.includes('media-semanal')?[]:url.includes('insights-ia')?{diagnostico:forecast.recomendacao,previsao:forecast}:{clima:null,previsao:forecast,satelite:{available:false}}});
+it('leitura saudável sem tendência mantém orientação e explica a ausência de estimativa',async()=>{
+    const {w,dom}=app('dashboard',dashboardResponses());await w.api.initDashboard();
+    expect(w.document.getElementById('predict-action').textContent).toBe('Continue acompanhando');
+    expect(w.document.getElementById('predict-time').textContent).toBe('Ainda sem estimativa de tempo');
+    expect(w.document.getElementById('predict-reason').textContent).toContain('Não há tendência de secagem confiável');
+    expect(w.document.getElementById('soil-crop-range').textContent).toBe('40% a 70% do sensor calibrado');
+    expect(w.document.getElementById('soil-reading-time').dateTime).toBeTruthy();
+    expect(w.document.getElementById('soil-freshness').textContent).toContain('há menos de 1 min');
+    dom.window.close();
+});
+it('estimativas distintas explicam zero, horizonte observado e suspensão por leitura antiga',()=>{
+    const {w,dom}=app('dashboard'),forecast=w.api.dashboardForecast;
+    expect(forecast({...readyForecast,tempoHoras:0},null).time).toBe('Limite inferior atingido');
+    expect(forecast({...readyForecast,tempoHoras:2.5},null).time).toBe('≈ 2,5 h');
+    const beyond={...readyForecast,engineData:{...readyForecast.engineData,predictor:{dynamicDropRate:1,cropSupported:true}}};
+    expect(forecast(beyond,null).reason).toContain('horizonte do histórico observado');
+    const stale={...readyForecast,tempoHoras:2,sensorState:{status:'stale',hasValidData:false}};
+    expect(forecast(stale,null).time).toBe('Estimativa suspensa');
+    expect(forecast(stale,null).reason).toContain('leituras desatualizadas');
+    dom.window.close();
+});
+it('erro do sensor não é sobrescrito por análise saudável e uma única tentativa recupera a tela',async()=>{
+    let sensorCalls=0,resolveRetry;
+    const normal=dashboardResponses();
+    const fetcher=async url=>{
+        if(url.includes('sensores/umidade')) {
+            sensorCalls++;
+            if(sensorCalls===1) return {ok:false,status:503,json:async()=>({})};
+            return new Promise(resolve=>resolveRetry=()=>resolve({ok:true,json:async()=>({umidade:61,status:'IDEAL',timestamp:new Date().toISOString(),previsao:readyForecast})}));
+        }
+        return normal(url);
+    };
+    const {w,dom}=app('dashboard',fetcher);await w.api.initDashboard();
+    expect(w.document.getElementById('predict-action').textContent).toBe('Sensor sem comunicação');
+    expect(w.document.getElementById('predict-text').textContent).toContain('Confira a alimentação');
+    expect(w.document.getElementById('umidade-valor').textContent).toBe('—');
+    const root=w.document.querySelector('.dashboard-view'),button=w.document.getElementById('dashboard-refresh');
+    button.focus();button.click();button.dispatchEvent(new w.Event('click'));
+    expect(button.disabled).toBe(true);expect(button.getAttribute('aria-busy')).toBe('true');expect(sensorCalls).toBe(2);
+    resolveRetry();await vi.waitFor(()=>expect(button.disabled).toBe(false));
+    expect(w.document.querySelector('.dashboard-view')).toBe(root);
+    expect(w.document.getElementById('umidade-valor').textContent).toBe('61,0%');
+    expect(w.document.getElementById('predict-action').textContent).toBe('Continue acompanhando');
+    expect(button.hasAttribute('aria-busy')).toBe(false);
+    dom.window.close();
+});
+it('configuração ausente oferece destino específico e fuso inválido é identificado como UTC',async()=>{
+    const normal=dashboardResponses();
+    const {w,dom}=app('dashboard',async url=>url.includes('sensores/umidade')?{ok:false,status:403,json:async()=>({})}:normal(url));
+    await w.api.initDashboard();
+    expect(w.document.getElementById('predict-action').textContent).toBe('Configure o sensor');
+    expect(w.document.getElementById('dashboard-settings-link').hidden).toBe(false);
+    expect(w.document.getElementById('dashboard-settings-link').dataset.route).toBe('settings');
+    dom.window.close();
+    const second=app('dashboard',dashboardResponses({timestamp:new Date(Date.now()-40*60000).toISOString()}));
+    second.w.setUser({...user,timeZone:'invalid-zone',cropConfig:{minIdeal:0,maxIdeal:20}});await second.w.api.initDashboard();
+    expect(second.w.document.getElementById('soil-reading-time').textContent).toContain('UTC (configure o fuso)');
+    expect(second.w.document.getElementById('soil-freshness').textContent).toContain('Leitura desatualizada');
+    expect(second.w.document.getElementById('soil-crop-range').textContent).toBe('0% a 20% do sensor calibrado');
+    second.dom.window.close();
+});
+it('resposta pendente da visão anterior não altera conteúdo nem inicia nova consulta após sair',async()=>{
+    let finish;const fetcher=vi.fn(()=>new Promise(resolve=>finish=resolve));
+    const {w,dom}=app('dashboard',fetcher),pending=w.api.initDashboard();
+    w.document.getElementById('app-content').innerHTML='<p id="new-route">Conteúdo da nova página</p>';
+    w.setUser({...user,id:'other'});finish({ok:true,json:async()=>({umidade:99,status:'IDEAL',timestamp:new Date().toISOString(),previsao:readyForecast})});
+    await pending;expect(w.document.getElementById('new-route').textContent).toBe('Conteúdo da nova página');
+    expect(fetcher).toHaveBeenCalledTimes(1);dom.window.close();
+});
+it('solo e próximo passo antecedem referências e gráficos também na ordem semântica',()=>{
+    const {w,dom}=app('dashboard'),d=w.document;
+    const before=(first,second)=>!!(d.querySelector(first).compareDocumentPosition(d.querySelector(second))&w.Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(before('.card-signature','#predict-card')).toBe(true);
+    expect(before('#predict-card','.dashboard-metrics')).toBe(true);
+    expect(before('#dashboard-refresh','#liveChart')).toBe(true);
+    dom.window.close();
+});
+it('sessão expirada informa a ação necessária e não continua consultando a análise',async()=>{
+    const fetcher=vi.fn(async()=>({ok:false,status:401,json:async()=>({})}));
+    const {w,dom}=app('dashboard',fetcher);await w.api.initDashboard();
+    expect(w.document.getElementById('predict-action').textContent).toBe('Entre novamente');
+    expect(w.document.getElementById('dashboard-refresh-label').textContent).toBe('Entrar novamente');
+    expect(fetcher).toHaveBeenCalledTimes(1);dom.window.close();
+});
+it('análise anterior não limpa a leitura da visão geral aberta enquanto a resposta estava pendente',async()=>{
+    let finishClimate;
+    const fetcher=async url=>url.includes('sensores/umidade')?{ok:true,json:async()=>({umidade:55,status:'IDEAL'})}:new Promise(resolve=>finishClimate=resolve);
+    const {w,dom}=app('analysis',fetcher),pending=w.api.initAnalysis();
+    await vi.waitFor(()=>expect(finishClimate).toBeTypeOf('function'));
+    w.document.getElementById('app-content').innerHTML=file('public/views/dashboard.html');
+    w.document.getElementById('umidade-valor').textContent='55,0%';
+    finishClimate({ok:false,json:async()=>({})});await pending;
+    expect(w.document.getElementById('umidade-valor').textContent).toBe('55,0%');dom.window.close();
+});
+it('consulta pendente não reescreve a visão geral quando o usuário muda no mesmo DOM',async()=>{
+    let finish;const fetcher=vi.fn(()=>new Promise(resolve=>finish=resolve));
+    const {w,dom}=app('dashboard',fetcher),pending=w.api.initDashboard();
+    w.setUser({...user,id:'new-owner'});
+    w.document.getElementById('umidade-valor').textContent='Dados da nova sessão';
+    finish({ok:true,json:async()=>({umidade:99,status:'IDEAL',timestamp:new Date().toISOString(),previsao:readyForecast})});
+    await pending;expect(w.document.getElementById('umidade-valor').textContent).toBe('Dados da nova sessão');
+    expect(fetcher).toHaveBeenCalledTimes(1);dom.window.close();
 });

@@ -1,7 +1,7 @@
 <section class="dashboard-view" aria-labelledby="dashboard-title">
     <div class="dash-top-bar">
         <div class="dash-greeting">
-            <h1 id="dashboard-title">Sua propriedade, em perspectiva.</h1>
+            <h1 id="dashboard-title">Visão geral da propriedade.</h1>
             <p>Olá, <span id="dash-user">Usuário</span>. Acompanhe o solo e planeje o próximo passo.</p>
         </div>
         <div class="dash-actions">
@@ -12,13 +12,26 @@
 
     <div class="farm-context"><span class="material-symbols-rounded" aria-hidden="true">eco</span><span>Cultura de <strong id="dash-culture">—</strong></span><span class="context-divider" aria-hidden="true">/</span><span id="dash-location">Localização não configurada</span></div>
 
-    <div class="dashboard-metrics">
+    <div class="dashboard-overview">
         <article class="card metric-card card-signature">
             <div class="metric-heading"><h2>Umidade do solo</h2><span class="material-symbols-rounded" aria-hidden="true">water_drop</span></div>
             <p id="umidade-valor" class="metric-value font-kpi">—</p>
             <div class="moisture-track" aria-hidden="true"><div id="umidade-progress"></div></div>
             <p id="soil-insight" class="metric-description">Aguardando leitura do sensor...</p>
+            <dl class="soil-context"><div><dt>Faixa da cultura</dt><dd id="soil-crop-range">Carregando configuração...</dd></div><div><dt>Última leitura recebida</dt><dd><time id="soil-reading-time">Aguardando leitura...</time></dd></div></dl>
+            <p id="soil-freshness" class="reading-freshness" role="status">Consultando o sensor...</p>
         </article>
+        <section id="predict-card" class="card diagnosis-panel" aria-labelledby="diagnosis-title">
+            <div class="panel-heading"><h2 id="diagnosis-title">Próximo passo</h2><span id="predict-icon-wrapper" class="diagnosis-icon"><span id="predict-icon" class="material-symbols-rounded" aria-hidden="true">psychiatry</span></span></div>
+            <h3 id="predict-action" class="decision-title">Aguardando os dados</h3>
+            <div class="prediction-context"><p id="predict-label" class="panel-label">Tempo estimado até o limite inferior</p><p id="predict-time" class="prediction-value font-kpi">Carregando análise...</p><p id="predict-reason" class="prediction-reason">A leitura do sensor e a análise serão identificadas separadamente.</p></div>
+            <div id="predict-text-wrapper" class="diagnosis-message"><p id="predict-text" role="status">Aguardando dados para avaliar o manejo.</p></div>
+            <div class="recovery-actions"><button id="dashboard-refresh" class="button button-secondary" type="button"><span class="material-symbols-rounded" aria-hidden="true">refresh</span><span id="dashboard-refresh-label">Atualizar dados</span></button><a id="dashboard-settings-link" href="#settings" data-route="settings" class="text-button" hidden>Configurar sensor<span class="material-symbols-rounded" aria-hidden="true">north_east</span></a></div>
+            <div class="diagnosis-footer"><span id="ia-icon" class="material-symbols-rounded" aria-hidden="true">neurology</span><p id="ia-text">Análise agronômica</p></div>
+        </section>
+    </div>
+
+    <div class="dashboard-metrics">
         <article class="card metric-card">
             <div class="metric-heading"><h2>Saturação regional</h2><span class="material-symbols-rounded" aria-hidden="true">satellite_alt</span></div>
             <p id="satelite-valor" class="metric-value font-kpi">—</p>
@@ -45,13 +58,6 @@
             <div class="chart-wrap"><canvas id="liveChart" role="img" aria-label="Umidade do solo em porcentagem. As últimas leituras estão disponíveis abaixo."></canvas></div>
             <div class="chart-footer"><span><span class="legend-dot"></span>Umidade do solo (%)</span><a href="#history" data-route="history" class="text-button">Explorar histórico<span class="material-symbols-rounded" aria-hidden="true">north_east</span></a></div>
             <details class="chart-data"><summary>Consultar leituras em texto</summary><p id="live-data-summary">Aguardando leituras. Verifique a conexão do sensor se os dados não aparecerem.</p></details>
-        </section>
-
-        <section id="predict-card" class="card diagnosis-panel" aria-labelledby="diagnosis-title">
-            <div class="panel-heading"><h2 id="diagnosis-title">Próximo passo</h2><span id="predict-icon-wrapper" class="diagnosis-icon"><span id="predict-icon" class="material-symbols-rounded" aria-hidden="true">psychiatry</span></span></div>
-            <div><p id="predict-label" class="panel-label">Estimativa até o limite da cultura</p><h3 id="predict-time" class="prediction-value font-kpi">—</h3></div>
-            <div id="predict-text-wrapper" class="diagnosis-message"><p id="predict-text" role="status">Aguardando dados para avaliar o manejo.</p></div>
-            <div class="diagnosis-footer"><span id="ia-icon" class="material-symbols-rounded" aria-hidden="true">neurology</span><p id="ia-text">Análise agronômica</p></div>
         </section>
 
         <section class="card chart-panel weekly-panel" aria-labelledby="weekly-title">
