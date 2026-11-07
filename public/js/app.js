@@ -2372,14 +2372,26 @@ function initMagicUI(root = document) {
     const letteringTexts = root.querySelectorAll('.magic-lettering:not(.processed)');
     letteringTexts.forEach(el => {
         el.classList.add('processed');
-        const text = el.textContent;
+        const text = el.textContent.trim();
         el.innerHTML = '';
-        text.split('').forEach((char, i) => {
-            const span = document.createElement('span');
-            span.classList.add('letter');
-            span.textContent = char === ' ' ? '\u00A0' : char; // preserve space
-            span.style.animationDelay = `${i * 0.03}s`;
-            el.appendChild(span);
+        let charIdx = 0;
+        text.split(/\s+/).forEach((word, wIdx, words) => {
+            const wordSpan = document.createElement('span');
+            wordSpan.style.display = 'inline-block';
+            wordSpan.style.whiteSpace = 'nowrap';
+            word.split('').forEach(char => {
+                const span = document.createElement('span');
+                span.classList.add('letter');
+                span.textContent = char;
+                span.style.animationDelay = `${charIdx * 0.03}s`;
+                wordSpan.appendChild(span);
+                charIdx++;
+            });
+            el.appendChild(wordSpan);
+            if (wIdx < words.length - 1) {
+                el.appendChild(document.createTextNode(' '));
+                charIdx++;
+            }
         });
     });
 }
