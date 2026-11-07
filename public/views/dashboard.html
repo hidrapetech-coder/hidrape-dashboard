@@ -1,200 +1,77 @@
-<div class="dash-top-bar" style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 32px;">
-    <div style="display: flex; flex-direction: column; gap: 16px;">
+<section class="dashboard-view" aria-labelledby="dashboard-title">
+    <div class="dash-top-bar">
         <div class="dash-greeting">
-            <h1>Bem-vindo, <span id="dash-user">Usuário</span></h1>
-            <p>Monitorando cultura de <span id="dash-culture" style="font-weight: 600; color: var(--sys-accent);">Milho</span></p>
+            <h1 id="dashboard-title">Sua propriedade, em perspectiva.</h1>
+            <p>Olá, <span id="dash-user">Usuário</span>. Acompanhe o solo e planeje o próximo passo.</p>
         </div>
-    </div>
-    
-    <div class="dash-actions">
-        <div class="card scroll-reveal" style="display: flex; align-items: center; gap: 8px; border-radius: var(--radius-pill); padding: 8px 16px; min-height: 40px;">
-            <span id="sys-status" style="width: 7px; height: 7px; border-radius: 50%; background: var(--color-good); flex-shrink: 0;"></span>
-            <span style="font-size: 0.8rem; font-weight: 600; color: var(--sys-light);">Online</span>
-        </div>
-
-        <div style="position: relative;">
-            <button id="profile-menu-btn" class="card scroll-reveal" style="width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0; border: none; cursor: pointer; outline: none; transition: transform 0.2s;">
-                <span class="material-symbols-rounded" style="color: var(--sys-light); font-size: 1.1rem;">person</span>
-            </button>
-            
-            <!-- Apple-style Dropdown -->
-            <div id="profile-dropdown" style="display: none; opacity: 0; transform: scale(0.95); position: absolute; width: 260px; background: rgba(22, 28, 36, 0.65); backdrop-filter: blur(40px) saturate(200%); -webkit-backdrop-filter: blur(40px) saturate(200%); border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; box-shadow: 0 16px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.2); z-index: 9999; padding: 8px; flex-direction: column; gap: 4px; transform-origin: top right; transition: opacity 0.2s ease, transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.1);">
-                <div class="dropdown-item" data-action="settings-prop" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; cursor: pointer; color: var(--sys-light); transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">
-                    <span class="material-symbols-rounded" style="font-size: 1.2rem; opacity: 0.8;">home_work</span>
-                    <span style="font-size: 0.9rem; font-weight: 500;">Propriedade & Cultura</span>
-                </div>
-                <div class="dropdown-item" data-action="settings-int" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; cursor: pointer; color: var(--sys-light); transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.1)'" onmouseout="this.style.background='transparent'">
-                    <span class="material-symbols-rounded" style="font-size: 1.2rem; opacity: 0.8;">api</span>
-                    <span style="font-size: 0.9rem; font-weight: 500;">Integrações & Alertas</span>
-                </div>
-                <div style="height: 1px; background: rgba(255,255,255,0.08); margin: 4px 6px;"></div>
-                <div class="dropdown-item" id="logout-btn" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; cursor: pointer; color: #ff4444; transition: background 0.2s;">
-                    <span class="material-symbols-rounded" style="font-size: 1.2rem; opacity: 0.8;">logout</span>
-                    <span style="font-size: 0.9rem; font-weight: 500;">Sair da Conta</span>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="dash-grid">
-    
-    <!-- COLUNA 1: KPIs & Clima -->
-    <div class="dash-col-3" style="display: flex;">
-        <!-- ★ ELEMENTO-ASSINATURA: Umidade do Solo -->
-        <div class="card scroll-reveal card-signature" data-glow="good" style="padding: 16px; flex: 1; display: flex; flex-direction: column; justify-content: center;">
-            <h2 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; margin-bottom: 4px;">Umidade do Solo</h2>
-            <p id="soil-insight" style="font-size: 0.8rem; opacity: 0.55; margin-bottom: 16px;">Aguardando leitura do sensor...</p>
-            <div style="display: flex; align-items: baseline; gap: 4px; margin-bottom: 16px;">
-                <span id="umidade-valor" class="font-kpi" style="font-size: 2.8rem; line-height: 1; font-weight: 800;">--</span>
-                <span style="font-size: 1.2rem; font-weight: 700; opacity: 0.6;">%</span>
-            </div>
-            <div class="progress-bg" style="width: 100%; height: 5px; background: rgba(0,0,0,0.08); border-radius: 10px; overflow: hidden;">
-                <div id="umidade-progress" style="height: 100%; width: 0%; background: var(--sys-secondary); border-radius: 10px; transition: width 0.8s var(--ease-out);"></div>
-            </div>
+        <div class="dash-actions">
+            <span class="connection-status" role="status"><span id="sys-status" class="status-dot"></span><span>Conectando</span></span>
+            <button class="button button-secondary" data-route="history"><span class="material-symbols-rounded" aria-hidden="true">history</span>Ver histórico</button>
         </div>
     </div>
 
-    <div class="dash-col-3" style="display: flex;">
-        <!-- NASA Satélite -->
-        <div id="nasa-card" class="card scroll-reveal" style="padding: 16px; cursor: pointer; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
-                <div>
-                    <h2 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7;">Saturação Regional</h2>
-                    <p style="font-size: 0.75rem; opacity: 0.5; margin-top: 2px;">Superfície regional via satélite</p>
-                </div>
-                <div style="display: flex; align-items: center; gap: 4px; background: rgba(0,0,0,0.05); padding: 3px 8px; border-radius: 6px;">
-                    <span class="material-symbols-rounded" style="font-size: 0.85rem; color: var(--sys-secondary);">satellite_alt</span>
-                    <span style="font-size: 0.6rem; font-weight: 700; color: var(--sys-secondary);">NASA</span>
-                </div>
-            </div>
-            <div class="inner-glass-pane">
-                <div style="display: flex; align-items: baseline; gap: 4px;">
-                    <span id="satelite-valor" class="font-kpi" style="font-size: 2.2rem; line-height: 1;">--</span>
-                    <span style="font-size: 0.9rem; font-weight: 700; opacity: 0.6;">%</span>
-                </div>
-                <p id="satelite-data" style="font-size: 0.7rem; opacity: 0.5; margin-top: 6px;">Buscando dados de satélite...</p>
-            </div>
-        </div>
+    <div class="farm-context"><span class="material-symbols-rounded" aria-hidden="true">eco</span><span>Cultura de <strong id="dash-culture">—</strong></span><span class="context-divider" aria-hidden="true">/</span><span id="dash-location">Localização não configurada</span></div>
+
+    <div class="dashboard-metrics">
+        <article class="card metric-card card-signature">
+            <div class="metric-heading"><h2>Umidade do solo</h2><span class="material-symbols-rounded" aria-hidden="true">water_drop</span></div>
+            <p id="umidade-valor" class="metric-value font-kpi">—</p>
+            <div class="moisture-track" aria-hidden="true"><div id="umidade-progress"></div></div>
+            <p id="soil-insight" class="metric-description">Aguardando leitura do sensor...</p>
+        </article>
+        <article class="card metric-card">
+            <div class="metric-heading"><h2>Saturação regional</h2><span class="material-symbols-rounded" aria-hidden="true">satellite_alt</span></div>
+            <p id="satelite-valor" class="metric-value font-kpi">—</p>
+            <div class="metric-source"><span class="source-tag">NASA POWER</span><button id="nasa-card" class="text-button" aria-haspopup="dialog" aria-controls="nasa-modal">Ver dados<span class="material-symbols-rounded" aria-hidden="true">north_east</span></button></div>
+            <p id="satelite-data" class="metric-description">Estimativa regional; não mede o talhão.</p>
+        </article>
+        <article class="card metric-card">
+            <div class="metric-heading"><h2>Confiança dos dados</h2><span class="material-symbols-rounded" aria-hidden="true">verified_user</span></div>
+            <div class="confidence-value"><p id="saude-valor" class="metric-value font-kpi">—</p><span class="metric-unit">/ 100</span><svg class="confidence-ring" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15.9155" class="ring-track"/><circle id="saude-progress" cx="18" cy="18" r="15.9155"/></svg></div>
+            <p id="saude-status" class="metric-state">Aguardando análise</p>
+            <p class="metric-description">Score operacional; não é probabilidade.</p>
+        </article>
+        <article class="card metric-card">
+            <div class="metric-heading"><h2>Evapotranspiração</h2><span id="evapo-icon-wrap"><span id="evapo-icon" class="material-symbols-rounded" aria-hidden="true">air</span></span></div>
+            <p id="evapo-nivel" class="metric-value metric-value-text font-kpi">—</p>
+            <span class="source-tag">Referência meteorológica</span>
+            <p id="evapo-desc" class="metric-description">Aguardando dados do clima...</p>
+        </article>
     </div>
 
-    <div class="dash-col-3" style="display: flex;">
-        <!-- Confiança dos Dados -->
-        <div class="card scroll-reveal" style="padding: 16px; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
-            <h2 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; margin-bottom: 14px;">Confiança dos Dados</h2>
-            <div style="display: flex; align-items: center; gap: 16px;">
-                <div style="position: relative; width: 64px; height: 64px; flex-shrink: 0;">
-                    <svg viewBox="0 0 36 36" style="transform: rotate(-90deg);">
-                        <path style="fill: none; stroke: rgba(12,17,23,0.08); stroke-width: 3.5;" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                        <path id="saude-progress" style="fill: none; stroke: var(--color-good); stroke-width: 3.5; stroke-dasharray: 0, 100; transition: stroke-dasharray 1s;" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                    </svg>
-                    <span id="saude-valor" class="font-kpi" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 1rem;">--</span>
-                </div>
-                <div>
-                    <p id="saude-status" style="font-weight: 600; color: var(--color-good); font-size: 0.9rem;">Analisando</p>
-                    <p style="font-size: 0.7rem; opacity: 0.5; margin-top: 2px;">Score operacional do motor</p>
-                </div>
-            </div>
-        </div>
+    <div class="dashboard-workspace">
+        <section class="card chart-panel live-panel" aria-labelledby="live-title">
+            <div class="panel-heading"><div><h2 id="live-title">O pulso do seu solo</h2><p>Umidade do sensor ao longo desta sessão</p></div><span class="subtle-badge"><span class="status-dot"></span>Leitura contínua</span></div>
+            <div class="chart-wrap"><canvas id="liveChart" role="img" aria-label="Umidade do solo em porcentagem. As últimas leituras estão disponíveis abaixo."></canvas></div>
+            <div class="chart-footer"><span><span class="legend-dot"></span>Umidade do solo (%)</span><a href="#history" data-route="history" class="text-button">Explorar histórico<span class="material-symbols-rounded" aria-hidden="true">north_east</span></a></div>
+            <details class="chart-data"><summary>Consultar leituras em texto</summary><p id="live-data-summary">Aguardando leituras. Verifique a conexão do sensor se os dados não aparecerem.</p></details>
+        </section>
+
+        <section id="predict-card" class="card diagnosis-panel" aria-labelledby="diagnosis-title">
+            <div class="panel-heading"><h2 id="diagnosis-title">Próximo passo</h2><span id="predict-icon-wrapper" class="diagnosis-icon"><span id="predict-icon" class="material-symbols-rounded" aria-hidden="true">psychiatry</span></span></div>
+            <div><p id="predict-label" class="panel-label">Estimativa até o limite da cultura</p><h3 id="predict-time" class="prediction-value font-kpi">—</h3></div>
+            <div id="predict-text-wrapper" class="diagnosis-message"><p id="predict-text" role="status">Aguardando dados para avaliar o manejo.</p></div>
+            <div class="diagnosis-footer"><span id="ia-icon" class="material-symbols-rounded" aria-hidden="true">neurology</span><p id="ia-text">Análise agronômica</p></div>
+        </section>
+
+        <section class="card chart-panel weekly-panel" aria-labelledby="weekly-title">
+            <div class="panel-heading"><div><h2 id="weekly-title">Umidade na semana</h2><p>Média diária do sensor · últimos 7 dias completos</p></div><span class="source-tag">%</span></div>
+            <div class="chart-wrap"><canvas id="weeklyChart" role="img" aria-label="Média diária da umidade do solo em porcentagem. Consulte os valores em texto abaixo."></canvas></div>
+            <details class="chart-data"><summary>Consultar médias em texto</summary><p id="weekly-data-summary">Carregando médias. Dias sem leitura serão indicados.</p></details>
+        </section>
+
+        <section class="card insight-panel" aria-labelledby="insight-title">
+            <div class="panel-heading"><h2 id="insight-title">Leitura agronômica</h2><span class="material-symbols-rounded" aria-hidden="true">eco</span></div>
+            <p id="analise-texto">Reunindo as informações do solo e do clima da sua propriedade...</p>
+            <a href="#analysis" data-route="analysis" class="text-button">Abrir análise completa<span class="material-symbols-rounded" aria-hidden="true">north_east</span></a>
+        </section>
     </div>
+    <p class="dashboard-footnote"><span class="material-symbols-rounded" aria-hidden="true">info</span>Umidade expressa na escala do sensor calibrado. Dados de satélite e clima têm escalas distintas.</p>
+</section>
 
-    <div class="dash-col-3" style="display: flex;">
-        <!-- Evapotranspiração -->
-        <div class="card scroll-reveal" style="padding: 16px; flex: 1; display: flex; flex-direction: column; justify-content: space-between;">
-            <h2 style="font-size: 0.85rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.7; margin-bottom: 14px;">Evapotranspiração</h2>
-            <div class="inner-glass-pane" style="display: flex; align-items: center; gap: 12px;">
-                <div id="evapo-icon-wrap" style="width: 44px; height: 44px; border-radius: 10px; display: flex; align-items: center; justify-content: center; background: rgba(84,119,146,0.12); flex-shrink: 0;">
-                    <span id="evapo-icon" class="material-symbols-rounded" style="font-size: 1.2rem;">air</span>
-                </div>
-                <div>
-                    <h3 id="evapo-nivel" class="font-kpi" style="font-size: 1.1rem; line-height: 1;">--</h3>
-                    <p id="evapo-desc" style="font-size: 0.7rem; opacity: 0.5; margin-top: 2px;">Perda de água pelo clima</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- COLUNA 2: Analytics Central -->
-    <div class="dash-col-8" style="display: flex;">
-        <!-- Uso Semanal -->
-        <div class="card scroll-reveal" style="flex: 1; display: flex; flex-direction: column; padding: 16px;">
-            <div style="margin-bottom: 20px;">
-                <h2 style="font-size: 1.1rem; font-weight: 600;">Uso de Água na Semana</h2>
-                <p style="font-size: 0.8rem; opacity: 0.5; margin-top: 4px;">Consolidado de segunda a sexta — média por dia</p>
-            </div>
-            <div style="flex: 1; position: relative; min-height: 0; min-width: 0;">
-                <canvas id="weeklyChart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <!-- Gráfico Tempo Real -->
-    <div class="dash-col-4" style="display: flex;">
-        <div class="card scroll-reveal" data-route="history" style="flex: 1; display: flex; flex-direction: column; padding: 16px; cursor: pointer;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                <div>
-                    <h2 style="font-size: 0.95rem; font-weight: 600;">Como a terra tá bebendo</h2>
-                    <p style="font-size: 0.75rem; opacity: 0.5; margin-top: 2px;">Leitura contínua</p>
-                </div>
-                <span style="font-size: 0.65rem; font-weight: 700; color: var(--color-good); background: rgba(6,214,160,0.1); padding: 4px 10px; border-radius: var(--radius-badge); text-transform: uppercase; letter-spacing: 0.08em;">Live</span>
-            </div>
-            <div style="flex: 1; position: relative; min-height: 0; min-width: 0;">
-                <canvas id="liveChart"></canvas>
-            </div>
-        </div>
-    </div>
-
-    <!-- Diagnóstico IA -->
-    <div class="dash-col-8" style="display: flex;">
-        <div id="predict-card" class="card scroll-reveal" style="padding: 16px; flex: 1; display: flex; flex-direction: column; justify-content: center;">
-            <div style="display: flex; align-items: center; gap: 16px;">
-                <div id="predict-icon-wrapper" style="width: 52px; height: 52px; border-radius: 14px; display: flex; align-items: center; justify-content: center; background: var(--sys-secondary); color: #fff; flex-shrink: 0;">
-                    <span id="predict-icon" class="material-symbols-rounded" style="font-size: 1.6rem;">psychiatry</span>
-                </div>
-                <div style="flex: 1; min-width: 0;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 8px;">
-                        <div>
-                            <h3 id="predict-time" class="font-kpi" style="font-size: 2rem; line-height: 1;">--</h3>
-                            <p style="font-size: 0.75rem; opacity: 0.5; margin-top: 2px;" id="predict-label">Tempo para próxima irrigação</p>
-                        </div>
-                        <div style="display: flex; align-items: center; gap: 6px;">
-                            <span id="ia-icon" class="material-symbols-rounded" style="font-size: 1rem; color: var(--sys-accent);">robot_2</span>
-                            <p id="ia-text" style="font-size: 0.8rem; font-weight: 500; opacity: 0.7;">Analisando plantação...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div id="predict-text-wrapper" style="margin-top: 16px; background: rgba(0,0,0,0.12); padding: 16px; border-radius: 12px; border-left: 3px solid var(--sys-secondary);">
-                <p id="predict-text" style="font-size: 0.85rem; line-height: 1.6; color: rgba(255,255,255,0.85);">Calculando quando vai precisar irrigar...</p>
-            </div>
-        </div>
-    </div>
-
-    <!-- Análise IA -->
-    <div class="dash-col-4" style="display: flex;">
-        <div class="card scroll-reveal" data-route="analysis" style="padding: 16px; flex: 1; display: flex; flex-direction: column; cursor: pointer;">
-            <h2 style="font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.5; margin-bottom: 12px;">Análise Inteligente</h2>
-            <div style="display: flex; align-items: flex-start; gap: 8px;">
-                <span class="material-symbols-rounded" style="color: var(--sys-accent); font-size: 1.2rem; flex-shrink: 0; margin-top: 2px;">auto_awesome</span>
-                <p id="analise-texto" style="font-size: 0.85rem; line-height: 1.5; opacity: 0.8;">Coletando dados da fazenda...</p>
-            </div>
-        </div>
-    </div>
-
-</div>
-
-
-<!-- Modal NASA -->
-<div id="nasa-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(12, 17, 23, 0.65); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); z-index: 9999; align-items: center; justify-content: center; padding: 20px; box-sizing: border-box;">
-    <div class="card scroll-reveal" style="width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto; padding: 32px; position: relative; margin: 0 auto;">
-        <span id="close-nasa-modal" class="material-symbols-rounded" style="position: absolute; top: 16px; right: 16px; cursor: pointer; color: var(--neutral-300); font-size: 1.2rem; transition: color 0.2s;" onmouseover="this.style.color='#fff'" onmouseout="this.style.color='var(--neutral-300)'">close</span>
-        <h2 style="font-size: 1.15rem; font-weight: 600; margin-bottom: 4px;">Tendência Superficial NASA</h2>
-        <p style="font-size: 0.8rem; opacity: 0.5; margin-bottom: 16px;">Últimos 7 dias observados por satélite</p>
-        <div style="background: rgba(6,214,160,0.08); padding: 12px; border-radius: 10px; margin-bottom: 20px; font-size: 0.8rem; line-height: 1.5; color: var(--color-good); border: 1px solid rgba(6,214,160,0.15);">
-            <strong>O que é isso?</strong> Este gráfico exibe GWETTOP da NASA POWER: estimativa regional de saturação relativa da camada superficial. A escala difere da leitura do sensor local. Apenas datas recebidas da fonte são mostradas.
-        </div>
-        <div style="height: 280px; position: relative; width: 100%;">
-            <canvas id="nasaChart"></canvas>
-        </div>
-    </div>
-</div>
+<dialog id="nasa-modal" class="app-dialog nasa-dialog" aria-labelledby="nasa-title">
+    <div class="dialog-heading"><div><h2 id="nasa-title">Saturação superficial regional</h2><p>Observações disponíveis da NASA POWER</p></div><button id="close-nasa-modal" class="icon-btn" aria-label="Fechar dados de satélite"><span class="material-symbols-rounded" aria-hidden="true">close</span></button></div>
+    <p class="notice">GWETTOP estima a saturação relativa da superfície regional. Sua escala difere da leitura do sensor e não representa uma medição do talhão.</p>
+    <div class="nasa-chart-wrap"><canvas id="nasaChart" role="img" aria-label="Saturação regional relativa em porcentagem, por data de observação."></canvas></div>
+    <p id="nasa-data-summary" class="dialog-hint">Nenhuma observação disponível. Tente novamente após atualizar os dados.</p>
+</dialog>

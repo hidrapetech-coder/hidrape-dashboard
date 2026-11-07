@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="referrer" content="strict-origin-when-cross-origin">
     <meta name="robots" content="noindex, nofollow">
@@ -14,7 +14,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="anonymous">
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,1,0" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet" />
 
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
@@ -22,7 +22,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
 
     <!-- Global CSS -->
-    <link rel="stylesheet" href="/css/style.min.css?v=5">
+    <link rel="stylesheet" href="/css/style.min.css?v=6">
     
 
     <!-- Favicon (Cache Busting) -->
@@ -33,72 +33,78 @@
 
 <body>
     <div id="app-container" style="display: none;">
-        <!-- Mobile Header -->
-        <header class="mobile-header">
-            <button id="mobile-menu-btn" class="icon-btn" aria-label="Abrir menu">
-                <span class="material-symbols-rounded">menu</span>
-            </button>
+        <a class="skip-link" href="#app-content">Ir para o conteúdo</a>
+        <header class="workspace-header" id="workspace-header">
+            <div class="workspace-context">
+                <button id="mobile-menu-btn" class="icon-btn" aria-label="Abrir navegação" aria-expanded="false" aria-controls="sidebar">
+                    <span class="material-symbols-rounded" aria-hidden="true">menu</span>
+                </button>
+                <span class="material-symbols-rounded workspace-icon" aria-hidden="true">home_work</span>
+                <span id="workspace-name">Minha propriedade</span>
+                <span class="context-divider" aria-hidden="true">/</span>
+                <span id="workspace-page">Visão geral</span>
+            </div>
+            <span class="workspace-caption">Monitoramento agrícola</span>
         </header>
-
-        <!-- Sidebar -->
-        <aside class="sidebar" id="sidebar">
+        <button class="sidebar-backdrop" id="sidebar-backdrop" aria-label="Fechar navegação" hidden></button>
+        <aside class="sidebar" id="sidebar" aria-label="Navegação principal">
             <div class="sidebar-content">
-                <div class="sidebar-logo">
-                    <img src="/assets/logo.png" alt="Hidrape Logo" style="height: 28px; width: auto; object-fit: contain;">
-                </div>
-                <div class="sidebar-inner-glow"></div>
-
-                <nav class="sidebar-nav">
-                    <div class="glow-lantern" id="nav-lantern"></div>
-                    <a href="javascript:void(0)" data-route="dashboard" class="nav-link active" title="Dashboard">
-                        <span class="icon material-symbols-rounded">monitor_heart</span>
-                        <span class="text">Dashboard</span>
+                <a class="sidebar-logo" href="#dashboard" data-route="dashboard" aria-label="Hidrape, visão geral">
+                    <img src="/assets/logo.png" alt="Hidrape">
+                </a>
+                <button class="workspace-search" id="open-search" aria-haspopup="dialog">
+                    <span class="material-symbols-rounded" aria-hidden="true">search</span>
+                    <span>Buscar página...</span><kbd>⌘ K</kbd>
+                </button>
+                <nav class="sidebar-nav" aria-label="Páginas da plataforma">
+                    <p class="nav-group-label">Monitoramento</p>
+                    <a href="#dashboard" data-route="dashboard" class="nav-link active" aria-current="page">
+                        <span class="icon material-symbols-rounded" aria-hidden="true">space_dashboard</span><span class="text">Visão geral</span>
                     </a>
-                    <a href="javascript:void(0)" data-route="geo" class="nav-link" title="Visão Geoespacial">
-                        <span class="icon material-symbols-rounded">explore</span>
-                        <span class="text">Geoespacial</span>
+                    <a href="#geo" data-route="geo" class="nav-link">
+                        <span class="icon material-symbols-rounded" aria-hidden="true">map</span><span class="text">Geoespacial</span>
                     </a>
-                    <a href="javascript:void(0)" data-route="history" class="nav-link" title="Histórico">
-                        <span class="icon material-symbols-rounded">calendar_month</span>
-                        <span class="text">Histórico</span>
+                    <a href="#history" data-route="history" class="nav-link">
+                        <span class="icon material-symbols-rounded" aria-hidden="true">history</span><span class="text">Histórico</span>
                     </a>
-                    <a href="javascript:void(0)" data-route="analysis" class="nav-link" title="Análise Inteligente">
-                        <span class="icon material-symbols-rounded">auto_awesome</span>
-                        <span class="text">Análise</span>
+                    <p class="nav-group-label">Inteligência</p>
+                    <a href="#analysis" data-route="analysis" class="nav-link">
+                        <span class="icon material-symbols-rounded" aria-hidden="true">neurology</span><span class="text">Análise agronômica</span>
                     </a>
-                    <a href="javascript:void(0)" data-route="monthly-report" class="nav-link" title="Relatório Mensal">
-                        <span class="icon material-symbols-rounded">summarize</span>
-                        <span class="text">Relatório Mensal</span>
+                    <a href="#monthly-report" data-route="monthly-report" class="nav-link">
+                        <span class="icon material-symbols-rounded" aria-hidden="true">description</span><span class="text">Relatório mensal</span>
                     </a>
-                    <a href="javascript:void(0)" data-route="settings" class="nav-link" title="Configurações">
-                        <span class="icon material-symbols-rounded">tune</span>
-                        <span class="text">Configurações</span>
+                    <p class="nav-group-label">Propriedade</p>
+                    <a href="#settings" data-route="settings" class="nav-link">
+                        <span class="icon material-symbols-rounded" aria-hidden="true">tune</span><span class="text">Configurações</span>
                     </a>
                 </nav>
                 <div class="sidebar-footer">
-                    <a href="javascript:void(0)" id="btn-demo-exit" class="nav-link demo-exit-btn" title="Sair da Demo" style="display: none; margin-bottom: 8px;">
-                        <span class="icon material-symbols-rounded">logout</span>
-                        <span class="text">Sair da Demo</span>
-                    </a>
-                    <a href="javascript:void(0)" id="btn-logout" class="nav-link logout-btn" title="Sair">
-                        <span class="icon material-symbols-rounded">logout</span>
-                        <span class="text">Sair</span>
-                    </a>
+                    <div class="sidebar-account"><span class="account-avatar" aria-hidden="true">H</span><div><strong id="sidebar-user">Minha conta</strong><span>Workspace Hidrape</span></div></div>
+                    <a href="#login" id="btn-demo-exit" class="nav-link demo-exit-btn" style="display: none;"><span class="icon material-symbols-rounded" aria-hidden="true">logout</span><span class="text">Sair da demonstração</span></a>
+                    <a href="#login" id="btn-logout" class="nav-link logout-btn"><span class="icon material-symbols-rounded" aria-hidden="true">logout</span><span class="text">Sair da conta</span></a>
                 </div>
             </div>
         </aside>
 
         <!-- SPA Content -->
-        <main class="main-content" id="app-content">
+        <main class="main-content" id="app-content" tabindex="-1">
             <div class="loader-spinner"></div>
         </main>
     </div>
 
+    <dialog id="search-dialog" class="app-dialog command-dialog" aria-labelledby="search-title">
+        <div class="dialog-heading"><h2 id="search-title">Buscar página</h2><button class="icon-btn" data-close-dialog="search-dialog" aria-label="Fechar busca"><span class="material-symbols-rounded" aria-hidden="true">close</span></button></div>
+        <label class="search-field" for="global-search"><span class="material-symbols-rounded" aria-hidden="true">search</span><input id="global-search" type="search" placeholder="Digite o nome de uma página" autocomplete="off"></label>
+        <nav id="search-results" aria-label="Resultados da busca"></nav>
+        <p id="search-empty" class="empty-message" role="status" hidden>Nenhuma página encontrada. Tente “histórico” ou “configurações”.</p>
+        <p class="dialog-hint">Tab para navegar · Enter para abrir · Esc para fechar</p>
+    </dialog>
     <!-- Chart.js Global -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@2.2.1/dist/chartjs-plugin-annotation.min.js"></script>
     <!-- SPA Router e Core -->
-    <script src="/js/app.min.js?v=13"></script>
+    <script src="/js/app.min.js?v=14"></script>
 </body>
 
 </html>

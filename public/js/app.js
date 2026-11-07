@@ -58,6 +58,18 @@ const demoData = {
     }))
 };
 
+// Synthetic responses use the same public contracts as the authenticated API.
+const demoSnapshot = () => ({
+    status: 'seguro', tempoHoras: null,
+    recomendacao: 'Neste exemplo, a umidade está dentro da faixa de referência para milho. Continue acompanhando as leituras. Dados simulados; não use para decisões no campo.',
+    sensorState: {status:'online',hasValidData:true,dataAgeMinutes:0},
+    engineData: {
+        recommendation: {action:'MONITORAR'},
+        confidence: {score:88,level:'Alta (exemplo)',eligible:true,factors:['Demonstração com dados simulados.']},
+        climateAnalysis: {eto:4.2}
+    }
+});
+
 const originalFetch = window.fetch;
 window.fetch = async function (resource, config) {
     if (isDemoMode) {
@@ -76,14 +88,13 @@ window.fetch = async function (resource, config) {
             return Promise.resolve(new Response(JSON.stringify({ id: 'demo123', nome: 'Visitante (Demo)', empresa: 'Fazenda Hidrape', area_hectares: 42, cultura: 'Milho', data_cadastro: new Date().toISOString() }), { status: 200 }));
         }
         if (urlStr.includes('/api/sensores/umidade')) {
-            return Promise.resolve(new Response(JSON.stringify(demoData.sensor), { status: 200 }));
+            return Promise.resolve(new Response(JSON.stringify({...demoData.sensor,status:'IDEAL',timestamp:new Date().toISOString(),diagnostico:demoSnapshot().recomendacao,previsao:demoSnapshot()}), { status: 200 }));
         }
         if (urlStr.includes('/api/agro/clima')) {
-            return Promise.resolve(new Response(JSON.stringify(demoData.clima), { status: 200 }));
+            return Promise.resolve(new Response(JSON.stringify({cidade:'Recife, PE',clima:{current:{temperature_2m:24.5,relative_humidity_2m:62,wind_speed_10m:12.3,weather_code:2,is_day:1},daily:{et0_fao_evapotranspiration:[4.2]}},previsao:demoSnapshot(),sensorState:demoSnapshot().sensorState,satelite:{available:true,umidadeMacro:58,dataReferencia:new Date().toISOString().slice(0,10),historico:Array.from({length:7},(_,i)=>({data:new Date(Date.now()-(6-i)*86400000).toISOString().slice(0,10),valor:[52,54,51,55,57,59,58][i]}))}}), { status: 200 }));
         }
         if (urlStr.includes('/api/agro/insights-ia')) {
-            const iaMock = demoData.ia[demoData.iaIndex % demoData.ia.length];
-            return Promise.resolve(new Response(JSON.stringify(iaMock), { status: 200 }));
+            return Promise.resolve(new Response(JSON.stringify({diagnostico:demoSnapshot().recomendacao,previsao:demoSnapshot(),cached:false}), { status: 200 }));
         }
         if (urlStr.includes('/api/agro/media-semanal')) {
             return Promise.resolve(new Response(JSON.stringify([
@@ -97,8 +108,12 @@ window.fetch = async function (resource, config) {
             ]), { status: 200 }));
         }
         if (urlStr.includes('/api/sensores/historico')) {
-            return Promise.resolve(new Response(JSON.stringify({ historico: demoData.historico.slice().reverse(), total: 24, page: 1, pages: 1 }), { status: 200 }));
+            return Promise.resolve(new Response(JSON.stringify({data:demoData.historico.map(item=>({dataFull:item.horario,umidade:item.umidade,status:'IDEAL'})),meta:{page:1,pages:1,total:24}}), { status: 200 }));
         }
+        if (urlStr.includes('/api/reports/monthly')) {
+            return new Response(JSON.stringify({error:'Relatórios reais ficam disponíveis após conectar o sensor. A demonstração inclui apenas leituras de exemplo.'}), {status:403});
+        }
+        if (urlStr.includes('/api/auth/logout')) return new Response('{}', {status:200});
         if (urlStr.includes('/api/auth/config')) {
             return Promise.resolve(new Response(JSON.stringify({ error: 'Disponível na versão completa.' }), { status: 403 }));
         }
@@ -361,12 +376,9 @@ const navigate = async (route) => {
     if (liveInterval) { clearTimeout(liveInterval); liveInterval = null; }
     if (weatherInterval) { clearTimeout(weatherInterval); weatherInterval = null; }
     if (demoIntervalId) { clearInterval(demoIntervalId); demoIntervalId = null; }
-    _cardCache = null; // Invalida cache de cards (DOM vai mudar)
+    closeMobileNavigation(false);
+    document.querySelectorAll('dialog[open]').forEach(dialog => dialog.close());
 
-    const zombieDropdown = document.getElementById('profile-dropdown');
-    if (zombieDropdown && zombieDropdown.parentNode === document.body) {
-        zombieDropdown.remove();
-    }
 
     // 2. Proteção de Rota
     const unauthRoutes = ['login', 'register', 'forgot-password', 'reset-password'];
@@ -378,6 +390,15 @@ const navigate = async (route) => {
     }
 
     // 3. UI da Sidebar
+    const isAuthRoute = unauthRoutes.includes(route);
+    document.body.dataset.auth = String(isAuthRoute);
+    document.getElementById('workspace-header').hidden = isAuthRoute;
+    document.getElementById('workspace-header').style.display = isAuthRoute ? 'none' : '';
+    if (!isAuthRoute) {
+        document.getElementById('workspace-name').textContent = currentUser?.empresa || 'Minha propriedade';
+        document.getElementById('sidebar-user').textContent = currentUser?.nome || 'Minha conta';
+        document.getElementById('workspace-page').textContent = routeLabels[route] || route;
+    }
     if (unauthRoutes.includes(route)) {
         sidebar.style.display = 'none';
         appContent.style.margin = '0';
@@ -399,8 +420,10 @@ const navigate = async (route) => {
         const lantern = document.getElementById('nav-lantern');
         document.querySelectorAll('.nav-link').forEach(link => {
             link.classList.remove('active');
+            link.removeAttribute('aria-current');
             if (link.getAttribute('data-route') === route) {
                 link.classList.add('active');
+                link.setAttribute('aria-current', 'page');
                 if (lantern) {
                     // Mover fisicamente o glow para o slot do menu
                     lantern.style.transform = `translateY(${link.offsetTop}px)`;
@@ -427,6 +450,7 @@ const navigate = async (route) => {
     try {
         appContent.innerHTML = `<div class="loader-spinner"></div>`;
         const res = await fetch(`/views/${route}.html?v=${Date.now()}`);
+        if (!res.ok) throw new Error('Página indisponível');
         const html = await res.text();
 
         const wrapper = document.createElement('div');
@@ -437,9 +461,10 @@ const navigate = async (route) => {
 
         // 5. Iniciar Lógica Específica da Rota
         initRouteScript(route);
+        if (!isAuthRoute) appContent.focus({preventScroll: true});
 
     } catch (e) {
-        appContent.innerHTML = `<h2>Erro ao carregar a página</h2>`;
+        appContent.innerHTML = `<section class="card route-error" role="alert"><h2>Não foi possível carregar a página</h2><p>Verifique sua conexão e tente novamente.</p><button class="button button-secondary" data-route="${route}">Tentar novamente</button></section>`;
         console.error(e);
     }
 };
@@ -453,52 +478,99 @@ document.body.addEventListener('click', e => {
     }
 });
 
-// Pesquisa Global
-document.getElementById('global-search')?.addEventListener('change', e => {
-    const term = e.target.value.toLowerCase();
-    if (term.includes('hist')) navigate('history');
-    else if (term.includes('config')) navigate('settings');
-    else if (term.includes('dash') || term.includes('geral')) navigate('dashboard');
-    e.target.value = '';
-});
-
-// Listener Global para Rastreador de Mouse (Glow Animation) — Otimizado
-let ticking = false;
-let _cardCache = null;
-let _cardCacheTime = 0;
-
-const getCards = () => {
-    const now = Date.now();
-    // Revalida cache a cada 2s (evita querySelectorAll a cada frame)
-    if (!_cardCache || now - _cardCacheTime > 2000) {
-        _cardCache = document.querySelectorAll('.card');
-        _cardCacheTime = now;
-    }
-    return _cardCache;
+// Shared navigation, command search and native dialog keyboard behavior.
+const routeLabels = {dashboard:'Visão geral',geo:'Geoespacial',history:'Histórico',analysis:'Análise agronômica','monthly-report':'Relatório mensal',settings:'Configurações'};
+const searchDialog = document.getElementById('search-dialog');
+const searchInput = document.getElementById('global-search');
+const normalizeSearch = text => text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const renderSearch = () => {
+    const query = normalizeSearch(searchInput.value.trim());
+    const results = document.getElementById('search-results');
+    results.replaceChildren();
+    document.querySelectorAll('.sidebar-nav a[data-route]').forEach(link => {
+        if (!normalizeSearch(link.textContent).includes(query)) return;
+        const result = link.cloneNode(true);
+        result.classList.remove('active');
+        result.removeAttribute('aria-current');
+        results.appendChild(result);
+    });
+    document.getElementById('search-empty').hidden = results.childElementCount > 0;
 };
-
-document.body.addEventListener('mousemove', e => {
-    if (!ticking) {
-        requestAnimationFrame(() => {
-            const cards = getCards();
-            for (let i = 0; i < cards.length; i++) {
-                const rect = cards[i].getBoundingClientRect();
-                cards[i].style.setProperty('--mouse-x', `${e.clientX - rect.left}px`);
-                cards[i].style.setProperty('--mouse-y', `${e.clientY - rect.top}px`);
-            }
-            ticking = false;
-        });
-        ticking = true;
-    }
-}, { passive: true });
-
-// Listener Mobile Hambúrguer Toggle
-document.body.addEventListener('click', e => {
-    const btnMenu = e.target.closest('#mobile-menu-btn');
-    if (btnMenu) {
-        document.getElementById('sidebar')?.classList.toggle('open');
+const openSearch = () => {
+    closeMobileNavigation(false);
+    searchInput.value = '';
+    renderSearch();
+    searchDialog.showModal();
+    searchInput.focus();
+};
+searchInput.addEventListener('input', renderSearch);
+searchInput.addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+        event.preventDefault();
+        document.querySelector('#search-results a')?.click();
+    } else if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        document.querySelector('#search-results a')?.focus();
     }
 });
+document.getElementById('open-search').addEventListener('click', openSearch);
+const closeMobileNavigation = (restoreFocus = true) => {
+    sidebar.classList.remove('open');
+    document.getElementById('mobile-menu-btn').setAttribute('aria-expanded', 'false');
+    document.getElementById('sidebar-backdrop').hidden = true;
+    appContent.inert = false;
+    document.body.classList.remove('navigation-open');
+    if (restoreFocus) document.getElementById('mobile-menu-btn').focus();
+};
+document.getElementById('mobile-menu-btn').addEventListener('click', () => {
+    if (sidebar.classList.contains('open')) return closeMobileNavigation();
+    sidebar.classList.add('open');
+    document.getElementById('mobile-menu-btn').setAttribute('aria-expanded', 'true');
+    document.getElementById('sidebar-backdrop').hidden = false;
+    appContent.inert = true;
+    document.body.classList.add('navigation-open');
+    sidebar.querySelector('.workspace-search').focus();
+});
+document.getElementById('sidebar-backdrop').addEventListener('click', () => closeMobileNavigation());
+window.matchMedia?.('(min-width: 769px)').addEventListener('change', event => {
+    if (event.matches) closeMobileNavigation(false);
+});
+document.addEventListener('keydown', event => {
+    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k' && currentToken) {
+        event.preventDefault();
+        if (searchDialog.open) searchDialog.close(); else openSearch();
+    }
+    if (sidebar.classList.contains('open') && !document.querySelector('dialog[open]')) {
+        if (event.key === 'Escape') closeMobileNavigation();
+        if (event.key === 'Tab') {
+            const focusable = [...sidebar.querySelectorAll('a,button')].filter(el => el.getClientRects().length);
+            const first = focusable[0], last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        }
+    }
+});
+document.body.addEventListener('click', event => {
+    const close = event.target.closest('[data-close-dialog]');
+    if (close) document.getElementById(close.dataset.closeDialog)?.close();
+    if (event.target instanceof HTMLDialogElement) {
+        const rect = event.target.getBoundingClientRect();
+        if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) event.target.close();
+    }
+});
+
+// Keep data available when the external chart library cannot load.
+const createChart = (context, config) => {
+    if (typeof Chart !== 'undefined') return new Chart(context, config);
+    if (context?.canvas) {
+        const notice = document.createElement('p');
+        notice.className = 'chart-unavailable';
+        notice.textContent = 'Visualização indisponível. Consulte os valores em texto abaixo.';
+        context.canvas.hidden = true;
+        if (!context.canvas.parentElement.querySelector('.chart-unavailable')) context.canvas.parentElement.appendChild(notice);
+    }
+    return {data: config.data, update() {}, destroy() {}};
+};
 
 btnLogout?.addEventListener('click', (e) => {
     e.preventDefault();
@@ -543,7 +615,7 @@ const applyAgroSnapshot = snapshot => {
     if (!snapshot) return;
     window._agroSnapshot = snapshot; window._sensorState = snapshot.sensorState || snapshot._meta?.sensorState || null;
     const status = snapshot.engineData?.recommendation?.action || 'VERIFICAR_SENSOR';
-    for (const id of ['predict-text','analysis-hero-reco','analise-texto','soil-insight']) {
+    for (const id of ['predict-text','analysis-hero-reco','analise-texto']) {
         const element = document.getElementById(id); if (element) element.textContent = snapshot.recomendacao;
     }
     for (const id of ['predict-time','analysis-hero-time','an-tl-irrig']) {
@@ -574,7 +646,7 @@ const renderInteligence = () => {
     document.getElementById('evapo-icon').textContent = evapo.icon;
     document.getElementById('evapo-nivel').style.color = evapo.cor;
     document.getElementById('evapo-icon-wrap').style.color = evapo.cor;
-    document.getElementById('evapo-icon-wrap').style.background = evapo.cor + '20';
+
 
     // 2. Saúde do Solo (Multi-Fator)
     const saude = calcularSaudeSolo(
@@ -603,7 +675,7 @@ const renderInteligence = () => {
 
 const calcularEvapotranspiracao = () => {
     const eto = window._agroSnapshot?.engineData?.climateAnalysis?.eto;
-    return {nivel:Number.isFinite(eto)?eto.toFixed(1)+' mm/dia':'Indisponível',desc:'Evapotranspiração de referência meteorológica; não mede a perda de água do sensor.',cor:'var(--sys-light)',icon:'air'};
+    return {nivel:Number.isFinite(eto)?eto.toLocaleString('pt-BR', {minimumFractionDigits:1,maximumFractionDigits:1})+' mm/dia':'Indisponível',desc:'Evapotranspiração de referência meteorológica; não mede a perda de água do sensor.',cor:'var(--sys-light)',icon:'air'};
 };
 const getCropLimits = () => {
     const config = currentUser?.cropConfig;
@@ -667,7 +739,7 @@ const initLogin = () => {
         demoBtn.addEventListener('click', () => {
             isDemoMode = true;
             currentToken = "demo_token";
-            currentUser = { id: 'demo123', nome: 'Visitante (Demo)', empresa: 'Fazenda Hidrape', area_hectares: 42, tipoPlantacao: 'Milho', data_cadastro: new Date().toISOString() };
+            currentUser = { id: 'demo123', nome: 'Visitante (Demo)', empresa: 'Fazenda Hidrape', area_hectares: 42, tipoPlantacao: 'Milho', cidade:'Recife', estado:'PE', timeZone:'America/Recife', cropConfig:{minIdeal:40,maxIdeal:70,center:55}, data_cadastro: new Date().toISOString() };
 
             const card = document.querySelector('.auth-card');
             if (card) {
@@ -823,7 +895,7 @@ const initResetPassword = () => {
 const initRegister = () => {
     const form = document.getElementById('register-form');
     const errObj = document.getElementById('reg-error');
-    
+
     const ufSelect = document.getElementById('reg-estado');
     const cidadeSelect = document.getElementById('reg-cidade');
 
@@ -845,7 +917,7 @@ const initRegister = () => {
         ufSelect.addEventListener('change', (e) => {
             const uf = e.target.value;
             if (!uf) return;
-            
+
             cidadeSelect.innerHTML = '<option value="" disabled selected>Carregando...</option>';
             cidadeSelect.disabled = true;
 
@@ -933,84 +1005,27 @@ const initDashboard = async () => {
         // Exibe badge demo
         const badge = document.getElementById('global-demo-badge');
         if (!badge) {
-            const header = document.querySelector('.dash-top-bar > div:first-child');
+            const header = document.querySelector('.dash-greeting');
             if (header) {
                 const b = document.createElement('div');
                 b.id = 'global-demo-badge';
                 b.className = 'demo-badge';
-                b.innerHTML = '<span class="badge-status-dot" style="background:#ff6b6b; box-shadow: 0 0 8px #ff6b6b"></span> MODO DEMONSTRAÇÃO';
+                b.textContent = 'Demonstração · dados simulados';
                 b.title = 'Você está explorando uma demonstração com dados simulados.';
                 header.appendChild(b);
             }
         }
 
         demoIntervalId = setInterval(updateDemoData, 5000);
-        setTimeout(startGuidedTour, 1000); // Tentar iniciar o tour 1s depois
+        // The sample is self-guided; navigation remains available.
     } else {
         const badge = document.getElementById('global-demo-badge');
         if (badge) badge.remove();
     }
 
     document.getElementById('dash-user').textContent = currentUser.nome.split(' ')[0];
-    document.getElementById('dash-culture').textContent = currentUser.tipoPlantacao;
-
-    // ----- PROFILE MENU DROPDOWN -----
-    const profileBtn = document.getElementById('profile-menu-btn');
-    const profileMenu = document.getElementById('profile-dropdown');
-    if (profileBtn && profileMenu) {
-        profileBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isVisible = profileMenu.style.display === 'flex';
-            if (isVisible) {
-                profileMenu.style.opacity = '0';
-                profileMenu.style.transform = 'scale(0.95)';
-                setTimeout(() => profileMenu.style.display = 'none', 200);
-            } else {
-                // Break out of .main-content to fix backdrop-filter by appending to body
-                const rect = profileBtn.getBoundingClientRect();
-                if (profileMenu.parentNode !== document.body) {
-                    document.body.appendChild(profileMenu);
-                }
-
-                profileMenu.style.top = (rect.bottom + window.scrollY + 12) + 'px';
-
-                // Mobile-first fix for dropdown overflow
-                if (window.innerWidth <= 768) {
-                    profileMenu.style.left = '16px';
-                    profileMenu.style.width = 'calc(100vw - 32px)';
-                    profileMenu.style.maxWidth = 'calc(100vw - 32px - env(safe-area-inset-left) - env(safe-area-inset-right))';
-                } else {
-                    profileMenu.style.left = (rect.right + window.scrollX - 260) + 'px';
-                    profileMenu.style.width = '260px';
-                    profileMenu.style.maxWidth = 'none';
-                }
-
-                profileMenu.style.display = 'flex';
-                // Trigger reflow
-                profileMenu.offsetHeight;
-                profileMenu.style.opacity = '1';
-                profileMenu.style.transform = 'scale(1)';
-            }
-        });
-
-        profileMenu.querySelectorAll('.dropdown-item[data-action]').forEach(item => {
-            item.addEventListener('click', () => {
-                const action = item.dataset.action;
-                if (action.startsWith('settings-')) {
-                    const tab = action.split('-')[1];
-                    window._targetSettingsTab = tab === 'prop' ? 'propriedade' : 'integracoes';
-
-                    // Close menu gracefully before navigation
-                    profileMenu.style.opacity = '0';
-                    profileMenu.style.transform = 'scale(0.95)';
-                    setTimeout(() => {
-                        profileMenu.style.display = 'none';
-                        navigate('settings');
-                    }, 200);
-                }
-            });
-        });
-    }
+    document.getElementById('dash-culture').textContent = currentUser.tipoPlantacao || 'Não configurada';
+    document.getElementById('dash-location').textContent = [currentUser.cidade, currentUser.estado].filter(Boolean).join(', ') || 'Localização não configurada';
 
     // Config Iniciais
     const valText = document.getElementById('umidade-valor');
@@ -1022,13 +1037,17 @@ const initDashboard = async () => {
     // Init Live Chart (Garbage Collector)
     if (liveChartObj) liveChartObj.destroy();
     const ctxLive = document.getElementById('liveChart').getContext('2d');
-    Chart.defaults.color = 'rgba(255, 255, 255, 0.5)';
-    Chart.defaults.font.family = "'Space Grotesk', sans-serif";
-    Chart.defaults.font.weight = 500;
-    Chart.defaults.font.size = 11;
-    liveChartObj = new Chart(ctxLive, {
+    if (typeof Chart !== 'undefined' && Chart.defaults) {
+        const theme = getComputedStyle(document.documentElement);
+        Chart.defaults.color = theme.getPropertyValue('--text-secondary').trim();
+        Chart.defaults.font.family = theme.getPropertyValue('--font-family').trim();
+        Chart.defaults.font.weight = 400;
+        Chart.defaults.font.size = 11;
+        Chart.defaults.animation = !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    }
+    liveChartObj = createChart(ctxLive, {
         type: 'line',
-        data: { labels: [], datasets: [{ label: 'Umidade (%)', data: [], borderColor: '#94B4C1', backgroundColor: 'rgba(148, 180, 193, 0.05)', fill: true, tension: 0.4, borderWidth: 1.5, pointRadius: 0, pointHoverRadius: 4 }] },
+        data: { labels: [], datasets: [{ label: 'Umidade (%)', data: [], borderColor: '#94B4C1', backgroundColor: 'rgba(148, 180, 193, 0.10)', fill: true, tension: 0.4, borderWidth: 1.5, pointRadius: context => context.dataset.data.length === 1 ? 3 : 0, pointHoverRadius: 4 }] },
         options: {
             animation: false,
             responsive: true,
@@ -1036,14 +1055,14 @@ const initDashboard = async () => {
             plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(20, 28, 38, 0.9)', titleColor: '#fff', bodyColor: '#94B4C1', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 12, padding: 12 } },
             scales: {
                 x: {
-                    ticks: { color: 'rgba(255, 255, 255, 0.4)' },
+                    ticks: { color: '#ADB4BF', maxTicksLimit: 6 },
                     grid: { display: false }
                 },
                 y: {
                     max: 100,
                     min: 0,
                     beginAtZero: true,
-                    ticks: { color: 'rgba(255, 255, 255, 0.4)' },
+                    ticks: { color: '#ADB4BF', maxTicksLimit: 6 },
                     grid: { color: 'rgba(255, 255, 255, 0.03)' }
                 }
             }
@@ -1053,9 +1072,9 @@ const initDashboard = async () => {
     // Init Weekly Analytics Chart (Garbage Collector)
     if (weeklyChartObj) weeklyChartObj.destroy();
     const ctxWeekly = document.getElementById('weeklyChart').getContext('2d');
-    weeklyChartObj = new Chart(ctxWeekly, {
+    weeklyChartObj = createChart(ctxWeekly, {
         type: 'bar',
-        data: { labels: [], datasets: [{ label: 'Média Semanal (%)', data: [], backgroundColor: 'rgba(148, 180, 193, 0.4)', borderRadius: 4, hoverBackgroundColor: '#94B4C1' }] },
+        data: { labels: [], datasets: [{ label: 'Média diária de umidade (%)', data: [], backgroundColor: '#829BA8', borderRadius: 4, hoverBackgroundColor: '#94B4C1' }] },
         options: {
             responsive: true,
             maintainAspectRatio: false,
@@ -1063,14 +1082,14 @@ const initDashboard = async () => {
             plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(20, 28, 38, 0.9)', titleColor: '#fff', bodyColor: '#94B4C1', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 12, padding: 12 } },
             scales: {
                 x: {
-                    ticks: { color: 'rgba(255, 255, 255, 0.4)' },
+                    ticks: { color: '#ADB4BF', maxTicksLimit: 6 },
                     grid: { display: false }
                 },
                 y: {
                     max: 100,
                     min: 0,
                     beginAtZero: true,
-                    ticks: { color: 'rgba(255, 255, 255, 0.4)' },
+                    ticks: { color: '#ADB4BF', maxTicksLimit: 6 },
                     grid: { color: 'rgba(255, 255, 255, 0.03)' }
                 }
             }
@@ -1141,17 +1160,16 @@ const initDashboard = async () => {
     const nasaCard = document.getElementById('nasa-card');
     if (nasaCard) {
         nasaCard.addEventListener('click', () => {
-            if (!window._latestSat || !window._latestSat.historico) return;
+
 
             const modal = document.getElementById('nasa-modal');
-            document.body.appendChild(modal);
-            modal.style.display = 'flex';
-            document.body.style.overflow = 'hidden';
+            modal.showModal();
 
-            let hist = (window._latestSat && window._latestSat.historico) ? [...window._latestSat.historico] : [];
+            const hist = window._latestSat?.historico || [];
+            document.getElementById('nasa-data-summary').textContent = hist.length ? hist.map(h => `${h.data}: ${h.valor}%`).join('; ') : 'Nenhuma observação disponível. Tente novamente após atualizar os dados.';
                         const ctxNasa = document.getElementById('nasaChart').getContext('2d');
             if (nasaChartObj) nasaChartObj.destroy();
-            nasaChartObj = new Chart(ctxNasa, {
+            nasaChartObj = createChart(ctxNasa, {
                 type: 'line',
                 data: {
                     labels: hist.map(h => h.data.slice(-5)),
@@ -1188,7 +1206,7 @@ const initDashboard = async () => {
                             cornerRadius: 12,
                             padding: 12,
                             callbacks: {
-                                label: (context) => ` Umidade Solo: ${context.parsed.y}%`
+                                label: (context) => ` Saturação regional: ${context.parsed.y}%`
                             }
                         }
                     },
@@ -1204,11 +1222,7 @@ const initDashboard = async () => {
     if (closeNasaBtn) {
         closeNasaBtn.addEventListener('click', () => {
             const modal = document.getElementById('nasa-modal');
-            modal.style.display = 'none';
-            document.body.style.overflow = '';
-
-            const appContent = document.getElementById('app-content');
-            if (appContent) appContent.appendChild(modal);
+            modal.close();
         });
     }
 
@@ -1227,7 +1241,7 @@ const initDashboard = async () => {
             const setOfflineState = () => {
                 if (valText) {
                     valText.textContent = '--';
-                    valText.style.color = '#ff4444';
+                    valText.style.color = 'var(--danger)';
                 }
                 if (varBar) {
                     varBar.style.width = `100%`; // Para a barra ficar toda vermelha
@@ -1241,7 +1255,7 @@ const initDashboard = async () => {
                 if (iaCard) iaCard.style.boxShadow = `0 8px 32px 0 rgba(255,68,68,0.15)`;
                 const soilInsight = document.getElementById('soil-insight');
                 if (soilInsight) {
-                    soilInsight.textContent = "EQUIPAMENTO OFFLINE";
+                    soilInsight.textContent = "Sensor sem comunicação. Verifique a conexão.";
                     soilInsight.style.color = "#ff4444";
                     soilInsight.style.fontWeight = "bold";
                 }
@@ -1258,9 +1272,9 @@ const initDashboard = async () => {
                 renderInteligence();
             };
 
-            if (document.hidden) {
+            if (document.hidden && window._latestUmid !== null) {
                 if (document.getElementById('umidade-valor')) {
-                    liveInterval = setTimeout(updateIoT, 30000); 
+                    liveInterval = setTimeout(updateIoT, 30000);
                 }
                 return;
             }
@@ -1277,14 +1291,14 @@ const initDashboard = async () => {
             }
 
             const data = await res.json();
-            
+
             if(!valText) return;
 
-            valText.textContent = data.umidade.toFixed(1) + '%';
-            
+            valText.textContent = data.umidade.toLocaleString('pt-BR', {minimumFractionDigits:1, maximumFractionDigits:1}) + '%';
+
             let color = 'var(--sys-text)';
             let glowKey = '';
-            
+
             if (data.status === 'SECO') { color = 'var(--color-dry)'; glowKey = 'dry'; if(iaIcon) iaIcon.textContent = 'water_drop'; }
             if (data.status === 'ENCHARCADO') { color = 'var(--color-dry)'; glowKey = 'dry'; if(iaIcon) iaIcon.textContent = 'flood'; }
             if (data.status === 'IDEAL') { color = 'var(--color-good)'; glowKey = 'good'; if(iaIcon) iaIcon.textContent = 'eco'; }
@@ -1297,7 +1311,7 @@ const initDashboard = async () => {
             const soilInsight = document.getElementById('soil-insight');
             if (soilInsight) {
                 const cultura = currentUser?.tipoPlantacao || 'cultura';
-                if (data.status === 'IDEAL') soilInsight.textContent = `${data.umidade.toFixed(0)}% — dentro da faixa ideal para ${cultura.toLowerCase()}`;
+                if (data.status === 'IDEAL') soilInsight.textContent = `Dentro da faixa de referência para ${cultura.toLowerCase()}`;
                 else soilInsight.textContent = data.diagnostico;
 
             }
@@ -1319,7 +1333,7 @@ const initDashboard = async () => {
 
             // Live Chart Append
             if (typeof liveChartObj !== 'undefined' && liveChartObj) {
-                const tLabel = new Date(data.timestamp).toLocaleTimeString('pt-BR');
+                const tLabel = new Date(data.timestamp).toLocaleTimeString('pt-BR', {timeZone:currentUser.timeZone || 'UTC'});
                 liveChartObj.data.labels.push(tLabel);
                 liveChartObj.data.datasets[0].data.push(data.umidade);
                 if (liveChartObj.data.labels.length > 20) {
@@ -1327,6 +1341,7 @@ const initDashboard = async () => {
                     liveChartObj.data.datasets[0].data.shift();
                 }
                 liveChartObj.update();
+                document.getElementById('live-data-summary').textContent = liveChartObj.data.labels.map((label, i) => `${label}: ${liveChartObj.data.datasets[0].data[i].toFixed(1)}%`).join('; ');
             }
 
             // Store para Engine IA global e Roda Update
@@ -1398,7 +1413,7 @@ const initDashboard = async () => {
 
                 const predictTextEl = document.getElementById('predict-text');
                 predictTextEl.innerHTML = `
-                    <span style="font-size: 0.75rem; background: var(--color-good); padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-bottom: 6px; display: inline-block; color: white;">✦ DIAGNÓSTICO DO MOTOR</span><br/>
+                    <span style="font-size: 0.75rem; background: var(--color-good); padding: 2px 6px; border-radius: 4px; font-weight: bold; margin-bottom: 6px; display: inline-block; color: var(--canvas);">Diagnóstico do motor</span><br/>
                 `;
                 const textNode = document.createTextNode(iaData.diagnostico);
                 predictTextEl.appendChild(textNode);
@@ -1444,6 +1459,7 @@ const initDashboard = async () => {
             weeklyChartObj.data.labels = weekData.map(w => w.dia);
             weeklyChartObj.data.datasets[0].data = weekData.map(w => w.media);
             weeklyChartObj.update();
+            document.getElementById('weekly-data-summary').textContent = weekData.length ? weekData.map(day => `${day.dia}: ${Number.isFinite(day.media) ? day.media.toFixed(1) + '%' : 'sem leitura'}`).join('; ') : 'Sem leituras nos últimos 7 dias completos. Conecte o sensor em Configurações.';
 
             // Store para Engine IA e Roda Update
             window._latestClima = agroData.clima;
@@ -1465,15 +1481,26 @@ const initDashboard = async () => {
                 document.getElementById('satelite-data').textContent = 'Ref: ' + agroData.satelite.dataReferencia;
             } else if (document.getElementById('satelite-valor')) {
                 document.getElementById('satelite-valor').innerHTML = '<span style="font-size: 1.5rem">Indisponível</span>';
-                document.getElementById('satelite-data').textContent = 'Satélite Offline';
+                document.getElementById('satelite-data').textContent = 'Dados indisponíveis na fonte. Tente novamente mais tarde.';
             }
 
             renderInteligence();
 
             renderMapAvailability();
-        } catch (e) { clearAgroState(); console.warn('Motor indisponível'); }
+        } catch (e) {
+            window._agroSnapshot = null;
+            window._latestClima = null;
+            window._latestSat = null;
+            renderInteligence();
+            document.getElementById('predict-time').textContent = 'Indisponível';
+            document.getElementById('satelite-valor').textContent = '—';
+            document.getElementById('satelite-data').textContent = 'Não foi possível carregar os dados. Tente novamente mais tarde.';
+            document.getElementById('predict-text').textContent = 'Análise indisponível. Verifique a conexão e as integrações em Configurações.';
+            document.getElementById('weekly-data-summary').textContent = 'Não foi possível carregar as médias. Reabra a visão geral para tentar novamente.';
+            console.warn('Motor indisponível');
+        }
         finally {
-            if (document.getElementById('clima-cidade')) {
+            if (document.getElementById('predict-text')) {
                 weatherInterval = setTimeout(updateAgro, 10 * 60 * 1000); // Polling Seguro em Fila
             }
         }
@@ -1571,7 +1598,7 @@ const initHistory = () => {
             tbody.innerHTML = '';
 
             // Note: DB returns chronologically, we reverse to show latest at top in the view if desired,
-            // but controller already reversed it for charting. 
+            // but controller already reversed it for charting.
             // In API we returned `data` array reversed? Yes, reversed to oldest..newest. Let's reverse back for table.
             let tableData = [...payload.data].reverse();
 
@@ -1730,7 +1757,7 @@ const initSettings = async () => {
                 currentUser.lat = updated.lat;
                 currentUser.lon = updated.lon;
 
-                // Redesenha mapa e clima recarregando o painel em background 
+                // Redesenha mapa e clima recarregando o painel em background
                 if (typeof initDashboard === 'function') {
                     // Nós não forçamos navegação completa para manter a fluidez, mas as novas vars serão pegas
                 }
@@ -1975,7 +2002,7 @@ const initAnalysis = async () => {
                     if (ctxNasa) {
                         let anHist = [...agroData.satelite.historico];
                                                 if (analysisNasaChart) analysisNasaChart.destroy();
-                        analysisNasaChart = new Chart(ctxNasa.getContext('2d'), {
+                        analysisNasaChart = createChart(ctxNasa.getContext('2d'), {
                             type: 'line',
                             data: {
                                 labels: anHist.map(h => h.data.slice(-5)),
@@ -2045,14 +2072,14 @@ const initAnalysis = async () => {
         const ctxWeek = document.getElementById('an-weeklyChart');
         if (ctxWeek) {
             if (analysisWeeklyChart) analysisWeeklyChart.destroy();
-            analysisWeeklyChart = new Chart(ctxWeek.getContext('2d'), {
+            analysisWeeklyChart = createChart(ctxWeek.getContext('2d'), {
                 type: 'bar',
                 data: {
                     labels: weekData.map(w => w.dia),
                     datasets: [{
-                        label: 'Média Semanal (%)',
+                        label: 'Média diária de umidade (%)',
                         data: weekData.map(w => w.media),
-                        backgroundColor: 'rgba(148, 180, 193, 0.4)',
+                        backgroundColor: '#829BA8',
                         borderRadius: 4,
                         hoverBackgroundColor: '#94B4C1'
                     }]
@@ -2062,8 +2089,8 @@ const initAnalysis = async () => {
                     interaction: { mode: 'index', intersect: false },
                     plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(20, 28, 38, 0.9)', titleColor: '#fff', bodyColor: '#94B4C1', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, cornerRadius: 12, padding: 12 } },
                     scales: {
-                        x: { ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { display: false } },
-                        y: { max: 100, min: 0, beginAtZero: true, ticks: { color: 'rgba(255, 255, 255, 0.4)' }, grid: { color: 'rgba(255, 255, 255, 0.03)' } }
+                        x: { ticks: { color: '#ADB4BF', maxTicksLimit: 6 }, grid: { display: false } },
+                        y: { max: 100, min: 0, beginAtZero: true, ticks: { color: '#ADB4BF', maxTicksLimit: 6 }, grid: { color: 'rgba(255, 255, 255, 0.03)' } }
                     }
                 }
             });
@@ -2151,19 +2178,6 @@ const bootApplication = async () => {
     }
 };
 
-// Global click event to close dropdowns
-document.addEventListener('click', (e) => {
-    const profileMenu = document.getElementById('profile-dropdown');
-    const profileBtn = document.getElementById('profile-menu-btn');
-    if (profileMenu && profileMenu.style.display === 'flex') {
-        if (!profileMenu.contains(e.target) && (!profileBtn || !profileBtn.contains(e.target))) {
-            profileMenu.style.opacity = '0';
-            profileMenu.style.transform = 'scale(0.95)';
-            setTimeout(() => profileMenu.style.display = 'none', 200);
-        }
-    }
-});
-
 // ==========================================
 // RELATÓRIO MENSAL
 // ==========================================
@@ -2235,7 +2249,7 @@ const initMonthlyReport = async () => {
                 const labels = data.graficos.solo.map(d => new Date(d.data.slice(0,10) + 'T12:00:00Z').toLocaleDateString('pt-BR', {timeZone:'UTC'}));
                 const values = data.graficos.solo.map(d => d.umidade);
 
-                mrSoilChartInstance = new Chart(ctxSoil, {
+                mrSoilChartInstance = createChart(ctxSoil, {
                     type: 'line',
                     data: {
                         labels: labels,
@@ -2285,7 +2299,7 @@ const initMonthlyReport = async () => {
                 const chuva = data.graficos.clima.map(d => d.chuva);
                 const et0 = data.graficos.clima.map(d => d.et0);
 
-                mrClimateChartInstance = new Chart(ctxClimate, {
+                mrClimateChartInstance = createChart(ctxClimate, {
                     type: 'bar',
                     data: {
                         labels: labels,
@@ -2331,69 +2345,5 @@ const initMonthlyReport = async () => {
     loadReport(year, month);
 };
 
-// ==========================================
-// MAGIC UI & SHADCN ENHANCEMENTS
-// ==========================================
-function initMagicUI(root = document) {
-    // 1. Scroll Reveal (Intersection Observer)
-    const revealElements = root.querySelectorAll('.scroll-reveal:not(.observed)');
-    if (revealElements.length > 0) {
-        const observer = new IntersectionObserver((entries) => {
-            entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                    entry.target.classList.add('visible');
-                    observer.unobserve(entry.target);
-                }
-            });
-        }, { threshold: 0.1 });
-
-        revealElements.forEach(el => {
-            el.classList.add('observed');
-            observer.observe(el);
-        });
-    }
-
-    // 2. Hover Glow Effect (Mouse Move)
-    const glowCards = root.querySelectorAll('.card, .hover-glow-effect');
-    glowCards.forEach(card => {
-        if(card.dataset.glowBound) return;
-        card.dataset.glowBound = "true";
-        card.classList.add('hover-glow-effect'); // ensure class is there
-        card.addEventListener('mousemove', e => {
-            const rect = card.getBoundingClientRect();
-            const x = e.clientX - rect.left;
-            const y = e.clientY - rect.top;
-            card.style.setProperty('--mouse-x', `${x}px`);
-            card.style.setProperty('--mouse-y', `${y}px`);
-        });
-    });
-
-    // 3. Magic Lettering
-    const letteringTexts = root.querySelectorAll('.magic-lettering:not(.processed)');
-    letteringTexts.forEach(el => {
-        el.classList.add('processed');
-        const text = el.textContent;
-        el.innerHTML = '';
-        text.split('').forEach((char, i) => {
-            const span = document.createElement('span');
-            span.classList.add('letter');
-            span.textContent = char === ' ' ? '\u00A0' : char; // preserve space
-            span.style.animationDelay = `${i * 0.03}s`;
-            el.appendChild(span);
-        });
-    });
-}
-
-// Global initialization and SPA mutation tracking
-document.addEventListener('DOMContentLoaded', () => {
-    bootApplication();
-    initMagicUI();
-    
-    const appContent = document.getElementById('app-content');
-    if (appContent) {
-        const mutationObserver = new MutationObserver(() => {
-            initMagicUI(appContent);
-        });
-        mutationObserver.observe(appContent, { childList: true, subtree: true });
-    }
-});
+// Initialize the existing authentication flow.
+document.addEventListener('DOMContentLoaded', bootApplication);
