@@ -1,0 +1,173 @@
+// Exclusivo do PostgreSQL agro dedicado. Nenhuma relação ou credencial de User.
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../generated/agro-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("AGRO_DATABASE_URL")
+}
+
+model AgroStorageIdentity {
+  id String @id
+}
+
+model AgroProperty {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  talhoes   Talhao[]
+  @@unique([userId, id])
+}
+
+// Reutiliza o conceito e os campos principais do Talhao legado, sem migrá-lo.
+model Talhao {
+  id              String   @id @default(uuid())
+  userId          String
+  propertyId      String
+  nome            String   @default("Talhão Principal")
+  cultura         String   @default("Personalizado")
+  tamanhoHectares Float?
+  config          Json
+  criadoEm        DateTime @default(now()) @db.Timestamptz(3)
+  property        AgroProperty @relation(fields:[userId, propertyId], references:[userId, id])
+  devices         AgroDevice[]
+  @@unique([userId, id])
+}
+
+model AgroDevice {
+  id             String   @id @default(uuid())
+  userId         String
+  talhaoId       String
+  primaryKey     String   @unique
+  source         String   @default("BLYNK")
+  pin            String   @default("V0")
+  active         Boolean  @default(true)
+  credential     String   @db.Text
+  state          Json
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  talhao         Talhao   @relation(fields:[userId, talhaoId], references:[userId, id])
+  polls          AgroPoll[]
+  readings       AgroReading[]
+  evaluations    AgroEvaluation[]
+  decisions      AgroDecision[]
+  events         AgroEvent[]
+  deliveries     AgroDelivery[]
+  @@unique([userId, id])
+  @@index([active, userId])
+}
+
+model AgroPoll {
+  id                     String   @id @default(uuid())
+  userId                 String
+  deviceId               String
+  scheduledAt            DateTime @db.Timestamptz(3)
+  collectedAt            DateTime @db.Timestamptz(3)
+  observedAt             DateTime? @db.Timestamptz(3)
+  value                  Float?
+  unit                   String
+  source                 String
+  quality                String
+  communicationConfirmed Boolean
+  measurementConfirmed   Boolean
+  device                 AgroDevice @relation(fields:[userId, deviceId], references:[userId, id])
+  readings               AgroReading[]
+  evaluation             AgroEvaluation?
+  @@unique([deviceId, scheduledAt])
+  @@unique([userId, deviceId, id])
+  @@index([userId, collectedAt])
+}
+
+model AgroReading {
+  id          String   @id @default(uuid())
+  userId      String
+  deviceId    String
+  pollId      String
+  value       Float?
+  unit        String
+  source      String
+  quality     String
+  independent Boolean
+  reason      String
+  observedAt  DateTime? @db.Timestamptz(3)
+  collectedAt DateTime @db.Timestamptz(3)
+  device      AgroDevice @relation(fields:[userId, deviceId], references:[userId, id])
+  poll        AgroPoll @relation(fields:[userId, deviceId, pollId], references:[userId, deviceId, id])
+  @@unique([deviceId, observedAt])
+  @@index([userId, observedAt])
+}
+
+model AgroEvaluation {
+  id          String   @id
+  userId      String
+  deviceId    String
+  pollId      String   @unique
+  mode        String
+  createdAt   DateTime @db.Timestamptz(3)
+  payload     Json
+  comparison  Json
+  device      AgroDevice @relation(fields:[userId, deviceId], references:[userId, id])
+  poll        AgroPoll @relation(fields:[userId, deviceId, pollId], references:[userId, deviceId, id])
+  decisions   AgroDecision[]
+  @@unique([userId, deviceId, id])
+  @@unique([userId, deviceId, pollId])
+  @@index([userId, createdAt])
+}
+
+model AgroDecision {
+  id           String   @id @default(uuid())
+  userId       String
+  deviceId     String
+  evaluationId String
+  action       String
+  riskLevel    String
+  kind         String
+  mode         String
+  createdAt    DateTime @db.Timestamptz(3)
+  device       AgroDevice @relation(fields:[userId, deviceId], references:[userId, id])
+  evaluation   AgroEvaluation @relation(fields:[userId, deviceId, evaluationId], references:[userId, deviceId, id])
+  deliveries   AgroDelivery[]
+  @@unique([deviceId, evaluationId])
+  @@unique([userId, deviceId, id])
+  @@index([userId, createdAt])
+}
+
+model AgroEvent {
+  id             String   @id @default(uuid())
+  userId         String
+  deviceId       String
+  idempotencyKey String
+  type           String
+  origin         String
+  value          Float?
+  unit           String
+  occurredAt     DateTime @db.Timestamptz(3)
+  timeZone       String
+  receivedAt     DateTime @default(now()) @db.Timestamptz(3)
+  device         AgroDevice @relation(fields:[userId, deviceId], references:[userId, id])
+  @@unique([userId, idempotencyKey])
+  @@index([userId, deviceId, occurredAt])
+}
+
+// Entrega técnica; não implementa a máquina de estados de alerta da Fase 3.
+model AgroDelivery {
+  id          String   @id @default(uuid())
+  userId      String
+  deviceId    String
+  decisionId  String   @unique
+  status      String
+  attempts    Int      @default(0)
+  attemptedAt DateTime? @db.Timestamptz(3)
+  deliveredAt DateTime? @db.Timestamptz(3)
+  device      AgroDevice @relation(fields:[userId, deviceId], references:[userId, id])
+  decision    AgroDecision @relation(fields:[userId, deviceId, decisionId], references:[userId, deviceId, id])
+}
+
+model AgroWorkerRun {
+  id         String   @id @default(uuid())
+  startedAt  DateTime @db.Timestamptz(3)
+  finishedAt DateTime @db.Timestamptz(3)
+  counters   Json
+}
