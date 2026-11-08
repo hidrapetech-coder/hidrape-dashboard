@@ -67,6 +67,21 @@ it('falha do clima não apaga uma leitura válida do sensor e oferece recuperaç
     expect(w.document.getElementById('satelite-valor').textContent).toBe('—');
     dom.window.close();
 });
+it('consulta sem horário de medição não cria ponto em 1970 nem horário artificial',async()=>{
+    const previous={...snapshot,sensorState:{...snapshot.sensorState,lastReadingAt:new Date(Date.now()-60000).toISOString()}};
+    const fetcher=async url=>({ok:true,json:async()=>url.includes('sensores/umidade')?{umidade:55,status:'INDEFINIDO',timestamp:null,collectedAt:new Date().toISOString(),previsao:previous}:url.includes('media-semanal')?[]:url.includes('insights-ia')?{diagnostico:snapshot.recomendacao,previsao:snapshot}:{clima:null,previsao:snapshot,satelite:{available:false}}});
+    const {w,dom,charts}=app('dashboard',fetcher);await w.api.initDashboard();
+    expect(charts[0].data.datasets[0].data).toEqual([]);
+    expect(w.document.getElementById('soil-reading-time').hasAttribute('datetime')).toBe(false);
+    expect(w.document.getElementById('soil-freshness').textContent).toContain('Atualidade não confirmada');
+    dom.window.close();
+});
+it('três coletas sem comunicação apresentam investigação sem afirmar defeito físico',async()=>{
+    const fetcher=async url=>({ok:!url.includes('sensores/umidade'),status:url.includes('sensores/umidade')?503:200,json:async()=>url.includes('sensores/umidade')?{sensorState:{investigationRequired:true,communicationMisses:3}}:url.includes('media-semanal')?[]:url.includes('insights-ia')?{diagnostico:snapshot.recomendacao,previsao:snapshot}:{clima:null,previsao:snapshot,satelite:{available:false}}});
+    const {w,dom}=app('dashboard',fetcher);await w.api.initDashboard();
+    expect(w.document.getElementById('predict-action').textContent).toBe('Investigue a comunicação');
+    expect(w.document.getElementById('predict-text').textContent).toContain('não comprova defeito físico');dom.window.close();
+});
 it('dashboard apresenta vazio e diálogo NASA sem inventar observações',async()=>{
     const fetcher=async url=>({ok:true,json:async()=>url.includes('sensores/umidade')?{umidade:55,status:'IDEAL',timestamp:new Date().toISOString(),previsao:snapshot}:url.includes('media-semanal')?[]:url.includes('insights-ia')?{diagnostico:snapshot.recomendacao,previsao:snapshot}:{clima:null,previsao:snapshot,satelite:{available:false}}});
     const {w,dom}=app('dashboard',fetcher);await w.api.initDashboard();

@@ -705,6 +705,7 @@ const dashboardError = error => {
     if (error?.status === 401) return {title:'Entre novamente', message:'Sua sessão expirou. Entre novamente para consultar os dados.', kind:'session'};
     if (error?.status === 403) return {title:'Configure o sensor', message:'A integração do sensor precisa ser configurada. Confira o token em Configurações.', kind:'configuration'};
     if (error?.status === 429) return {title:'Aguarde para atualizar', message:'Muitas consultas em sequência. Aguarde um pouco e tente novamente.', kind:'rate-limit'};
+    if (error?.status === 503 && error.investigationRequired) return {title:'Investigue a comunicação',message:'Consultas consecutivas ficaram sem confirmação. Confira conexão, alimentação e disponibilidade da origem; isso não comprova defeito físico do sensor.',kind:'sensor'};
     if (error?.status === 503) return {title:'Sensor sem comunicação', message:'Não foi possível receber uma leitura. Confira a alimentação e a conexão do equipamento e tente novamente.', kind:'sensor'};
     if (error?.invalidReading) return {title:'Confira a leitura do sensor', message:'O sensor retornou uma leitura inválida. Confira o equipamento e tente novamente.', kind:'invalid'};
     return {title:'Leitura não carregada', message:'Não foi possível consultar o sensor. Verifique sua conexão e tente novamente.', kind:'connection'};
@@ -1482,7 +1483,11 @@ const initDashboard = async () => {
     // Client refresh retains the existing API contracts and polling cadence.
     const requestData = async url => {
         const response = await setupAuthFetch(url,{signal:AbortSignal.timeout(15000)});
-        if (!response.ok) { const error=new Error('Consulta não concluída');error.status=response.status;throw error; }
+        if (!response.ok) {
+            const error=new Error('Consulta não concluída');error.status=response.status;
+            try {const details=await response.json();error.investigationRequired=details?.sensorState?.investigationRequired===true;}catch {}
+            throw error;
+        }
         return response.json();
     };
     let sensorPending = null, analysisPending = null, refreshPending = null;
@@ -1496,7 +1501,7 @@ const initDashboard = async () => {
             if (!isCurrent()) return;
             if (!Number.isFinite(data.umidade) || data.umidade < 0 || data.umidade > 100) { const error=new Error('Leitura inválida');error.invalidReading=true;throw error; }
             context.sensorStatus = 'ready';
-            context.lastReadingAt = data.timestamp || data.previsao?.sensorState?.lastReadingAt || null;
+            context.lastReadingAt = Object.hasOwn(data,'timestamp') ? data.timestamp : data.previsao?.sensorState?.lastReadingAt || null;
             context.sensorSnapshot = data.previsao || null;
             const value = document.getElementById('umidade-valor');
             const previous = value.textContent;
@@ -1514,7 +1519,7 @@ const initDashboard = async () => {
             renderInteligence();
             renderDashboardSensorContext();
             renderDashboardPrediction();
-            const stamp = new Date(data.timestamp).getTime();
+            const stamp = data.timestamp ? new Date(data.timestamp).getTime() : NaN;
             if (Number.isFinite(stamp) && liveChartObj) {
                 const zone = currentUser.timeZone;
                 let label;
@@ -2358,6 +2363,10 @@ const initMonthlyReport = async () => {
             document.getElementById('mr-chuva').textContent = data.kpis.chuvaAcumulada !== null ? `${data.kpis.chuvaAcumulada} mm` : '-- mm';
             document.getElementById('mr-et0').textContent = data.kpis.et0Acumulada !== null ? `${data.kpis.et0Acumulada} mm` : '-- mm';
             document.getElementById('mr-recomendacoes-count').textContent = data.kpis.recomendacoesCount !== undefined ? data.kpis.recomendacoesCount : '--';
+            const decisionNote=document.getElementById('mr-decision-semantics');
+            if (decisionNote) decisionNote.textContent=data.recommendationSemantics?.basis==='DEDUPLICATED_TRANSITIONS'
+                ? `Transições deduplicadas após ${new Date(data.recommendationSemantics.cutoverAt).toLocaleDateString('pt-BR',{timeZone:data.timeZone || 'UTC'})}. Histórico anterior: ${data.recommendationSemantics.legacyRecordCount} registros IRRIGAR. Não comprova alertas enviados nem irrigações executadas.`
+                : 'Número de registros do motor; não comprova alertas enviados nem irrigações executadas.';
             document.getElementById('mr-volume-teorico').textContent = data.kpis.volumeTeorico !== null ? `${data.kpis.volumeTeorico} m³` : '-- m³';
             document.getElementById('mr-total-leituras').textContent = data.kpis.totalLeituras;
 
@@ -2378,7 +2387,10 @@ const initMonthlyReport = async () => {
             if (data.kpis.totalLeituras === 0) {
                 resumoEl.textContent = 'Não há dados de sensores suficientes para gerar um relatório abrangente neste período.';
             } else {
-                resumoEl.textContent = `${data.kpis.totalLeituras} amostras registradas, agrupadas no fuso ${data.timeZone}${data.timeZoneConfigured ? '' : ' (configure o fuso da propriedade)'}. ${data.kpis.recomendacoesCount} decisões IRRIGAR registradas, sem comprovação de execução. Clima: ${data.coverage.climateDays}/${data.coverage.expectedDays} dias disponíveis.`;
+                const decisionText=data.recommendationSemantics?.basis==='DEDUPLICATED_TRANSITIONS'
+                    ? `${data.kpis.recomendacoesCount} transições IRRIGAR deduplicadas e ${data.recommendationSemantics.legacyRecordCount} registros históricos anteriores à transição, sem comprovação de execução.`
+                    : `${data.kpis.recomendacoesCount} decisões IRRIGAR registradas, sem comprovação de execução.`;
+                resumoEl.textContent = `${data.kpis.totalLeituras} amostras registradas, agrupadas no fuso ${data.timeZone}${data.timeZoneConfigured ? '' : ' (configure o fuso da propriedade)'}. ${decisionText} Clima: ${data.coverage.climateDays}/${data.coverage.expectedDays} dias disponíveis.`;
             }
 
             // Renderizar Gráfico de Solo
