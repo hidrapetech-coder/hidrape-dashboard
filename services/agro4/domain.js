@@ -3,7 +3,14 @@ const { evaluate } = require('../agroEngine');
 const { normalizeHistory, isMoisture } = require('../agroEngine/dataQuality');
 const rules = require('../../config/agro');
 const { defaults } = require('../../config/agro4');
-const hash = value => crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
+// JSONB não preserva a ordem das chaves; identidade e configuração precisam ser canônicas.
+const canonical = value => {
+    if (value instanceof Date) return value.toJSON();
+    if (Array.isArray(value)) return value.map(canonical);
+    if (value && typeof value==='object') return Object.fromEntries(Object.keys(value).sort().map(key=>[key,canonical(value[key])]));
+    return value;
+};
+const hash = value => crypto.createHash('sha256').update(JSON.stringify(canonical(value))).digest('hex');
 const ms = value => value == null ? NaN : new Date(value).getTime();
 
 const planCollection = (previous, poll, now, config = defaults) => {

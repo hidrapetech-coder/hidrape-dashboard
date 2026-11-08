@@ -4,6 +4,10 @@ const load=loader(),domain=load('services/agro4/domain.js'),{defaults,readConfig
 const user={id:'owner',tipoPlantacao:'Milho'};
 const confirmed={value:50,status:'ONLINE',communicationConfirmed:true,measurementConfirmed:true,observedAt:new Date(now).toISOString()};
 const state={quality:'VALID',connectionStatus:'ONLINE',lastMeasurementAt:new Date(now).toISOString(),collectedAt:new Date(now).toISOString()};
+it('hash é estável após reordenação JSONB, preservando datas e null versus zero',()=>{
+    expect(domain.hash({b:2,a:{z:0,x:null},date:new Date(now)})).toBe(domain.hash({date:new Date(now).toISOString(),a:{x:null,z:0},b:2}));
+    expect(domain.hash({value:null})).not.toBe(domain.hash({value:0}));
+});
 
 it('sem flag, não exige URL ou segredo e mantém agro-3',()=>{
     expect(readConfig({AGRO_DATABASE_URL:'inválida',AGRO_WORKER_SECRET:''})).toEqual(defaults);
