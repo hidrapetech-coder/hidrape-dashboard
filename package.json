@@ -10,7 +10,9 @@
     "postinstall": "node -e \"if(!process.env.PRISMA_SKIP_POSTINSTALL_GENERATE) require('child_process').execSync('npx prisma generate',{stdio:'inherit'})\"",
     "test": "vitest run --config vitest.config.mjs",
     "check:prisma": "node scripts/check-prisma-offline.js",
-    "worker:agro": "node workers/agro.js"
+    "worker:agro": "node workers/agro-start.js",
+    "worker:agro:check": "node workers/agro-start.js --check-config",
+    "worker:agro:rehearsal": "node workers/agro-rehearsal.js"
   },
   "dependencies": {
     "@google/genai": "^2.23.0",

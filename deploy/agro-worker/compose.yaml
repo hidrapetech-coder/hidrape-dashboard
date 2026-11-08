@@ -1,0 +1,32 @@
+services:
+  agro-worker:
+    image: hidrape-agro-worker:phase1
+    build:
+      context: ../..
+      dockerfile: deploy/agro-worker/Dockerfile
+      args:
+        NODE_IMAGE: ${AGRO_WORKER_NODE_IMAGE:-node:24-bookworm-slim}
+    init: true
+    user: node
+    restart: unless-stopped
+    # Arquivo EXTERNO exclusivo, nunca versionado ou incluído no build.
+    env_file:
+      - ${AGRO_WORKER_ENV_FILE:?Defina o caminho do ambiente exclusivo do worker}
+    environment:
+      NODE_ENV: production
+      # A primeira implantação permanece em sombra. Promoção exige edição explícita.
+      AGRO4_MODE: shadow
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    # Medir em staging: SIGTERM aguarda o ciclo em curso, não o interrompe.
+    stop_grace_period: ${AGRO_WORKER_STOP_GRACE_PERIOD:-10m}
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
