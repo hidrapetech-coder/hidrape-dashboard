@@ -268,4 +268,3 @@ ALTER TABLE "AgroEvent" ADD CONSTRAINT "AgroEvent_origin_check" CHECK ("origin" 
 ALTER TABLE "AgroDecision" ADD CONSTRAINT "AgroDecision_kind_check" CHECK ("kind" IN ('TRANSITION','HEARTBEAT'));
 INSERT INTO "AgroStorageIdentity" ("id") VALUES ('hidrape-agro4-dedicated');
 COMMIT;
-

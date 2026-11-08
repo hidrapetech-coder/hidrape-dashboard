@@ -27,6 +27,14 @@ Dashboard inteligente para monitoramento agrícola em tempo real, com integraç�
 
 As faixas de cultura são referências do **percentual do sensor calibrado**, não teor volumétrico de água. ET₀/chuva em mm e GWETTOP regional não são convertidos em porcentagem do sensor. O motor não calcula lâmina, volume ou duração de irrigação. Volume teórico mensal por ET₀ × área é um indicador meteorológico, não uma prescrição.
 
+### Fase 1 agro — implementação local opt-in
+
+O padrão continua `AGRO4_MODE=agro-3`. A Fase 1 prepara um worker externo, PostgreSQL agro dedicado, eventos observados e decisões deduplicadas, com modo sombra e promoção explícita. O schema/cliente do banco de autenticação e as migrations antigas são preservados. Não há infraestrutura nova provisionada ou migration aplicada por esta implementação.
+
+O worker consulta nominalmente a cada 5 minutos e registra mudança de 2 pontos/heartbeat de 15 minutos. Consultas Blynk sem timestamp de medição ficam sem confirmação e não contam como amostras independentes; o novo motor suspende manejo nessas condições. Não há autocalibração ou prescrição quantitativa.
+
+Veja [operação, flags, integração e rollback](MIGRACAO_AGRO4_FASE_1.md) e as [decisões aprovadas](docs/decisoes-agro4-fase1.md). As rotas existentes só usam dados novos após promoção e corte explícitos; a falha da infraestrutura agro não deve impedir o login.
+
 ---
 
 ## 📁 Estrutura do Projeto
