@@ -271,3 +271,45 @@ it('consulta pendente não reescreve a visão geral quando o usuário muda no me
     await pending;expect(w.document.getElementById('umidade-valor').textContent).toBe('Dados da nova sessão');
     expect(fetcher).toHaveBeenCalledTimes(1);dom.window.close();
 });
+
+it('cards desktop abrem detalhes atuais sem mover conteúdo ou duplicar identificadores',async()=>{
+    const {w,dom}=app('dashboard',dashboardResponses());await w.api.initDashboard();
+    const d=w.document, modal=d.getElementById('dashboard-details');
+    d.querySelector('[data-dashboard-detail="soil"]').click();
+    expect(modal.open).toBe(true);
+    expect(modal.textContent).toContain('40% a 70% do sensor calibrado');
+    expect(modal.textContent).toContain('55,0%');
+    expect(d.querySelector('[data-dashboard-detail="soil"] #soil-reading-time')).not.toBeNull();
+    expect(modal.querySelectorAll('#soil-reading-time').length).toBe(0);
+    expect(d.activeElement.classList.contains('card-details-trigger')).toBe(true);
+    w.api.closeDialog(modal);
+    d.getElementById('soil-insight').textContent='Detalhamento atualizado';
+    d.querySelector('[data-dashboard-detail="soil"] .card-details-trigger').click();
+    expect(modal.textContent).toContain('Detalhamento atualizado');
+    w.api.closeDialog(modal);
+    d.getElementById('dashboard-refresh').click();
+    expect(modal.open).toBe(false);
+    d.querySelector('[data-dashboard-detail="nasa"]').click();
+    expect(d.getElementById('nasa-modal').open).toBe(true);
+    expect(modal.open).toBe(false);
+    dom.window.close();
+});
+it('mobile mantém cards sem ativação de detalhes ao tocar no conteúdo',async()=>{
+    const {w,dom}=app('dashboard',dashboardResponses());w.innerWidth=390;await w.api.initDashboard();
+    w.document.querySelector('[data-dashboard-detail="soil"]').click();
+    expect(w.document.getElementById('dashboard-details').open).toBe(false);
+    expect(w.document.getElementById('soil-crop-range').textContent).toContain('40% a 70%');
+    dom.window.close();
+});
+it('detalhes dos gráficos copiam os pontos atuais e preservam a tabela textual',async()=>{
+    const {w,dom,charts}=app('dashboard',dashboardResponses());await w.api.initDashboard();
+    const d=w.document, modal=d.getElementById('dashboard-details');
+    d.querySelector('[data-dashboard-detail="live"] .card-details-trigger').click();
+    const source=charts[0], detail=charts.at(-1);
+    expect(detail.data.datasets[0].data).toEqual(source.data.datasets[0].data);
+    expect(detail.data.datasets[0].data).not.toBe(source.data.datasets[0].data);
+    expect(modal.textContent).toContain(d.getElementById('live-data-summary').textContent);
+    detail.destroy=vi.fn();w.api.closeDialog(modal);modal.dispatchEvent(new w.Event('close'));
+    expect(detail.destroy).toHaveBeenCalledOnce();
+    dom.window.close();
+});

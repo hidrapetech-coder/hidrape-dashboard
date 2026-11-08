@@ -13,15 +13,18 @@
     <div class="farm-context"><span class="material-symbols-rounded" aria-hidden="true">eco</span><span>Cultura de <strong id="dash-culture">—</strong></span><span class="context-divider" aria-hidden="true">/</span><span id="dash-location">Localização não configurada</span></div>
 
     <div class="dashboard-overview">
-        <article class="card metric-card card-signature">
+        <article class="card metric-card card-signature" data-dashboard-detail="soil">
+            <button class="card-details-trigger icon-btn" type="button" aria-label="Ver detalhes: umidade do solo" aria-haspopup="dialog" aria-controls="dashboard-details"><span class="material-symbols-rounded" aria-hidden="true">open_in_full</span></button>
             <div class="metric-heading"><h2>Umidade do solo</h2><span class="material-symbols-rounded" aria-hidden="true">water_drop</span></div>
             <p id="umidade-valor" class="metric-value font-kpi">—</p>
             <div class="moisture-track" aria-hidden="true"><div id="umidade-progress"></div></div>
             <p id="soil-insight" class="metric-description">Aguardando leitura do sensor...</p>
+            <p class="desktop-soil-context"><span id="soil-compact-range">Faixa não configurada</span><span id="soil-compact-time">Sem horário</span></p>
             <dl class="soil-context"><div><dt>Faixa da cultura</dt><dd id="soil-crop-range">Carregando configuração...</dd></div><div><dt>Última leitura recebida</dt><dd><time id="soil-reading-time">Aguardando leitura...</time></dd></div></dl>
             <p id="soil-freshness" class="reading-freshness" role="status">Consultando o sensor...</p>
         </article>
-        <section id="predict-card" class="card diagnosis-panel" aria-labelledby="diagnosis-title">
+        <section id="predict-card" class="card diagnosis-panel" aria-labelledby="diagnosis-title" data-dashboard-detail="forecast">
+            <button class="card-details-trigger icon-btn" type="button" aria-label="Ver detalhes: próximo passo" aria-haspopup="dialog" aria-controls="dashboard-details"><span class="material-symbols-rounded" aria-hidden="true">open_in_full</span></button>
             <div class="panel-heading"><h2 id="diagnosis-title">Próximo passo</h2><span id="predict-icon-wrapper" class="diagnosis-icon"><span id="predict-icon" class="material-symbols-rounded" aria-hidden="true">psychiatry</span></span></div>
             <h3 id="predict-action" class="decision-title">Aguardando os dados</h3>
             <div class="prediction-context"><p id="predict-label" class="panel-label">Tempo estimado até o limite inferior</p><p id="predict-time" class="prediction-value font-kpi">Carregando análise...</p><p id="predict-reason" class="prediction-reason">A leitura do sensor e a análise serão identificadas separadamente.</p></div>
@@ -32,19 +35,21 @@
     </div>
 
     <div class="dashboard-metrics">
-        <article class="card metric-card">
+        <article class="card metric-card" data-dashboard-detail="nasa">
             <div class="metric-heading"><h2>Saturação regional</h2><span class="material-symbols-rounded" aria-hidden="true">satellite_alt</span></div>
             <p id="satelite-valor" class="metric-value font-kpi">—</p>
             <div class="metric-source"><span class="source-tag">NASA POWER</span><button id="nasa-card" class="text-button" aria-haspopup="dialog" aria-controls="nasa-modal">Ver dados<span class="material-symbols-rounded" aria-hidden="true">north_east</span></button></div>
             <p id="satelite-data" class="metric-description">Estimativa regional; não mede o talhão.</p>
         </article>
-        <article class="card metric-card">
+        <article class="card metric-card" data-dashboard-detail="confidence">
+            <button class="card-details-trigger icon-btn" type="button" aria-label="Ver detalhes: confiança dos dados" aria-haspopup="dialog" aria-controls="dashboard-details"><span class="material-symbols-rounded" aria-hidden="true">open_in_full</span></button>
             <div class="metric-heading"><h2>Confiança dos dados</h2><span class="material-symbols-rounded" aria-hidden="true">verified_user</span></div>
             <div class="confidence-value"><p id="saude-valor" class="metric-value font-kpi">—</p><span class="metric-unit">/ 100</span><svg class="confidence-ring" viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15.9155" class="ring-track"/><circle id="saude-progress" cx="18" cy="18" r="15.9155"/></svg></div>
             <p id="saude-status" class="metric-state">Aguardando análise</p>
             <p class="metric-description">Score operacional; não é probabilidade.</p>
         </article>
-        <article class="card metric-card">
+        <article class="card metric-card" data-dashboard-detail="eto">
+            <button class="card-details-trigger icon-btn" type="button" aria-label="Ver detalhes: evapotranspiração" aria-haspopup="dialog" aria-controls="dashboard-details"><span class="material-symbols-rounded" aria-hidden="true">open_in_full</span></button>
             <div class="metric-heading"><h2>Evapotranspiração</h2><span id="evapo-icon-wrap"><span id="evapo-icon" class="material-symbols-rounded" aria-hidden="true">air</span></span></div>
             <p id="evapo-nivel" class="metric-value metric-value-text font-kpi">—</p>
             <span class="source-tag">Referência meteorológica</span>
@@ -53,20 +58,23 @@
     </div>
 
     <div class="dashboard-workspace">
-        <section class="card chart-panel live-panel" aria-labelledby="live-title">
+        <section class="card chart-panel live-panel" aria-labelledby="live-title" data-dashboard-detail="live">
+            <button class="card-details-trigger icon-btn" type="button" aria-label="Ver detalhes: leituras do sensor" aria-haspopup="dialog" aria-controls="dashboard-details"><span class="material-symbols-rounded" aria-hidden="true">open_in_full</span></button>
             <div class="panel-heading"><div><h2 id="live-title">O pulso do seu solo</h2><p>Umidade do sensor ao longo desta sessão</p></div><span class="subtle-badge"><span class="status-dot"></span>Leitura contínua</span></div>
             <div class="chart-wrap"><canvas id="liveChart" role="img" aria-label="Umidade do solo em porcentagem. As últimas leituras estão disponíveis abaixo."></canvas></div>
             <div class="chart-footer"><span><span class="legend-dot"></span>Umidade do solo (%)</span><a href="#history" data-route="history" class="text-button">Explorar histórico<span class="material-symbols-rounded" aria-hidden="true">north_east</span></a></div>
             <details class="chart-data"><summary>Consultar leituras em texto</summary><p id="live-data-summary">Aguardando leituras. Verifique a conexão do sensor se os dados não aparecerem.</p></details>
         </section>
 
-        <section class="card chart-panel weekly-panel" aria-labelledby="weekly-title">
+        <section class="card chart-panel weekly-panel" aria-labelledby="weekly-title" data-dashboard-detail="weekly">
+            <button class="card-details-trigger icon-btn" type="button" aria-label="Ver detalhes: umidade na semana" aria-haspopup="dialog" aria-controls="dashboard-details"><span class="material-symbols-rounded" aria-hidden="true">open_in_full</span></button>
             <div class="panel-heading"><div><h2 id="weekly-title">Umidade na semana</h2><p>Média diária do sensor · últimos 7 dias completos</p></div><span class="source-tag">%</span></div>
             <div class="chart-wrap"><canvas id="weeklyChart" role="img" aria-label="Média diária da umidade do solo em porcentagem. Consulte os valores em texto abaixo."></canvas></div>
             <details class="chart-data"><summary>Consultar médias em texto</summary><p id="weekly-data-summary">Carregando médias. Dias sem leitura serão indicados.</p></details>
         </section>
 
-        <section class="card insight-panel" aria-labelledby="insight-title">
+        <section class="card insight-panel" aria-labelledby="insight-title" data-dashboard-detail="agronomy">
+            <button class="card-details-trigger icon-btn" type="button" aria-label="Ver detalhes: leitura agronômica" aria-haspopup="dialog" aria-controls="dashboard-details"><span class="material-symbols-rounded" aria-hidden="true">open_in_full</span></button>
             <div class="panel-heading"><h2 id="insight-title">Leitura agronômica</h2><span class="material-symbols-rounded" aria-hidden="true">eco</span></div>
             <p id="analise-texto">Reunindo as informações do solo e do clima da sua propriedade...</p>
             <a href="#analysis" data-route="analysis" class="text-button">Abrir análise completa<span class="material-symbols-rounded" aria-hidden="true">north_east</span></a>
@@ -80,4 +88,9 @@
     <p class="notice">GWETTOP estima a saturação relativa da superfície regional. Sua escala difere da leitura do sensor e não representa uma medição do talhão.</p>
     <div class="nasa-chart-wrap"><canvas id="nasaChart" role="img" aria-label="Saturação regional relativa em porcentagem, por data de observação."></canvas></div>
     <p id="nasa-data-summary" class="dialog-hint">Nenhuma observação disponível. Tente novamente após atualizar os dados.</p>
+</dialog>
+
+<dialog id="dashboard-details" class="app-dialog dashboard-details-dialog" aria-labelledby="dashboard-details-title">
+    <div class="dialog-heading"><div><h2 id="dashboard-details-title">Detalhes do painel</h2><p>Dados exibidos no momento da abertura.</p></div><button type="button" class="icon-btn" data-close-dialog="dashboard-details" aria-label="Fechar detalhes"><span class="material-symbols-rounded" aria-hidden="true">close</span></button></div>
+    <div id="dashboard-details-content" class="dashboard-details-content"></div>
 </dialog>
