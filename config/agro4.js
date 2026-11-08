@@ -40,6 +40,7 @@ const readConfig = (env = process.env) => {
     const value = result.data;
     const target = new URL(value.AGRO_DATABASE_URL);
     if (!['postgres:','postgresql:'].includes(target.protocol)) throw new Error('AGRO_DATABASE_URL_INVALID');
+    if (target.searchParams.get('pgbouncer')==='true' || (target.hostname.endsWith('.pooler.supabase.com') && target.port==='6543')) throw new Error('AGRO_SESSION_CONNECTION_REQUIRED');
     for (const original of [env.DATABASE_URL,env.DIRECT_URL].filter(Boolean)) {
         if (databaseIdentity(original) === databaseIdentity(value.AGRO_DATABASE_URL)) throw new Error('AGRO_DATABASE_MUST_BE_SEPARATE');
     }

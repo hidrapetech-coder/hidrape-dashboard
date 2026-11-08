@@ -20,20 +20,20 @@ class AgroRepository {
             finally { client.release(); }
         }
     }
-    async enroll(userId,config,credential) {
+    async enroll(userId,config,credential,authorization={}) {
         return this.transaction(async repo=>{
             await repo.query('SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))',['hidrape-agro4-enroll',userId]);
             const existing=await repo.primaryDevice(userId);
             if (existing) {
                 await repo.query('SELECT pg_advisory_xact_lock(hashtext($1),hashtext($2))',['hidrape-agro4',existing.id]);
-                await repo.query('UPDATE "Talhao" SET "config"=$1::jsonb,"cultura"=$2 WHERE "id"=$3 AND "userId"=$4',[JSON.stringify(config),config.tipoPlantacao,existing.talhaoId,userId]);
-                await repo.query('UPDATE "AgroDevice" SET "credential"=$1,"active"=true,"state"="state" || $2::jsonb WHERE "id"=$3 AND "userId"=$4',[credential,JSON.stringify({needsEvaluation:true}),existing.id,userId]);
+                const current=await repo.primaryDevice(userId);
+                await repo.syncAuthorization(current,{active:true,config,credential,...authorization},new Date());
                 return {id:existing.id,talhaoId:existing.talhaoId};
             }
             const propertyId=randomUUID(),talhaoId=randomUUID(),id=randomUUID();
             await repo.query('INSERT INTO "AgroProperty" ("id","userId","name") VALUES ($1,$2,$3)',[propertyId,userId,'Propriedade Principal']);
             await repo.query('INSERT INTO "Talhao" ("id","userId","propertyId","cultura","config") VALUES ($1,$2,$3,$4,$5::jsonb)',[talhaoId,userId,propertyId,config.tipoPlantacao,JSON.stringify(config)]);
-            await repo.query('INSERT INTO "AgroDevice" ("id","userId","talhaoId","primaryKey","credential","state") VALUES ($1,$2,$3,$4,$5,$6::jsonb)',[id,userId,talhaoId,`${userId}:principal`,credential,JSON.stringify({needsEvaluation:true})]);
+            await repo.query('INSERT INTO "AgroDevice" ("id","userId","talhaoId","primaryKey","credential","state") VALUES ($1,$2,$3,$4,$5,$6::jsonb)',[id,userId,talhaoId,`${userId}:principal`,credential,JSON.stringify({needsEvaluation:true,authorizationRevision:authorization.revision,sensorRevision:authorization.sensorRevision})]);
             return {id,talhaoId};
         });
     }
@@ -42,6 +42,22 @@ class AgroRepository {
     }
     async ownedDevice(userId,deviceId) {
         return (await this.query('SELECT d.*,t."config" FROM "AgroDevice" d JOIN "Talhao" t ON t."id"=d."talhaoId" AND t."userId"=d."userId" WHERE d."userId"=$1 AND d."id"=$2 AND d."active"=true',[userId,deviceId])).rows[0] || null;
+    }
+    async deviceForWorker(deviceId) {
+        return (await this.query('SELECT "id","userId","active" FROM "AgroDevice" WHERE "id"=$1',[deviceId])).rows[0] || null;
+    }
+    async syncAuthorization(device,authorization,at) {
+        if(!authorization.active) {
+            await this.query('UPDATE "AgroDevice" SET "active"=false,"credential"=$1 WHERE "id"=$2 AND "userId"=$3',['',device.id,device.userId]);
+            return null;
+        }
+        const changed=device.state.authorizationRevision!==authorization.revision;
+        const replaced=!!device.state.sensorRevision && device.state.sensorRevision!==authorization.sensorRevision;
+        const state={...device.state,authorizationRevision:authorization.revision,sensorRevision:authorization.sensorRevision,needsEvaluation:changed || device.state.needsEvaluation};
+        if(replaced)Object.assign(state,{historySince:new Date(at).toISOString(),lastMeasurementAt:null,measurementValue:null,lastSeenAt:null,lastPersistedAt:null,persistedValue:null,value:null,quality:'MISSING',connectionStatus:'UNKNOWN',communicationMisses:0,investigationRequired:false});
+        await this.query('UPDATE "Talhao" SET "config"=$1::jsonb,"cultura"=$2 WHERE "id"=$3 AND "userId"=$4',[JSON.stringify(authorization.config),authorization.config.tipoPlantacao,device.talhaoId,device.userId]);
+        await this.query('UPDATE "AgroDevice" SET "credential"=$1,"active"=true,"state"=$2::jsonb WHERE "id"=$3 AND "userId"=$4',[authorization.credential,JSON.stringify(state),device.id,device.userId]);
+        return {...device,active:true,config:authorization.config,credential:authorization.credential,state};
     }
     async deactivate(userId) {
         return this.transaction(async repo=>{
@@ -70,9 +86,9 @@ class AgroRepository {
         await this.query('UPDATE "AgroDevice" SET "state"=$1::jsonb WHERE "id"=$2 AND "userId"=$3',[JSON.stringify({...plan.state,needsEvaluation:false}),device.id,device.userId]);
         return id;
     }
-    async history(userId,deviceId,now) {
+    async history(userId,deviceId,now,since=null) {
         return (await this.query('SELECT "id","value" AS "umidade","observedAt" AS "data" FROM "AgroReading" WHERE "userId"=$1 AND "deviceId"=$2 AND "independent"=true AND "quality"=$3 AND "observedAt">=$4 AND "observedAt"<=$5 AND "collectedAt"<=$5 ORDER BY "observedAt" DESC,"id" DESC LIMIT 200',
-            [userId,deviceId,'VALID',new Date(now-24*3600000),new Date(now)])).rows;
+            [userId,deviceId,'VALID',new Date(Math.max(now-24*3600000,since?new Date(since).getTime():-Infinity)),new Date(now)])).rows;
     }
     async events(userId,deviceId,start,end) {
         return (await this.query('SELECT * FROM "AgroEvent" WHERE "userId"=$1 AND "deviceId"=$2 AND "occurredAt">=$3 AND "occurredAt"<=$4 AND "receivedAt"<=$4 ORDER BY "occurredAt","id"',[userId,deviceId,start,end])).rows;
@@ -118,7 +134,8 @@ class AgroRepository {
         const readings=(await this.query('SELECT ("collectedAt" AT TIME ZONE $4)::date::text AS dia,COUNT(*)::int AS registros,COUNT(*) FILTER (WHERE "independent")::int AS medicoes FROM "AgroReading" WHERE "userId"=$1 AND "collectedAt">=$2 AND "collectedAt"<$3 GROUP BY 1 ORDER BY 1',[userId,start,end,'UTC'])).rows;
         const gaps=(await this.query('WITH p AS (SELECT "deviceId","collectedAt",LAG("collectedAt") OVER (PARTITION BY "deviceId" ORDER BY "collectedAt") AS anterior FROM "AgroPoll" WHERE "userId"=$1 AND "collectedAt">=$2 AND "collectedAt"<$3) SELECT "deviceId",anterior,"collectedAt",EXTRACT(EPOCH FROM ("collectedAt"-anterior))/60 AS "minutes" FROM p WHERE "collectedAt"-anterior>make_interval(mins=>$4::int) ORDER BY "collectedAt"',[userId,start,end,gapMinutes])).rows;
         const currentGaps=(await this.query('SELECT d."id" AS "deviceId",MAX(p."collectedAt") AS "lastCollectionAt",EXTRACT(EPOCH FROM ($2::timestamptz-COALESCE(MAX(p."collectedAt"),d."createdAt")))/60 AS minutes FROM "AgroDevice" d LEFT JOIN "AgroPoll" p ON p."deviceId"=d."id" AND p."userId"=d."userId" AND p."collectedAt"<=$2 WHERE d."userId"=$1 AND d."active"=true GROUP BY d."id",d."createdAt" HAVING $2::timestamptz-COALESCE(MAX(p."collectedAt"),d."createdAt")>make_interval(mins=>$3::int)',[userId,end,gapMinutes])).rows;
-        return {timeZone:'UTC',polls,readings,gaps,currentGaps,gapBasis:'INTERVAL_BETWEEN_POLLS_NOT_PHYSICAL_DEVICE_FAILURE'};
+        const devices=(await this.query('SELECT "id","state" FROM "AgroDevice" WHERE "userId"=$1',[userId])).rows.map(({id,state})=>({deviceId:id,quality:state.quality || 'MISSING',connectionStatus:state.connectionStatus || 'UNKNOWN',communicationMisses:state.communicationMisses || 0,investigationRequired:!!state.investigationRequired,lastSeenAt:state.lastSeenAt || null,lastMeasurementAt:state.lastMeasurementAt || null,collectedAt:state.collectedAt || null}));
+        return {timeZone:'UTC',polls,readings,gaps,currentGaps,devices,gapBasis:'INTERVAL_BETWEEN_POLLS_NOT_PHYSICAL_DEVICE_FAILURE'};
     }
     async readingCount(userId,cutoverAt) {
         return Number((await this.query('SELECT COUNT(*) AS total FROM "AgroReading" WHERE "userId"=$1 AND "independent"=true AND "quality"=$2 AND "observedAt">=$3',[userId,'VALID',cutoverAt])).rows[0].total);

@@ -18,6 +18,10 @@ it('valida opt-in sem imprimir credenciais e exige corte para promover',()=>{
     expect(()=>readConfig({...active,AGRO_WORKER_SECRET:'PRIVATE'})).toThrow('AGRO_CONFIG_INVALID: AGRO_WORKER_SECRET');
     expect(()=>readConfig({...active,AGRO4_MODE:'agro-4'})).toThrow('AGRO4_CUTOVER_AT_REQUIRED');
 });
+it('worker exige sessão PostgreSQL estável para seus locks distribuídos',()=>{
+    expect(()=>readConfig({...active,AGRO_DATABASE_URL:'postgresql://postgres.project:fixture@region.pooler.supabase.com:6543/postgres'})).toThrow('AGRO_SESSION_CONNECTION_REQUIRED');
+    expect(()=>readConfig({...active,AGRO_DATABASE_URL:'postgresql://fixture:fixture@agro.invalid/agro?pgbouncer=true'})).toThrow('AGRO_SESSION_CONNECTION_REQUIRED');
+});
 it.each([
     ['postgresql://auth:secret@host.invalid:5432/main','postgresql://agro:other@host.invalid:6543/main?schema=agro'],
     ['postgresql://postgres:secret@db.project.supabase.co/postgres','postgresql://postgres.project:other@region.pooler.supabase.com/postgres']
@@ -63,6 +67,8 @@ it('três consultas sem comunicação pedem investigação sem afirmar defeito f
     let previous=null;
     for(let i=0;i<3;i++)previous=domain.planCollection(previous,{status:'API_ERROR',value:null},now+i*5*60000).state;
     expect(previous.investigationRequired).toBe(true);expect(previous.connectionStatus).toBe('UNKNOWN');expect(previous.lastSeenAt).toBeNull();
+    const snapshot=domain.evaluatePhase1({user,history:[],deviceId:'device',state:previous,now:now+10*60000});
+    expect(snapshot.sensorState.investigationRequired).toBe(true);expect(snapshot.sensorState.communicationMisses).toBe(3);expect(snapshot.recomendacao).toContain('isso não comprova defeito físico');
     expect(domain.planCollection(previous,confirmed,now+20*60000).state.communicationMisses).toBe(0);
 });
 it('cadência do worker não transforma heartbeat em histórico elegível',()=>{

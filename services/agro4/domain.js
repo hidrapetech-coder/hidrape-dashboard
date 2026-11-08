@@ -75,9 +75,10 @@ const evaluatePhase1 = ({user,history,weather=null,satellite=null,events=[],devi
     const reasons = jumps.map(j=>j.classification==='RAIN' ? 'Salto associado a registro de chuva medida; a qualidade do sensor continua sendo verificada.' :
         j.classification==='IRRIGATION' ? 'Salto associado a registro de irrigação realizada; a qualidade do sensor continua sendo verificada.' : 'Salto sem causa observada inequívoca; conferir no campo.');
     if (!healthy) reasons.unshift(state?.quality==='UNCONFIRMED' ? 'A fonte não confirma o horário de uma nova medição. Consulta e heartbeat não são amostras independentes.' : 'Qualidade, comunicação ou atualidade da medição insuficientes.');
+    if(state?.investigationRequired)reasons.push(`${state.communicationMisses} consultas consecutivas sem confirmação de comunicação. Investigue conexão, alimentação e disponibilidade da origem; isso não comprova defeito físico do sensor.`);
     snapshot.engineData.recommendation.explanation.push(...reasons);
     snapshot.recomendacao=snapshot.engineData.recommendation.explanation.join(' ');
-    snapshot.sensorState={...snapshot.sensorState,quality:state?.quality || 'MISSING',lastSeenAt:state?.lastSeenAt || null,lastMeasurementAt:state?.lastMeasurementAt || null,collectedAt:state?.collectedAt || null,reason:reasons.concat(snapshot.sensorState.reason || []).join(' ')};
+    snapshot.sensorState={...snapshot.sensorState,quality:state?.quality || 'MISSING',communicationMisses:state?.communicationMisses || 0,investigationRequired:!!state?.investigationRequired,lastSeenAt:state?.lastSeenAt || null,lastMeasurementAt:state?.lastMeasurementAt || null,collectedAt:state?.collectedAt || null,reason:reasons.concat(snapshot.sensorState.reason || []).join(' ')};
     snapshot._meta.sensorState=snapshot.sensorState;
     snapshot.snapshotId=hash({userId:user.id,deviceId,engineData:snapshot.engineData,sensorState:snapshot.sensorState});
     return snapshot;

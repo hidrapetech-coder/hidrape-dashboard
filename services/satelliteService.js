@@ -1,5 +1,4 @@
 const { getJson, validCoordinates } = require('../lib/httpJson');
-const cache = require('../lib/cache');
 const unavailable = () => ({ available:false, umidadeMacro:null, dataReferencia:null, fonte:'Indisponível', historico:[], unit:'relative_saturation_percent' });
 const parseSatellite = (json, now = Date.now()) => {
     const rows = Object.entries(json?.properties?.parameter?.GWETTOP || {}).flatMap(([day,value]) => {
@@ -14,7 +13,7 @@ const parseSatellite = (json, now = Date.now()) => {
     return { available:ageDays <= 7, stale:ageDays > 7, umidadeMacro:ageDays <= 7 ? latest.valor : null,
         dataReferencia:latest.data, ageDays, fonte:'NASA POWER', historico:rows, unit:'relative_saturation_percent', retrievedAt:new Date(now).toISOString() };
 };
-const fetchSateliteData = async (lat,lon) => {
+const createSatelliteService = cache => async (lat,lon) => {
     if (!validCoordinates(lat,lon)) return unavailable();
     const key = `sat:v3:${lat},${lon}`;
     const stored = await cache.read(key);
@@ -27,4 +26,5 @@ const fetchSateliteData = async (lat,lon) => {
         return result;
     } catch { console.warn('[NASA] Fonte indisponível.'); return unavailable(); }
 };
-module.exports = { fetchSateliteData, parseSatellite };
+const fetchSateliteData = (lat,lon) => createSatelliteService(require('../lib/cache'))(lat,lon);
+module.exports = { fetchSateliteData, parseSatellite, createSatelliteService };

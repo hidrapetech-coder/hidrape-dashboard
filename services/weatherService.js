@@ -1,7 +1,6 @@
 const { getJson, validCoordinates } = require('../lib/httpJson');
-const cache = require('../lib/cache');
 const { analyzeClimate } = require('./agroEngine/climateAnalyzer');
-const fetchWeather = async user => {
+const createWeatherService = cache => async user => {
     if (!user.cidade?.trim() || !validCoordinates(user.lat,user.lon)) return null;
     const key = `weather:v3:${user.id}:${user.lat}:${user.lon}`;
     const stored = await cache.read(key);
@@ -14,4 +13,5 @@ const fetchWeather = async user => {
         await cache.write(key,600,result); return result;
     } catch { console.warn('[Weather] Fonte indisponível.'); return null; }
 };
-module.exports = { fetchWeather };
+const fetchWeather = user => createWeatherService(require('../lib/cache'))(user);
+module.exports = { fetchWeather, createWeatherService };
