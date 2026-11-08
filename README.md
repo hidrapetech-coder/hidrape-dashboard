@@ -35,6 +35,8 @@ O worker consulta nominalmente a cada 5 minutos e registra mudança de 2 pontos/
 
 Veja [operação, flags, integração e rollback](MIGRACAO_AGRO4_FASE_1.md) e as [decisões aprovadas](docs/decisoes-agro4-fase1.md). As rotas existentes só usam dados novos após promoção e corte explícitos; a falha da infraestrutura agro não deve impedir o login.
 
+Antes da infraestrutura real, `npm run worker:agro:rehearsal` executa oito cenários sintéticos em memória, com rede e `.env` bloqueados. `npm run worker:agro:check` verifica somente a configuração do ambiente, sem conectar; ausência de configuração ou credenciais legadas no ambiente do worker causam recusa. [Preparação, container opcional e roteiro de staging](docs/OPERACAO_AGRO4_PRE_VALIDACAO.md), com [ADR da preparação offline](docs/adr/0001-preparacao-offline-worker-agro.md). Esses recursos não validam serviços reais nem autorizam promoção.
+
 ---
 
 ## 📁 Estrutura do Projeto

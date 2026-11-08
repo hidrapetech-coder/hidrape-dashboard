@@ -75,3 +75,37 @@ Por prioridade da regra do dono, configuração agro inválida não encerra o pr
 - [x] `null` diferente de zero; origem/unidade/instantes explícitos.
 - [x] Nenhuma prescrição quantitativa ou autocalibração introduzida.
 - [x] Modo sombra, rollback, bloqueios externos e revisão independente documentados.
+
+## Complemento — preparação antes da operação real
+
+Solicitado pelo dono após a entrega local da Fase 1, em 8 de novembro de 2026. Continua na mesma branch/worktree, sem avançar para outra fase ou modificar a arquitetura principal. A skill `architecture-designer` orientou a análise de domínios, dependências, alternativas, falhas e rollback; o plano foi apresentado antes do desenvolvimento. Decisão em [ADR-0001](docs/adr/0001-preparacao-offline-worker-agro.md).
+
+Commit `95a4cef` — `feat(agro): prepare isolated offline rehearsal and worker packaging`:
+
+| Arquivos | Resultado |
+|---|---|
+| `services/agro4/preflight.js`, `workers/agro-start.js`, `package.json` | Checagem sem conexão, nomes/códigos de problemas sem valores; recusa de credenciais de autenticação no ambiente do worker antes de carregar adaptadores. `worker:agro` usa a entrada nova; `worker:agro:check` só verifica configuração. |
+| `workers/agro-rehearsal.js`, `workers/offline/{guard,memory,rehearsal}.js` | `worker:agro:rehearsal`: oito cenários sintéticos com worker/motor existentes, memória descartável e relógio virtual. Guarda bloqueia rede, adaptadores reais, subprocessos e leitura de `.env`. Nenhuma coleta ou mensagem real. |
+| `deploy/agro-worker/{Dockerfile,Dockerfile.dockerignore,compose.yaml}` | Templates de container com arquivos explícitos, lockfile sem scripts de instalação, usuário sem root e supervisão opcional; Compose fixa sombra. Sem build ou execução Docker. |
+| `tests/agro4.operations.test.js` | Onze testes novos: configuração, entrada, ensaio completo, guarda em subprocesso isolado e imports do pacote em diretório temporário. Não certificam Docker ou SQL. |
+
+Documentação complementar: `docs/OPERACAO_AGRO4_PRE_VALIDACAO.md`, ADR, README e referência no guia de migração. Nenhuma dependência, lockfile, migration, frontend, arquivo de autenticação ou flag padrão mudou nesse complemento. Os parâmetros novos de Compose são exclusivos do operador/template; não são configuração da API e não alteram `lib/env.js`.
+
+| Verificação do complemento | Resultado |
+|---|---|
+| Suíte antes das alterações | 193 testes, 11 arquivos, aprovados. |
+| `npm test -- --configLoader native --no-cache --no-fsModuleCache --pool=threads` | **204 testes, 12 arquivos, aprovados**, exit 0; rede bloqueada e sem carregamento de `.env`. |
+| `node workers/agro-rehearsal.js` | Oito cenários aprovados, `ENSAIO_SINTETICO_OFFLINE`, exit 0. |
+| `node workers/agro-start.js --check-config`, ambiente vazio | Recusa esperada `AGRO4_DISABLED`, exit 1; sem adaptadores/conexões carregados. Configuração sintética válida e incompatibilidades verificadas nos testes. |
+| `npm run check:prisma` | Validate/generate dos dois schemas aprovados, temporários e offline. Nenhuma migration aplicada. |
+| `npm run build` | Aprovado; assets não apresentaram mudanças no Git. |
+| `node --check` | Seis fontes novas aprovadas. |
+| `git diff --check` e comparação dos arquivos protegidos com a base | Aprovados; autenticação/schema/migrations legadas intactos. |
+
+Os comandos npm foram executados com ambiente reduzido, configuração npm privada desabilitada e modo offline, conforme a verificação anterior. O smoke do pacote copia somente fontes explicitamente permitidas para uma pasta temporária, usa as dependências já instaladas e carrega os imports com rede/`.env` bloqueados. Não executa o daemon real.
+
+Revisão independente estática com GPT-6 Astra: um P2 corrigido na reinclusão de descendentes pelo ignore Docker; agora cada diretório reincluído volta a excluir descendentes antes da lista de arquivos, e os `COPY` também enumeram arquivos. A revisão posterior não identificou bloqueadores remanescentes nesse escopo.
+
+**Não validado:** Docker indisponível neste ambiente; imagem, instalação na imagem, parser Compose e supervisão/parada reais permanecem pendentes. Permanecem também todas as verificações de infraestrutura/SQL/dispositivo/campo da entrega original, incluindo a falta de timestamp de medição Blynk. O guia novo contém dez etapas de staging, todas marcadas PENDENTE, com evidências esperadas e critérios de interrupção.
+
+Rollback local do complemento: reverter seus commits sem tocar em dados. Rollback operacional futuro continua parar o worker e retornar API para `agro-3`, preservando o banco agro e o banco de login. Nenhum acesso a serviços reais, instalação, migration aplicada, deploy ou push foi realizado.

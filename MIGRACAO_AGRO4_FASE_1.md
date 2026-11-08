@@ -164,6 +164,8 @@ Não executar o procedimento antigo de migration de `User` para habilitar esta f
 
 ## Validação e pendências
 
+Complemento anterior à validação real: [ensaio sintético, checagem sem conexão, empacotamento e roteiro de staging](docs/OPERACAO_AGRO4_PRE_VALIDACAO.md). A entrada `npm run worker:agro` agora recusa variáveis legadas de autenticação antes de carregar adaptadores reais. O Compose preparado fixa `shadow`; nenhuma imagem foi construída ou serviço iniciado. A supervisão está preparada como template, com operação ainda pendente.
+
 Testes locais usam fixtures/mocks, bloqueio de rede e nenhum segredo real. `npm run check:prisma` valida os dois schemas e gera clientes em diretório temporário. `npm run build` recompõe os assets; o JS da interface usa `v=17`.
 
 Pendentes: provisionamento, permissões/TLS, SQL real, locks com o endpoint escolhido, limites Blynk, supervisor/monitoramento, horários sincronizados, eventos de campo, retenção/exclusão entre bancos, precisão agronômica e operação de mensagens. Nenhuma dependência foi adicionada; não há deploy ou PR remoto nesta entrega.
