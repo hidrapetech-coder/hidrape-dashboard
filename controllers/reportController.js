@@ -5,6 +5,7 @@ const { getJson, validCoordinates } = require('../lib/httpJson');
 const { timeZoneFor, localDate } = require('../lib/time');
 const cache = require('../lib/cache');
 const { z } = require('zod');
+const agro4 = require('../services/agro4/runtime');
 const querySchema = z.object({year:z.string().regex(/^\d{4}$/).transform(Number).pipe(z.number().min(2000).max(2100)),month:z.string().regex(/^(0?[1-9]|1[0-2])$/).transform(Number)});
 const climateHistory = async (user,start,end,zone) => {
     if (!user.cidade?.trim() || !validCoordinates(user.lat,user.lon) || start > end) return null;
@@ -42,30 +43,38 @@ exports.getMonthlyReport = async (req,res) => {
         const today = localDate(Date.now(),zone);
         if (start > today) return res.status(400).json({error:'Mês futuro não permitido'});
         const limits = getCropConfig(user);
+        const promoted=agro4.isPromoted(),runtime=promoted?agro4.getRuntime():null;
+        const legacyEnd=new Date(Math.min(Date.parse(end)+2*86400000,promoted?Date.parse(runtime.config.cutoverAt):Infinity));
         // Prisma DateTime no Postgres é timestamp sem fuso e armazena UTC. Converter antes de agrupar.
-        const rows = await prisma.$queryRaw`
+        let rows = await prisma.$queryRaw`
             SELECT to_char(("data" AT TIME ZONE 'UTC') AT TIME ZONE ${zone}, 'YYYY-MM-DD') AS dia,
                 AVG("umidade") AS avg_umidade, COUNT(*) AS total_dia,
                 SUM(CASE WHEN "umidade" <= ${limits.minIdeal} THEN 1 ELSE 0 END) AS qtd_seco,
                 SUM(CASE WHEN "umidade" > ${limits.maxIdeal} THEN 1 ELSE 0 END) AS qtd_encharcado,
                 SUM(CASE WHEN "umidade" > ${limits.minIdeal} AND "umidade" <= ${limits.maxIdeal} THEN 1 ELSE 0 END) AS qtd_ideal
             FROM "Sensor" WHERE "userId" = ${user.id}
-                AND "data" >= ${new Date(Date.parse(start)-86400000)} AND "data" < ${new Date(Date.parse(end)+2*86400000)}
+                AND "data" >= ${new Date(Date.parse(start)-86400000)} AND "data" < ${legacyEnd}
                 AND "data" <= ${new Date()} AND "umidade" BETWEEN 0 AND 100
                 AND to_char(("data" AT TIME ZONE 'UTC') AT TIME ZONE ${zone}, 'YYYY-MM') = ${prefix}
             GROUP BY dia ORDER BY dia`;
         const decisions = await prisma.$queryRaw`
             SELECT COUNT(*) AS total FROM "AgroLog" WHERE "userId" = ${user.id} AND "recomendacao" = 'IRRIGAR'
-                AND "timestamp" >= ${new Date(Date.parse(start)-86400000)} AND "timestamp" < ${new Date(Date.parse(end)+2*86400000)}
+                AND "timestamp" >= ${new Date(Date.parse(start)-86400000)} AND "timestamp" < ${legacyEnd}
                 AND to_char(("timestamp" AT TIME ZONE 'UTC') AT TIME ZONE ${zone}, 'YYYY-MM') = ${prefix}`;
+        let recommendationSemantics;
+        if (promoted) {
+            const extra=await runtime.repository.aggregates(user.id,new Date(runtime.config.cutoverAt),new Date(Date.parse(start)-86400000),new Date(Math.min(Date.now(),Date.parse(end)+2*86400000)),zone,limits,start,end);
+            rows=agro4.mergeRows(rows,extra.rows);
+            recommendationSemantics={basis:'DEDUPLICATED_TRANSITIONS',cutoverAt:runtime.config.cutoverAt,legacyRecordCount:Number(decisions[0]?.total ?? 0),deduplicatedCount:extra.decisions,provesIrrigation:false};
+        }
         const total = rows.reduce((sum,r)=>sum+Number(r.total_dia),0);
         const pct = field => total && limits.supported ? Math.round(rows.reduce((sum,r)=>sum+Number(r[field]),0)*100/total) : null;
         const endAvailable = end < today ? end : today;
         const climate = aggregateClimate(await climateHistory(user,start,endAvailable,zone),start,endAvailable);
-        const count = Number(decisions[0]?.total ?? 0);
+        const count = promoted?recommendationSemantics.deduplicatedCount:Number(decisions[0]?.total ?? 0);
         const context = {pctIdeal:pct('qtd_ideal'),pctDeficit:pct('qtd_seco'),chuvaAcumulada:climate.rain,et0Acumulada:climate.eto,recomendacoesEmitidas:count};
         const summary = total >= 10 ? await ia.gerarResumoMensal(context,user.id) : 'Dados insuficientes para interpretar o mês. Valores ausentes não são zero.';
-        res.json({timeZone:zone,timeZoneConfigured:!!user.timeZone,coverage:{climateDays:climate.covered,expectedDays:climate.expected,complete:climate.complete,partialMonth:endAvailable!==end},
+        res.json({timeZone:zone,timeZoneConfigured:!!user.timeZone,recommendationSemantics,coverage:{climateDays:climate.covered,expectedDays:climate.expected,complete:climate.complete,partialMonth:endAvailable!==end},
             kpis:{totalLeituras:total,pctIdeal:context.pctIdeal,pctDeficit:context.pctDeficit,pctExcesso:pct('qtd_encharcado'),chuvaAcumulada:climate.rain,et0Acumulada:climate.eto,recomendacoesCount:count,
                 volumeTeorico:climate.eto !== null && user.tamanhoFazenda > 0 ? Math.round(climate.eto*user.tamanhoFazenda*10) : null,limites:limits},
             graficos:{solo:rows.map(r=>({data:r.dia,umidade:Number(r.avg_umidade)})),clima:climate.rows},ia:{resumo:summary}});

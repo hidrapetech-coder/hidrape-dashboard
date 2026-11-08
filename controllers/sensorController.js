@@ -1,4 +1,3 @@
-const axios = require('axios');
 const prisma = require('../lib/prisma');
 const { decrypt } = require('../lib/encryption');
 const redis = require('../lib/redis');
@@ -7,15 +6,11 @@ const cache = require('../lib/cache');
 const { getCropConfig } = require('../config/cultures');
 
 const { evaluate } = require('../services/agroEngine');
-const { isMoisture } = require('../services/agroEngine/dataQuality');
+const { parseSensorValue, createBlynkSource } = require('../services/iot/blynk');
+const { sendWhatsApp } = require('../services/iot/notifications');
+const agro4 = require('../services/agro4/runtime');
 const rules = require('../config/agro');
 const { timeZoneFor } = require('../lib/time');
-const parseSensorValue = value => {
-    if (typeof value !== 'number' && (typeof value !== 'string' || !/^\d+(?:\.\d+)?$/.test(value.trim()))) throw new Error('INVALID_SENSOR_VALUE');
-    const number = Number(value);
-    if (!isMoisture(number)) throw new Error('INVALID_SENSOR_VALUE');
-    return number;
-};
 const testarEEnviarWhatsApp = async (user, umidade, decision, eligible) => {
     if (!eligible || !user.whatsappPhone || !user.callmebotApiKey || !['IRRIGAR','EXCESSO_UMIDADE'].includes(decision.action)) return;
     const key = `wpp_alert:v3:${user.id}`;
@@ -23,8 +18,7 @@ const testarEEnviarWhatsApp = async (user, umidade, decision, eligible) => {
     try {
         locked = await redis.set(key,decision.action,'EX',1800,'NX') === 'OK';
         if (!locked) return;
-        const params = new URLSearchParams({phone:user.whatsappPhone,apikey:decrypt(user.callmebotApiKey),text:`HIDRAPE: ${decision.explanation.join(' ')}`});
-        await axios.get(`https://api.callmebot.com/whatsapp.php?${params}`,{timeout:4000,maxRedirects:0,maxContentLength:65536});
+        await sendWhatsApp({whatsappPhone:user.whatsappPhone,callmebotApiKey:decrypt(user.callmebotApiKey)},decision);
     } catch { console.warn('[WhatsApp] Alerta indisponível.'); }
 };
 
@@ -36,26 +30,20 @@ exports.getLiveSystem = async (req, res) => {
         const user = await prisma.user.findUnique({ where: { id: req.user.id } });
         if(!user) return res.status(404).json({error: 'Usuário não encontrado'});
 
+        if (agro4.isPromoted()) {
+            try { return res.json(await agro4.getRuntime().live(user)); }
+            catch(error) { return res.status(503).json({error:'Leitura persistida indisponível; aguarde a ingestão ou confira o dispositivo.',sensorState:error.sensorState}); }
+        }
+
         if (!user.blynkToken) return res.status(403).json({ error: 'Configure seu Token do Blynk no dashboard para visualizar seus sensores ao vivo.' });
         const token = decrypt(user.blynkToken);
         const blynkUrl = process.env.BLYNK_URL || 'https://blynk.cloud/external/api/get';
 
         let valor = 0;
         try {
-            // Verifica primeiro se o hardware está de fato online no Blynk
-            const urlConn = blynkUrl.replace('/get', '/isHardwareConnected');
-            const connRes = await axios.get(`${urlConn}?${new URLSearchParams({token})}`, { timeout: 3000, maxRedirects:0, maxContentLength:65536 });
-            
-            // O Blynk retorna "true" ou "false" (ou booleano) indicando status da placa
-            if (connRes.data !== true && connRes.data !== 'true') {
-                throw new Error("Hardware is disconnected in Blynk cloud");
-            }
-
-            const response = await axios.get(`${blynkUrl}?${new URLSearchParams({token,V0:""})}`, { timeout: 4000, maxRedirects:0, maxContentLength:65536 });
-            valor = parseSensorValue(response.data);
-            if(isNaN(valor)) {
-                throw new Error("Valor retornado pelo Blynk não é numérico");
-            }
+            const collected=await createBlynkSource({getUrl:blynkUrl,connectionTimeoutMs:3000,timeoutMs:4000,retries:0}).collect({token,pin:'V0'});
+            if (collected.status!=='ONLINE') throw new Error('SENSOR_UNAVAILABLE');
+            valor=collected.value;
         } catch(apiErr) {
             await cache.write(`sensor:health:${user.id}`,1800,{online:false});
             console.warn('[Sensores] Leitura inválida ou sensor indisponível.');
@@ -124,6 +112,8 @@ exports.getHistorico = async (req, res) => {
         if (!Number.isInteger(limit) || limit < 1 || limit > 200 || !Number.isInteger(page) || page < 1 || page > 10000) return res.status(400).json({error:'Paginação inválida'});
         const user = await prisma.user.findUnique({where:{id:userId}});
         if (!user) return res.status(404).json({error:'Usuário não encontrado'});
+
+        if (agro4.isPromoted()) return res.json(await agro4.getRuntime().history(user,prisma,{limit,page,zone:timeZoneFor(user)}));
         
         // Paginação via Prisma
         const startIndex = (page - 1) * limit;

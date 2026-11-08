@@ -8,7 +8,12 @@ const { getCropConfig } = require('../config/cultures');
 const { evaluate } = require('../services/agroEngine');
 const { logAgroDecision } = require('../services/agroEngine/observability');
 const { timeZoneFor, localDate } = require('../lib/time');
+const agro4 = require('../services/agro4/runtime');
 const buildSnapshot = async user => {
+    if (agro4.isPromoted()) {
+        const {device,...result}=await agro4.getRuntime().snapshot(user);
+        return result;
+    }
     const now = Date.now();
     const [history, weather, sat] = await Promise.all([
         prisma.sensor.findMany({where:{userId:user.id,data:{gte:new Date(now-rules.historyHours*3600000)}},orderBy:{data:'desc'},take:rules.historyLimit}),
@@ -35,6 +40,11 @@ exports.getInsightsIA = async (req,res) => {
         if (!user) return res.status(404).json({error:'Usuário não encontrado'});
         const id = req.query.snapshotId;
         if (id !== undefined && (typeof id !== 'string' || !/^[a-f0-9]{64}$/.test(id))) return res.status(400).json({error:'Snapshot inválido'});
+        if (agro4.isPromoted()) {
+            const snapshot=await buildSnapshot(user);
+            const diagnostico=await ia.traduzirDiagnostico({engineData:snapshot.previsao.engineData},user.id);
+            return res.json({diagnostico,snapshotId:snapshot.snapshotId,previsao:snapshot.previsao});
+        }
         let snapshot = id ? await cache.read(`agro:snapshot:${user.id}:${id}`) : null;
         if (snapshot && Date.now()-Date.parse(snapshot.previsao.engineData.evaluatedAt) > 60000) snapshot = null;
         if (snapshot) {
@@ -61,14 +71,21 @@ exports.getMediaSemanal = async (req,res) => {
         const zone = timeZoneFor(user), today = localDate(Date.now(),zone);
         const start = new Date(today+'T12:00:00Z'); start.setUTCDate(start.getUTCDate()-6);
         const first = start.toISOString().slice(0,10);
+        const runtime=agro4.isPromoted()?agro4.getRuntime():null;
+        const legacyEnd=new Date(Math.min(Date.now(),runtime?Date.parse(runtime.config.cutoverAt):Infinity));
         const rows = await prisma.$queryRaw`
             SELECT to_char(("data" AT TIME ZONE 'UTC') AT TIME ZONE ${zone}, 'YYYY-MM-DD') AS dia,
-                   AVG("umidade") AS media
+                   AVG("umidade") AS media, COUNT(*) AS total_dia
             FROM "Sensor" WHERE "userId" = ${user.id}
-              AND "data" >= ${new Date(Date.now()-8*86400000)} AND "data" <= ${new Date()}
+              AND "data" >= ${new Date(Date.now()-8*86400000)} AND "data" < ${legacyEnd}
               AND "umidade" BETWEEN 0 AND 100
             GROUP BY dia ORDER BY dia`;
         const values = new Map(rows.map(r => [r.dia,Number(r.media)]));
+        if (runtime) {
+            const extra=await runtime.repository.aggregates(user.id,new Date(runtime.config.cutoverAt),new Date(Date.now()-8*86400000),new Date(),zone,getCropConfig(user),first,today);
+            const merged=agro4.mergeRows(rows.map(row=>({...row,avg_umidade:row.media})),extra.rows);
+            values.clear();for (const row of merged) values.set(row.dia,row.avg_umidade);
+        }
         const result = Array.from({length:7},(_,i) => {
             const date = new Date(first+'T12:00:00Z'); date.setUTCDate(date.getUTCDate()+i);
             const key = date.toISOString().slice(0,10);

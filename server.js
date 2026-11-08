@@ -171,6 +171,15 @@ app.get('/api/agro/clima', apiLimiter, auth, agroController.getClimaEDashboard);
 app.get('/api/agro/media-semanal', apiLimiter, auth, agroController.getMediaSemanal);
 app.get('/api/agro/insights-ia', apiLimiter, auth, agroController.getInsightsIA);
 
+const agro4Controller = require('./controllers/agro4Controller');
+app.post('/api/agro/dispositivo-principal', apiLimiter, auth, agro4Controller.enabled, agro4Controller.enroll);
+app.delete('/api/agro/dispositivo-principal', apiLimiter, auth, agro4Controller.enabled, agro4Controller.deactivate);
+app.post('/api/agro/eventos', apiLimiter, auth, agro4Controller.enabled, agro4Controller.createEvent);
+app.get('/api/agro/eventos', apiLimiter, auth, agro4Controller.enabled, agro4Controller.listEvents);
+app.get('/api/agro/ingestao/metricas', apiLimiter, auth, agro4Controller.enabled, agro4Controller.metrics);
+app.post('/api/agro/worker/heartbeat', apiLimiter, agro4Controller.enabled, agro4Controller.workerAuth, agro4Controller.workerHeartbeat);
+app.post('/api/agro/worker/authorization', apiLimiter, agro4Controller.enabled, agro4Controller.workerAuth, agro4Controller.workerAuthorization);
+
 const reportController = require('./controllers/reportController');
 app.get('/api/reports/monthly', apiLimiter, auth, reportController.getMonthlyReport);
 
