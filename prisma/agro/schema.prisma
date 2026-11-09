@@ -35,6 +35,7 @@ model Talhao {
   property        AgroProperty @relation(fields:[userId, propertyId], references:[userId, id])
   devices         AgroDevice[]
   @@unique([userId, id])
+  @@index([userId, propertyId])
 }
 
 model AgroDevice {
@@ -57,6 +58,7 @@ model AgroDevice {
   deliveries     AgroDelivery[]
   @@unique([userId, id])
   @@index([active, userId])
+  @@index([userId, talhaoId])
 }
 
 model AgroPoll {
@@ -97,6 +99,7 @@ model AgroReading {
   poll        AgroPoll @relation(fields:[userId, deviceId, pollId], references:[userId, deviceId, id])
   @@unique([deviceId, observedAt])
   @@index([userId, observedAt])
+  @@index([userId, deviceId, pollId])
 }
 
 model AgroEvaluation {
@@ -132,6 +135,7 @@ model AgroDecision {
   @@unique([deviceId, evaluationId])
   @@unique([userId, deviceId, id])
   @@index([userId, createdAt])
+  @@index([userId, deviceId, evaluationId])
 }
 
 model AgroEvent {
@@ -163,6 +167,7 @@ model AgroDelivery {
   deliveredAt DateTime? @db.Timestamptz(3)
   device      AgroDevice @relation(fields:[userId, deviceId], references:[userId, id])
   decision    AgroDecision @relation(fields:[userId, deviceId, decisionId], references:[userId, deviceId, id])
+  @@index([userId, deviceId, decisionId])
 }
 
 model AgroWorkerRun {
