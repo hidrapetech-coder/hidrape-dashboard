@@ -13,7 +13,7 @@ const parseSatellite = (json, now = Date.now()) => {
     return { available:ageDays <= 7, stale:ageDays > 7, umidadeMacro:ageDays <= 7 ? latest.valor : null,
         dataReferencia:latest.data, ageDays, fonte:'NASA POWER', historico:rows, unit:'relative_saturation_percent', retrievedAt:new Date(now).toISOString() };
 };
-const createSatelliteService = cache => async (lat,lon) => {
+const createSatelliteService = (cache,request=getJson) => async (lat,lon) => {
     if (!validCoordinates(lat,lon)) return unavailable();
     const key = `sat:v3:${lat},${lon}`;
     const stored = await cache.read(key);
@@ -21,7 +21,7 @@ const createSatelliteService = cache => async (lat,lon) => {
     try {
         const day = ms => new Date(ms).toISOString().slice(0,10).replaceAll('-','');
         const params = new URLSearchParams({parameters:'GWETTOP', community:'AG',longitude:lon,latitude:lat,start:day(Date.now()-30*86400000),end:day(Date.now()),format:'JSON'});
-        const result = parseSatellite(await getJson(`https://power.larc.nasa.gov/api/temporal/daily/point?${params}`));
+        const result = parseSatellite(await request(`https://power.larc.nasa.gov/api/temporal/daily/point?${params}`));
         if (result.available) await cache.write(key,43200,result);
         return result;
     } catch { console.warn('[NASA] Fonte indisponível.'); return unavailable(); }

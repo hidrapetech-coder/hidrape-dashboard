@@ -2,7 +2,7 @@ const { planCollection,evaluatePhase1,compactSnapshot,decisionKind,hash } = requ
 const { evaluate } = require('../agroEngine');
 const { open } = require('./credentials');
 
-const createWorker = ({repository,source,config,sendAlert,resolveDevice,context=async()=>({weather:null,satellite:null}),now=Date.now,log=()=>{}}) => {
+const createWorker = ({repository,source,config,sendAlert,resolveDevice,context=async()=>({weather:null,satellite:null}),now=Date.now,log=()=>{},shouldContinue=()=>true}) => {
     if(typeof resolveDevice!=='function')throw Error('AGRO_AUTHORIZATION_REQUIRED');
     let running=false;
     const refresh = async (repo,device) => {
@@ -54,13 +54,16 @@ const createWorker = ({repository,source,config,sendAlert,resolveDevice,context=
     const collectDevice = (device,scheduledAt) => repository.withDeviceLock(device.id,async repo=>{
         let current=await repo.ownedDevice(device.userId,device.id);
         if (!current) return {skipped:true};
+        if(repo.recordAttempt){await repo.recordAttempt(current.userId,current.id,now());current.state={...current.state,lastAttemptedAt:new Date(now()).toISOString()};}
         current=await refresh(repo,current);
         if(!current)return {skipped:true,reason:'DISABLED'};
         const secrets=open(current.credential,config.workerSecret);
         if (await repo.hasPoll(current.id,scheduledAt)) { await deliver(repo,current);return {skipped:true}; }
         const poll=await source.collect({token:secrets.blynkToken,pin:current.pin});
+        if(!shouldContinue())return {skipped:true,reason:'BUDGET'};
         const at=now(),plan=planCollection(current.state,poll,at,config);
         const ancillary=await context(current).catch(()=>({weather:null,satellite:null}));
+        if(!shouldContinue())return {skipped:true,reason:'BUDGET'};
         const output=await repo.transaction(async tx=>{
             const pollId=await tx.saveCollection(current,plan,scheduledAt);
             if (!pollId) return {skipped:true};
@@ -92,6 +95,7 @@ const createWorker = ({repository,source,config,sendAlert,resolveDevice,context=
             const scheduledAt=new Date(Math.floor(started/(config.pollMinutes*60000))*config.pollMinutes*60000);
             for (const device of await repository.listDevices()) {
                 counters.devices++;
+                if(!shouldContinue()){counters.skipped++;continue;}
                 try {
                     const result=await collectDevice(device,scheduledAt);
                     if (result.skipped) counters.skipped++;

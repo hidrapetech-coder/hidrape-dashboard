@@ -1,0 +1,7 @@
+{
+  "imports": {
+    "pg": "npm:pg@8.23.0",
+    "axios": "npm:axios@1.20.0",
+    "zod": "npm:zod@4.6.7"
+  }
+}

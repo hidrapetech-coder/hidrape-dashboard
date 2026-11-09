@@ -134,6 +134,13 @@ it('controle indisponível não usa credenciais antigas nem declara falha físic
     const h=harness();h.resolveDevice.mockRejectedValue(Error('synthetic control outage'));
     expect((await h.worker.runOnce()).failed).toBe(1);expect(h.source.collect).not.toHaveBeenCalled();expect(h.registry[0].state.communicationMisses).toBeUndefined();
 });
+it('registra tentativa mesmo quando a autorização falha, permitindo prioridade justa no próximo ciclo',async()=>{
+    const h=harness();h.repository.recordAttempt=vi.fn(async(userId,id,at)=>{h.registry[0].state.lastAttemptedAt=new Date(at).toISOString();});
+    h.resolveDevice.mockRejectedValue(Error('synthetic control failure'));
+    await h.worker.runOnce();expect(h.repository.recordAttempt).toHaveBeenCalledWith('owner-0','device-0',now);
+    expect(h.registry[0].state.lastAttemptedAt).toBe(new Date(now).toISOString());
+    expect(h.registry[0].state.collectedAt).toBeUndefined();expect(h.registry[0].state.communicationMisses).toBeUndefined();
+});
 it('edição de configuração é sincronizada na próxima coleta sem alterar o cadastro',async()=>{
     const h=harness();await h.worker.runOnce();h.advance(5);
     h.resolveDevice.mockImplementation(async device=>({active:true,deviceId:device.id,userId:device.userId,config:{tipoPlantacao:'Feijão'},credential:device.credential,revision:'changed-revision',sensorRevision:'synthetic-sensor'}));

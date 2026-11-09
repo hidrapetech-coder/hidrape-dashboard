@@ -81,6 +81,12 @@
                 <button type="submit" class="btn-primary" style="margin-top: 12px;">Salvar Dados</button>
                 <div id="set-success" style="color: var(--color-good); margin-top: 14px; display: none; font-size: 0.9rem; font-weight: 500;">✓ Salvo com sucesso</div>
             </form>
+            <section aria-labelledby="agro-activation-title" style="border-top: 1px solid var(--glass-border); margin-top: 28px; padding-top: 24px;">
+                <h3 id="agro-activation-title" style="font-size: 1rem; margin-bottom: 8px;">Coleta contínua em modo sombra</h3>
+                <p style="color: var(--neutral-300); line-height: 1.6; max-width: 65ch; margin-bottom: 16px;">Use o sensor Blynk já salvo para acompanhar as consultas a cada cinco minutos. Durante a validação, o painel mantém o fluxo atual e o motor novo não envia alertas.</p>
+                <button id="agro-activate-btn" type="button" class="btn-primary" aria-describedby="agro-activation-status">Ativar acompanhamento agro</button>
+                <p id="agro-activation-status" role="status" aria-live="polite" style="line-height: 1.6; margin-top: 12px;"></p>
+            </section>
         </div>
 
         <!-- Aba: Integrações -->

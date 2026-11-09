@@ -17,3 +17,9 @@ it('limita corpo e destrói transporte',async()=>{
 it('prazo total cancela resposta que nunca termina',async()=>{
     vi.useFakeTimers();const {service,request}=fixture(200,[],true);const pending=service.getJson('https://fixture.test',{timeout:100});const assertion=expect(pending).rejects.toThrow('EXTERNAL_TIMEOUT');await vi.advanceTimersByTimeAsync(101);await assertion;expect(request.destroy).toHaveBeenCalled();
 });
+it('cancelamento agregado destrói o transporte sem aguardar o timeout individual',async()=>{
+    const {service,request}=fixture(200,[],true),controller=new AbortController();
+    const pending=service.getJson('https://fixture.test',{signal:controller.signal});
+    const assertion=expect(pending).rejects.toThrow('EXTERNAL_ABORTED');
+    controller.abort();await assertion;expect(request.destroy).toHaveBeenCalledOnce();
+});

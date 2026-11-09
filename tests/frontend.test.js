@@ -42,6 +42,18 @@ it('NASA com uma observação produz apenas um ponto no gráfico',async()=>{
 it('configurações carregam campos existentes e personalizados sem erro de DOM',()=>{
     const {w,dom}=app('settings');expect(()=>w.api.initSettings()).not.toThrow();expect(w.document.getElementById('set-timezone').value).toBe('America/Recife');expect(w.document.getElementById('set-cultura').value).toBe('Milho');dom.window.close();
 });
+it('ativação agro usa somente o endpoint novo e não submete configuração do login',async()=>{
+    const fetcher=vi.fn(async()=>({ok:true,status:201,json:async()=>({})}));
+    const {w,dom}=app('settings',fetcher);await w.api.initSettings();
+    const button=w.document.getElementById('agro-activate-btn');
+    expect(button.type).toBe('button');expect(button.closest('form')).toBeNull();
+    button.click();
+    await vi.waitFor(()=>expect(w.document.getElementById('agro-activation-status').textContent).toContain('Dispositivo cadastrado'));
+    expect(fetcher).toHaveBeenCalledOnce();
+    expect(fetcher.mock.calls[0][0]).toBe('/api/agro/dispositivo-principal');
+    expect(fetcher.mock.calls[0][1]).toMatchObject({method:'POST',body:'{}'});
+    dom.window.close();
+});
 it('resposta iniciada por outro usuário é descartada e logout limpa estado',async()=>{
     let finish;const {w,dom}=app('analysis',()=>new Promise(r=>finish=r));const pending=w.api.setupAuthFetch('/api/agro/clima');
     w.setUser({...user,id:'other'});finish({ok:true,json:async()=>({secret:'other-user-data'})});await expect(pending).rejects.toThrow('sessão anterior');

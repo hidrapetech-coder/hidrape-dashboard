@@ -69,7 +69,10 @@ class AgroRepository {
         });
     }
     async listDevices() {
-        return (await this.query('SELECT d.*,t."config" FROM "AgroDevice" d JOIN "Talhao" t ON t."id"=d."talhaoId" AND t."userId"=d."userId" WHERE d."active"=true ORDER BY d."id"')).rows;
+        return (await this.query('SELECT d.*,t."config" FROM "AgroDevice" d JOIN "Talhao" t ON t."id"=d."talhaoId" AND t."userId"=d."userId" WHERE d."active"=true ORDER BY (d."state"->>\'lastAttemptedAt\')::timestamptz NULLS FIRST,d."id"')).rows;
+    }
+    async recordAttempt(userId,deviceId,at) {
+        await this.query('UPDATE "AgroDevice" SET "state"=jsonb_set("state",\'{lastAttemptedAt}\',to_jsonb($1::timestamptz),true) WHERE "userId"=$2 AND "id"=$3',[new Date(at),userId,deviceId]);
     }
     async hasPoll(deviceId,scheduledAt) {
         return (await this.query('SELECT 1 FROM "AgroPoll" WHERE "deviceId"=$1 AND "scheduledAt"=$2',[deviceId,scheduledAt])).rowCount>0;
