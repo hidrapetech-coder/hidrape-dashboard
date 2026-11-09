@@ -1,5 +1,7 @@
 # Entrega local — Agro Fase 1
 
+**Atualização de 9/11/2026:** após a entrega local abaixo, o dono autorizou o [provisionamento do projeto Supabase agro separado](docs/PROVISIONAMENTO_AGRO_SUPABASE.md). Essa etapa real aplicou schema/permissões e verificou SQL somente no banco novo. As declarações de ausência de infraestrutura nos relatos de 8/11 são históricas; API/worker seguem sem ativação operacional.
+
 Data: 8 de novembro de 2026. Base: `930c2cd0e52771f1608229162fe66d340b462a08`.
 
 Branch: `feat/agro-4-fase-1-fundacao`. Worktree: `/private/tmp/hidrape-agro4-fase1`.
@@ -109,3 +111,19 @@ Revisão independente estática com GPT-6 Astra: um P2 corrigido na reinclusão 
 **Não validado:** Docker indisponível neste ambiente; imagem, instalação na imagem, parser Compose e supervisão/parada reais permanecem pendentes. Permanecem também todas as verificações de infraestrutura/SQL/dispositivo/campo da entrega original, incluindo a falta de timestamp de medição Blynk. O guia novo contém dez etapas de staging, todas marcadas PENDENTE, com evidências esperadas e critérios de interrupção.
 
 Rollback local do complemento: reverter seus commits sem tocar em dados. Rollback operacional futuro continua parar o worker e retornar API para `agro-3`, preservando o banco agro e o banco de login. Nenhum acesso a serviços reais, instalação, migration aplicada, deploy ou push foi realizado.
+
+## Provisionamento autorizado — 9 de novembro de 2026
+
+O dono autorizou criar projeto Supabase separado, escolheu `hidrapetech-coder's Org` e aceitou a cotação de custo adicional zero por mês. Criado `hidrape-agro-fase1` (`qexppwhxrpotzkifsgun`), em `us-east-1`, estado `ACTIVE_HEALTHY`. Todas as consultas/migrations SQL foram limitadas a essa nova referência. O projeto de login existente não recebeu SQL ou alterações.
+
+Commit `eef5057` — `feat(agro): secure dedicated Supabase storage and verify SQL contracts`:
+
+- `prisma/agro/migrations/20261109000000_private_runtime/migration.sql`: RLS nas 11 tabelas, sem privilégios para papéis públicos, papel técnico NOLOGIN com permissões mínimas.
+- `prisma/agro/migrations/20261109000100_fk_indexes/migration.sql` e `prisma/agro/schema.prisma`: cinco índices aditivos de FK. Migrations antigas intactas.
+- `deploy/agro-worker/verify-database.sql`: smoke SQL de gravação, contratos, negações de acesso e ROLLBACK. Dados sintéticos e opção temporária SET da associação de teste comprovadamente revertidos por consulta separada.
+
+Histórico Supabase: `20261109145952_agro_phase1_foundation_private_runtime` (fundação + permissões atomicamente) e `20261109150142_agro_phase1_fk_indexes`. Verificadas 11 tabelas, 11 políticas, marcador correto e ausência de `User`; zero dados operacionais após os testes. Advisor de segurança sem apontamentos; cinco índices resolveram os sete avisos de FK. Restam apenas avisos INFO de índices ainda não usados.
+
+Verificação local final: **204 testes/12 arquivos aprovados**, `check:prisma` dos dois schemas aprovado, build aprovado sem mudança dos assets, `git diff --check` aprovado e arquivos protegidos intactos. Revisão independente corrigiu a sinalização do smoke; sem bloqueadores estáticos remanescentes.
+
+[Relatório e próximos passos](docs/PROVISIONAMENTO_AGRO_SUPABASE.md), [ADR-0002](docs/adr/0002-postgresql-agro-supabase-privado.md), README e guias atualizados distinguem o provisionamento real do relato histórico offline. Continuam pendentes login técnico/conexão administrativa agro, reconciliação oficial do histórico Prisma antes de migrate deploy, TLS/locks do cliente, configuração e operação do worker, fontes e modo sombra. Nenhuma senha ou variável de autenticação foi lida/alterada. API/worker não foram implantados ou promovidos.

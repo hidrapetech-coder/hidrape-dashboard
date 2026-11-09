@@ -1,5 +1,7 @@
 # Preparação da Fase 1 antes da operação real
 
+**Atualização de 9/11/2026:** [provisionamento real do banco agro separado](PROVISIONAMENTO_AGRO_SUPABASE.md) concluído, com verificação limitada de SQL/permissões. As etapas abaixo representam o roteiro completo: não considerá-las todas aprovadas por esse provisionamento. Worker, conexão direta do processo, concorrência entre sessões e dispositivo continuam pendentes.
+
 ## O que está pronto localmente
 
 Ensaio executável, checagem sem conexão, templates de container/supervisão e roteiro de staging. São complementos da Fase 1; não iniciam Fase 2, calibração, treinamento ou novas regras agronômicas. [ADR e análise de arquitetura](adr/0001-preparacao-offline-worker-agro.md).

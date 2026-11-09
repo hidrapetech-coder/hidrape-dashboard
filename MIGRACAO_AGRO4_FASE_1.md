@@ -2,6 +2,8 @@
 
 ## Situação desta entrega
 
+**Atualização de 9/11/2026:** o dono autorizou e foi provisionado um projeto Supabase agro separado, com schema, permissões e testes SQL reais limitados ao banco novo. O relato abaixo registra a entrega local original de 8/11. Consulte [estado atual, destino, histórico e verificações](docs/PROVISIONAMENTO_AGRO_SUPABASE.md) antes de executar qualquer comando: a fundação já foi aplicada nesse destino e o histórico Prisma exige reconciliação, sem repetir DDL. API, worker e banco do login não foram alterados pelo provisionamento.
+
 Implementação local, desativada por padrão. Nenhum banco, Redis, Blynk, WhatsApp, Vercel ou outro serviço operacional foi chamado. Nenhuma migration, instalação, deploy ou push foi executado. As decisões aprovadas estão em `docs/decisoes-agro4-fase1.md`.
 
 O banco real, o provisionamento agro e os dados calibrados permanecem **não verificados**. A existência de schema e testes locais não significa que a coleta esteja operando em produção.
