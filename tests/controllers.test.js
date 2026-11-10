@@ -57,7 +57,7 @@ it('cadastro exige cidade; configuração rejeita tamanho e fuso inválidos',()=
     expect(updateSchema.safeParse({timeZone:'America/Recife',minIdeal:30,maxIdeal:70}).success).toBe(true);
 });
 it('fuso explícito cruza a meia-noite corretamente',()=>{
-    const {localDate,timeZoneFor}=loader()('lib/time.js');expect(localDate('2026-10-10T01:00:00Z','America/Recife')).toBe('2026-10-09');expect(timeZoneFor({})).toBe('UTC');
+    const {localDate,timeZoneFor}=loader()('lib/time.js');expect(localDate('2026-10-10T01:00:00Z','America/Recife')).toBe('2026-10-09');expect(timeZoneFor({})).toBe('America/Sao_Paulo');expect(timeZoneFor({timeZone:'invalid-zone'})).toBe('America/Sao_Paulo');expect(timeZoneFor({timeZone:'America/Manaus'})).toBe('America/Manaus');expect(localDate('2026-10-10T01:00:00Z',timeZoneFor({}))).toBe('2026-10-09');
 });
 it('segredos ausentes ou padrões públicos impedem inicialização sem imprimir valores',()=>{
     const base={DATABASE_URL:'postgresql://dummy:dummy@localhost:5432/dummy',DIRECT_URL:'postgresql://dummy:dummy@localhost:5432/dummy',JWT_SECRET:'synthetic-jwt-secret-of-more-than-32-bytes',ENCRYPTION_KEY:'k'.repeat(32)};

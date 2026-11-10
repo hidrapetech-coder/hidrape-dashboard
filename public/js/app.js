@@ -6,6 +6,14 @@ let sessionRevision = 0;
 let currentUser = null;
 let currentToken = null; // mantido temporariamente por legibilidade de código legado
 
+const propertyTimeZone = () => {
+    const zone = currentUser?.timeZone;
+    try {
+        if (zone) { new Intl.DateTimeFormat('pt-BR', {timeZone:zone}); return zone; }
+    } catch {}
+    return 'America/Sao_Paulo';
+};
+
 // Motion only explains an applied state; canceling it never changes product data.
 const motionPreference = window.matchMedia?.('(prefers-reduced-motion: reduce)');
 const motionJobs = new Map();
@@ -815,12 +823,10 @@ const renderDashboardSensorContext = () => {
     dashboardText('soil-compact-range',hasLimits ? `Faixa ${limits.min.toLocaleString('pt-BR')}–${limits.max.toLocaleString('pt-BR')}%` : 'Faixa não configurada');
     const stamp = context.lastReadingAt ? new Date(context.lastReadingAt).getTime() : NaN;
     const time = document.getElementById('soil-reading-time');
-    let zone = currentUser?.timeZone || 'UTC';
-    let zoneConfigured = !!currentUser?.timeZone;
-    try { new Intl.DateTimeFormat('pt-BR',{timeZone:zone}).format(); } catch { zone='UTC';zoneConfigured=false; }
+    const zone = propertyTimeZone();
     if (Number.isFinite(stamp)) {
         time.dateTime = new Date(stamp).toISOString();
-        time.textContent = `${new Intl.DateTimeFormat('pt-BR',{timeZone:zone,day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(stamp)} · ${zone}${zoneConfigured ? '' : ' (configure o fuso)'}`;
+        time.textContent = `${new Intl.DateTimeFormat('pt-BR',{timeZone:zone,day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}).format(stamp)} · ${zone === 'America/Sao_Paulo' ? 'Horário de Brasília' : zone}`;
     } else {
         time.removeAttribute('datetime');
         time.textContent = context.sensorStatus === 'loading' ? 'Aguardando leitura...' : context.sensorError ? 'Nenhuma leitura recebida nesta sessão' : 'Horário da leitura não informado';
@@ -1516,10 +1522,7 @@ const initDashboard = async () => {
             renderDashboardPrediction();
             const stamp = new Date(data.timestamp).getTime();
             if (Number.isFinite(stamp) && liveChartObj) {
-                const zone = currentUser.timeZone;
-                let label;
-                try { label=new Date(stamp).toLocaleTimeString('pt-BR',{timeZone:zone || 'UTC'}); }
-                catch { label=new Date(stamp).toLocaleTimeString('pt-BR',{timeZone:'UTC'}); }
+                const label = new Date(stamp).toLocaleTimeString('pt-BR',{timeZone:propertyTimeZone(),hour12:false});
                 liveChartObj.data.labels.push(label);
                 liveChartObj.data.datasets[0].data.push(data.umidade);
                 if (liveChartObj.data.labels.length > 20) { liveChartObj.data.labels.shift();liveChartObj.data.datasets[0].data.shift(); }
@@ -1744,7 +1747,7 @@ const initHistory = () => {
 
                 tbody.innerHTML += `
                     <tr>
-                        <td>${new Date(d.dataFull).toLocaleString('pt-BR')}</td>
+                        <td>${new Date(d.dataFull).toLocaleString('pt-BR',{timeZone:propertyTimeZone()})}</td>
                         <td class="font-kpi ${colorClass}" style="font-size: 1rem;">${d.umidade.toFixed(1)}%</td>
                         <td>
                             <span class="status-badge ${colorClass}">${d.status}</span>
@@ -1812,7 +1815,7 @@ const initSettings = async () => {
     }
 
     // Fill
-    document.getElementById('set-timezone').value = currentUser.timeZone || '';
+    document.getElementById('set-timezone').value = propertyTimeZone();
     document.getElementById('set-min').value = currentUser.minIdeal ?? '';
     document.getElementById('set-max').value = currentUser.maxIdeal ?? '';
     if (currentUser.nome) document.getElementById('set-nome').value = currentUser.nome;
@@ -2188,7 +2191,7 @@ const initAnalysis = async () => {
             const statusDot = document.getElementById('analysis-status-dot');
             const updateText = document.getElementById('analysis-update-text');
             if (statusDot) statusDot.style.background = 'var(--color-good)';
-            if (updateText) updateText.textContent = 'Dados atualizados — ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            if (updateText) updateText.textContent = 'Dados atualizados — ' + new Date().toLocaleTimeString('pt-BR', { timeZone:propertyTimeZone(), hour: '2-digit', minute: '2-digit' });
 
         } else {
             throw new Error('Agro API error');

@@ -214,7 +214,7 @@ it('erro do sensor não é sobrescrito por análise saudável e uma única tenta
     expect(button.hasAttribute('aria-busy')).toBe(false);
     dom.window.close();
 });
-it('configuração ausente oferece destino específico e fuso inválido é identificado como UTC',async()=>{
+it('configuração ausente oferece destino específico e fuso inválido usa horário de Brasília',async()=>{
     const normal=dashboardResponses();
     const {w,dom}=app('dashboard',async url=>url.includes('sensores/umidade')?{ok:false,status:403,json:async()=>({})}:normal(url));
     await w.api.initDashboard();
@@ -224,7 +224,7 @@ it('configuração ausente oferece destino específico e fuso inválido é ident
     dom.window.close();
     const second=app('dashboard',dashboardResponses({timestamp:new Date(Date.now()-40*60000).toISOString()}));
     second.w.setUser({...user,timeZone:'invalid-zone',cropConfig:{minIdeal:0,maxIdeal:20}});await second.w.api.initDashboard();
-    expect(second.w.document.getElementById('soil-reading-time').textContent).toContain('UTC (configure o fuso)');
+    expect(second.w.document.getElementById('soil-reading-time').textContent).toContain('Horário de Brasília');
     expect(second.w.document.getElementById('soil-freshness').textContent).toContain('Leitura desatualizada');
     expect(second.w.document.getElementById('soil-crop-range').textContent).toBe('0% a 20% do sensor calibrado');
     second.dom.window.close();
@@ -311,5 +311,18 @@ it('detalhes dos gráficos copiam os pontos atuais e preservam a tabela textual'
     expect(modal.textContent).toContain(d.getElementById('live-data-summary').textContent);
     detail.destroy=vi.fn();w.api.closeDialog(modal);modal.dispatchEvent(new w.Event('close'));
     expect(detail.destroy).toHaveBeenCalledOnce();
+    dom.window.close();
+});
+
+it.each([null, 'invalid-zone', 'America/Sao_Paulo', 'America/Manaus'])('gráfico e leitura usam o mesmo fuso da propriedade (%s)',async timeZone=>{
+    const {w,dom,charts}=app('dashboard',dashboardResponses({timestamp:'2026-11-10T01:05:06Z'}));
+    w.setUser({...user,timeZone});
+    await w.api.initDashboard();
+    const expected=timeZone === 'America/Manaus' ? '21:05:06' : '22:05:06';
+    const chart=charts.find(c=>c.data.labels.includes(expected));
+    expect(chart).toBeDefined();
+    expect(w.document.getElementById('soil-reading-time').textContent).toContain('09/11');
+    expect(w.document.getElementById('soil-reading-time').textContent).toContain(expected);
+    expect(w.document.getElementById('soil-compact-time').textContent).toBe(expected.slice(0,5));
     dom.window.close();
 });
